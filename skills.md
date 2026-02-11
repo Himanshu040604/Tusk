@@ -4,7 +4,7 @@ This document lists all available skills in Claude Code. Claude will read this f
 
 ---
 
-## 📋 TABLE OF CONTENTS
+## TABLE OF CONTENTS
 
 1. [Core Workflow Skills](#core-workflow-skills) - Essential development workflows
 2. [Agent Orchestration](#agent-orchestration) - Multi-agent coordination
