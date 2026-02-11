@@ -1,0 +1,106 @@
+3-AGENT WORKFLOW: PERSISTENT AI AGENTS AND INFRASTRUCTURE TAX
+================================================================
+
+OBJECTIVE:
+Execute a coordinated 3-agent workflow to research, implement, and validate
+solutions for "Persistent AI Agents and Infrastructure Tax"
+
+AGENT ARCHITECTURE:
+-------------------
+
+AGENT 1: RESEARCHER
+Role: Web scraping and technical research
+Task: Scrape the web for the latest technical developments
+Output Requirements:
+  - Exactly 7 distinct references
+  - Each reference must include:
+    * Title
+    * URL
+    * Brief summary (2-3 sentences) of key technical insights
+    * Relevance to persistent agents and infrastructure tax
+  - Focus on: architecture patterns, state management, cost optimization,
+    memory systems, deployment strategies
+  - Timeframe: 2024-2026 (latest developments)
+  - Sources: academic papers, technical blogs, industry reports
+
+AGENT 2: CODER
+Role: Implementation and code generation
+Task: Write production-quality code based on Agent 1's research findings
+Dependencies: Requires Agent 1's output
+Output Requirements:
+  - Production-ready Python implementation
+  - Minimize infrastructure overhead through:
+    * Efficient state management
+    * Lazy loading and scale-to-zero patterns
+    * Smart context window management
+    * Cost-aware memory hierarchies
+  - Code quality standards:
+    * Type hints throughout
+    * Dataclasses/Pydantic for data models
+    * Async/await where appropriate
+    * Comprehensive error handling
+    * Clear architectural comments explaining infrastructure decisions
+  - Deliverables:
+    * Core implementation files
+    * Configuration modules
+    * Usage examples
+    * Comprehensive documentation
+
+AGENT 3: VALIDATOR
+Role: Quality assurance and validation
+Task: Review Agent 1's references and Agent 2's code for quality and correctness
+Dependencies: Requires both Agent 1 and Agent 2 outputs
+Output Requirements:
+  - Reference Validation:
+    * Verify all 7 references are distinct and real
+    * Confirm relevance to persistent agents and infrastructure tax
+    * Assess technical depth (not just marketing)
+    * Validate recency (2024-2026)
+    * Check summary accuracy
+  - Code Review:
+    * Verify implementation matches research findings
+    * Identify logical errors, bugs, or anti-patterns
+    * Check for infrastructure tax reduction strategies
+    * Validate type hints and error handling
+    * Assess production-readiness
+  - Integration Assessment:
+    * Confirm Agent 2's code implements Agent 1's research
+    * Identify any gaps or misalignments
+  - Final Report:
+    * PASS/FAIL verdict with detailed reasoning
+    * List of issues found with severity levels
+    * Recommendations for improvements
+    * Overall quality grade
+
+EXECUTION SEQUENCE:
+-------------------
+1. Spawn Agent 1 (Researcher) → Wait for completion
+2. Spawn Agent 2 (Coder) with Agent 1's findings → Wait for completion
+3. Spawn Agent 3 (Validator) with both outputs → Wait for final report
+
+SUCCESS CRITERIA:
+-----------------
+- Agent 1: Exactly 7 high-quality, relevant technical references
+- Agent 2: Production-ready code with measurable infrastructure tax reduction
+- Agent 3: Comprehensive validation report with PASS verdict
+
+QUALITY GATES:
+--------------
+- All references must be from 2024-2026
+- Code must include type hints, error handling, and documentation
+- Implementation must demonstrably reduce infrastructure costs
+- Validator must identify any critical issues before production deployment
+
+DELIVERABLES:
+-------------
+1. Research report with 7 references
+2. Complete implementation (code + documentation)
+3. Validation report with final verdict
+4. All files organized in project directory
+
+USE CASES:
+----------
+- Initial setup: Run full 3-agent workflow from scratch
+- Updates: Re-run Agent 1 for latest research, Agent 2 for implementation updates
+- Quality checks: Run Agent 3 independently to validate existing code
+- CI/CD integration: Automate validation before deployments
