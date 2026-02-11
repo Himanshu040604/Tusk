@@ -136,7 +136,7 @@ klarna/
 ```
 
 ## Current Phase
-PHASE 0: Planning and Setup
+PHASE 2: Core Analysis (COMPLETE) - Ready for Phase 3
 
 ## Known Constraints
 - No external API calls during validation
@@ -217,9 +217,53 @@ finally:
 
 This pattern is now applied consistently across all database modules.
 
+### 2026-02-12 - Phase 2 Complete with Code Review Fixes
+
+**Agent 2 (Code Writer) - COMPLETE (Phase 2)**
+- Implemented analyzer.py with 5 classes (934 lines):
+  - IntentMapper: Natural language to access level mapping
+  - RiskAnalyzer: Wildcard, escalation, exfiltration, destruction, redundancy detection
+  - DangerousPermissionChecker: Resource-aware severity escalation
+  - CompanionPermissionDetector: Missing companion permission identification
+  - HITLSystem: Tier 2 action flagging and decision tracking
+- Wrote 50 unit tests in 6 test classes (all passing)
+- 98% code coverage for analyzer.py
+
+**Code Review Findings (2 bugs fixed)**
+
+Bug 1 - CRITICAL: Duplicate dict key in COMPANION_RULES
+- Problem: Two entries for 'lambda:CreateFunction' in COMPANION_RULES dict
+- Impact: Python silently overwrites - CloudWatch Logs companions lost
+- Fix: Merged both into single entry with all 6 companion actions
+
+Bug 2 - HIGH: SQL injection in IntentMapper._query_actions_by_access_levels
+- Problem: f-string interpolation f"'{s}'" for service names in SQL
+- Impact: Potential SQL injection if service names contain malicious input
+- Fix: Replaced with parameterized queries using ? placeholders
+
+**Emoji Cleanup**
+- Removed all emojis from 11 files per strict no-emoji policy
+- Replaced with text equivalents: [ALERT], [WARN], [PASS], [v], etc.
+
+### Key Learning: Dictionary Duplicate Keys
+
+Python silently overwrites duplicate dictionary keys - no error, no warning.
+This caused a subtle data loss bug where companion permissions were silently dropped.
+
+**Problem Pattern:**
+```python
+RULES = {
+    'lambda:CreateFunction': CompanionPermission(companions=['logs:*']),
+    # ... many lines later ...
+    'lambda:CreateFunction': CompanionPermission(companions=['ec2:*']),  # Overwrites!
+}
+```
+
+**Fix:** Merge into single entry or use a validation check for duplicate keys.
+
 ### Next Steps
-1. Begin Phase 2: Core Analysis (Risk Engine)
-2. Implement intent-to-access-level mapper
-3. Build wildcard detection and scoring
-4. Create privilege escalation detector
-5. Implement Human-in-the-Loop system for Tier 2 actions
+1. Begin Phase 3: Policy Generation (Rewriter)
+2. Implement least-privilege policy generator
+3. Build wildcard replacement logic
+4. Create condition key injection
+5. Complete resource inventory query interface
