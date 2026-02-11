@@ -28,7 +28,21 @@ from .inventory import (
     Resource,
 )
 
-__version__ = "0.1.0"
+from .analyzer import (
+    IntentMapper,
+    RiskAnalyzer,
+    DangerousPermissionChecker,
+    CompanionPermissionDetector,
+    HITLSystem,
+    AccessLevel,
+    RiskSeverity,
+    IntentMapping,
+    RiskFinding,
+    CompanionPermission,
+    HITLDecision,
+)
+
+__version__ = "0.2.0"
 
 __all__ = [
     # Database
@@ -49,6 +63,18 @@ __all__ = [
     "ResourceInventory",
     "InventoryError",
     "Resource",
+    # Analyzer
+    "IntentMapper",
+    "RiskAnalyzer",
+    "DangerousPermissionChecker",
+    "CompanionPermissionDetector",
+    "HITLSystem",
+    "AccessLevel",
+    "RiskSeverity",
+    "IntentMapping",
+    "RiskFinding",
+    "CompanionPermission",
+    "HITLDecision",
     # Version
     "__version__",
 ]
