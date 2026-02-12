@@ -1,0 +1,23 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "LambdaWithoutLogs",
+            "Effect": "Allow",
+            "Action": "lambda:InvokeFunction",
+            "Resource": "arn:aws:lambda:us-east-1:123456789012:function:my-function"
+        },
+        {
+            "Sid": "S3ReadWithoutKMS",
+            "Effect": "Allow",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::encrypted-bucket/*"
+        },
+        {
+            "Sid": "SQSWithoutFullLifecycle",
+            "Effect": "Allow",
+            "Action": "sqs:ReceiveMessage",
+            "Resource": "arn:aws:sqs:us-east-1:123456789012:my-queue"
+        }
+    ]
+}
