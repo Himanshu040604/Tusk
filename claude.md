@@ -136,7 +136,7 @@ klarna/
 ```
 
 ## Current Phase
-PHASE 2: Core Analysis (COMPLETE) - Ready for Phase 3
+PHASE 3: Policy Generation (COMPLETE) - Ready for Phase 4
 
 ## Known Constraints
 - No external API calls during validation
@@ -261,9 +261,59 @@ RULES = {
 
 **Fix:** Merge into single entry or use a validation check for duplicate keys.
 
+### 2026-02-12 - Phase 3 Complete with Type Hint Fix
+
+**Agent 2 (Code Writer) - COMPLETE (Phase 3)**
+- Implemented rewriter.py (550 lines):
+  - PolicyRewriter: Configurable least-privilege policy rewriter
+  - RewriteConfig: Toggle individual rewrite features
+  - RewriteChange: Audit trail for each modification
+  - RewriteResult: Complete rewrite output with changes and assumptions
+- Extended inventory.py (+150 lines):
+  - ACTION_RESOURCE_MAP: 27 action-to-resource-type mappings
+  - ARN_TEMPLATES: 10 service-specific ARN template patterns
+  - 6 new query methods for wildcard resolution and resource lookup
+- Wrote 86 new tests (48 rewriter + 30 inventory + 8 fixture-related)
+- Created 2 test fixtures (wildcard_overuse.json, missing_companions.json)
+- Updated __init__.py with rewriter exports, bumped to v0.3.0
+
+**Agent 3 (Validator) - COMPLETE (Phase 3)**
+- Validation verdict: PASS (95/100)
+- 0 CRITICAL bugs, 0 HIGH bugs
+- 2 MEDIUM findings:
+  1. Missing type hints on PolicyRewriter.__init__ parameters (FIXED)
+  2. Mutate-and-return inconsistency in rewriting steps (design, not bug)
+- 5 LOW observations (no action needed)
+- Verified no regression: 201/201 tests passing
+- Combined coverage: 92% (rewriter 95%, inventory 84%)
+- Confirmed: no SQL injection, no duplicate keys, no emojis
+
+**Type Hint Fix Applied**
+- Added `from __future__ import annotations` and `TYPE_CHECKING` guard
+- PolicyRewriter.__init__ now has proper type annotations:
+  `database: Optional[Database] = None, inventory: Optional[ResourceInventory] = None`
+- Uses TYPE_CHECKING to avoid circular imports with database.py and inventory.py
+
+### Key Learning: TYPE_CHECKING for Circular Imports
+
+When modules import each other (rewriter imports Database/ResourceInventory,
+__init__.py imports from all modules), use TYPE_CHECKING guard:
+
+```python
+from __future__ import annotations
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .database import Database
+    from .inventory import ResourceInventory
+```
+
+This avoids circular import errors at runtime while still providing type
+checking support via `from __future__ import annotations` (PEP 563).
+
 ### Next Steps
-1. Begin Phase 3: Policy Generation (Rewriter)
-2. Implement least-privilege policy generator
-3. Build wildcard replacement logic
-4. Create condition key injection
-5. Complete resource inventory query interface
+1. Begin Phase 4: Quality Assurance (Self-Check)
+2. Implement rewritten policy re-validation
+3. Build functional completeness checker
+4. Create Tier 2 action exclusion verifier
+5. Integrate all pipeline steps (Validate -> Analyze -> Rewrite -> Self-Check)

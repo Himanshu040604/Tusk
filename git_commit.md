@@ -506,6 +506,95 @@ d15ae0b docs: Add deliverables manifest and file tree overview
 0332354 chore: Add requirements and skills reference
 ```
 
+### Phase 3 Commits (Ready to Execute)
+
+#### Commit 1: Resource inventory query interface
+```
+feat(inventory): Complete resource inventory query interface
+
+Add 6 new methods and 2 class variables to ResourceInventory for
+wildcard resolution, action-to-resource mapping, placeholder ARN
+generation, and bulk insert support.
+
+New class variables:
+- ACTION_RESOURCE_MAP: 27 action-to-resource-type mappings
+- ARN_TEMPLATES: 10 service-specific ARN template patterns
+
+New methods:
+- resolve_wildcard_resource: Resolve all ARNs for a service/type
+- get_arns_for_action: Map IAM action to matching resource ARNs
+- has_resources_for_service: Check if inventory has service resources
+- generate_placeholder_arn: Create marked placeholder ARNs
+- get_resource_types_for_service: List distinct resource types
+- bulk_insert_resources: Batch insert with upsert support
+
+Files:
+- src/sentinel/inventory.py (modified, +150 lines)
+- tests/test_inventory.py (new, 30 tests in 8 classes)
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
+#### Commit 2: Policy rewriter core
+```
+feat(rewriter): Add least-privilege policy rewriter
+
+Implement PolicyRewriter with full rewriting pipeline: wildcard
+replacement, resource scoping, companion permission injection,
+condition key injection, and statement reorganization.
+
+Key components:
+- PolicyRewriter: Main rewriter class with configurable pipeline
+- RewriteConfig: Dataclass for toggling rewrite features
+- RewriteChange: Audit trail for each modification
+- RewriteResult: Complete rewrite output with changes and assumptions
+- Wildcard expansion using database action lookups
+- Resource ARN scoping with real inventory or placeholder ARNs
+- Companion permission auto-injection via CompanionPermissionDetector
+- Condition key injection (region, encryption, source account)
+- Statement splitting by access level with Sid generation
+- Deny and NotAction/NotResource preservation
+
+Files:
+- src/sentinel/rewriter.py (new, 550 lines)
+- tests/test_rewriter.py (new, 48 tests in 11 classes)
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
+#### Commit 3: Test fixtures and exports
+```
+feat(phase3): Add test fixtures and update module exports
+
+Add test fixture policies for wildcard overuse and missing companion
+permission test categories. Update package init with rewriter exports
+and bump version to 0.3.0.
+
+Files:
+- src/sentinel/__init__.py (modified, added rewriter exports, v0.3.0)
+- tests/fixtures/test_policies/wildcard_overuse.json (new)
+- tests/fixtures/test_policies/missing_companions.json (new)
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
+#### Commit 4: Phase 3 documentation
+```
+docs: Update progress and context for Phase 3 completion
+
+Update project documentation to reflect Phase 3 completion with
+Agent 3 validation results (PASS 95/100), 201 total tests passing,
+and preparation for Phase 4.
+
+Files:
+- progress.md (Phase 3 marked complete)
+- cartographer.md (structure updated)
+- git_commit.md (Phase 3 commits added)
+- CLAUDE.md (thinking log updated)
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
 ---
 
 ## Notes

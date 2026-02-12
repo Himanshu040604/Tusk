@@ -1,6 +1,6 @@
 # IAM Policy Sentinel - Work In Progress
 
-## Current Phase: PHASE 2 - Core Analysis (COMPLETE)
+## Current Phase: PHASE 3 - Policy Generation (COMPLETE)
 
 ### Phase Status
 - [x] Read klarna_task.txt specification
@@ -88,23 +88,41 @@
 ---
 
 ### PHASE 3: Policy Generation (Rewriter)
-**Status:** Not Started
+**Status:** COMPLETE (with 1 MEDIUM finding fixed during code review)
 **Target:** Least-privilege policy generation with ARN scoping
 
 **Features:**
-- [ ] FEATURE 4: Policy Rewriter
-- [ ] FEATURE 5: Resource Inventory System (complete)
+- [x] FEATURE 4: Policy Rewriter
+- [x] FEATURE 5: Resource Inventory System (complete)
 
 **Tasks:**
-- [ ] Implement least-privilege policy generator
-- [ ] Build wildcard replacement logic
-- [ ] Create condition key injection
-- [ ] Implement companion permission addition
-- [ ] Build statement reorganization
-- [ ] Complete resource inventory query interface
-- [ ] Implement placeholder ARN generator
+- [x] Implement least-privilege policy generator
+- [x] Build wildcard replacement logic
+- [x] Create condition key injection
+- [x] Implement companion permission addition
+- [x] Build statement reorganization
+- [x] Complete resource inventory query interface
+- [x] Implement placeholder ARN generator
 
-**Blockers:** Requires Phase 2 completion
+**Deliverables:**
+- src/sentinel/rewriter.py (550 lines, 95% coverage)
+- src/sentinel/inventory.py (modified, +150 lines, 84% coverage)
+- src/sentinel/__init__.py (modified, version 0.3.0)
+- tests/test_rewriter.py (48 tests in 11 test classes)
+- tests/test_inventory.py (30 tests in 8 test classes)
+- tests/fixtures/test_policies/wildcard_overuse.json (new)
+- tests/fixtures/test_policies/missing_companions.json (new)
+
+**Validation Results:**
+- Agent 3 Verdict: PASS (95/100)
+- 201/201 tests passing (115 existing + 86 new)
+- 92% combined coverage (rewriter 95%, inventory 84%)
+- 0 CRITICAL bugs, 0 HIGH bugs
+- 2 MEDIUM findings (1 fixed: missing type hints on __init__)
+- 5 LOW observations (no action needed)
+- No SQL injection, no duplicate keys, no emoji violations
+
+**Blockers:** None - Ready for Phase 4
 
 ---
 
@@ -170,14 +188,23 @@
 ## Current Work Items
 
 ### Active Tasks
-Phase 2 Complete - Preparing for Phase 3
+Phase 3 Complete - Preparing for Phase 4
 
 ### Next Up
-1. Begin Phase 3: Policy Generation (Rewriter)
-2. Implement least-privilege policy generator
-3. Build wildcard replacement logic
-4. Create condition key injection
-5. Complete resource inventory query interface
+1. Begin Phase 4: Quality Assurance (Self-Check)
+2. Implement rewritten policy re-validation
+3. Build functional completeness checker
+4. Integrate all pipeline steps (Validate -> Analyze -> Rewrite -> Self-Check)
+
+### Completed Tasks (Phase 3)
+- [x] Agent 2 implemented rewriter.py (550 lines, PolicyRewriter class)
+- [x] Agent 2 completed inventory.py (6 new methods, 2 class variables)
+- [x] Agent 2 wrote 86 new tests (48 rewriter + 30 inventory + 8 fixture)
+- [x] Agent 3 validated Phase 3 (PASS 95/100)
+- [x] Fixed MEDIUM-1: Added type hints to PolicyRewriter.__init__
+- [x] All 201 tests passing
+- [x] Test fixtures created (wildcard_overuse.json, missing_companions.json)
+- [x] Updated __init__.py with rewriter exports, version 0.3.0
 
 ### Completed Tasks (Phase 2)
 - [x] Agent 2 implemented analyzer.py (934 lines, 5 classes)
@@ -208,24 +235,27 @@ Phase 2 Complete - Preparing for Phase 3
 - Normalized 10-table schema recommendation
 
 ### Agent 2: Code Writer
-**Status:** COMPLETE (Phase 1)
-**Mission:** Implement Phase 1 (Foundation)
-**Output Delivered:**
-- 3 core modules (database, parser, inventory)
-- 2 test suites (65 tests total)
-- 2 SQLite databases with complete schemas
-- 81% code coverage
-- Zero external dependencies
+**Status:** COMPLETE (Phase 1, Phase 2, Phase 3)
+**Mission:** Implement all pipeline components
+**Output Delivered (Phase 3):**
+- rewriter.py: PolicyRewriter with wildcard replacement, resource scoping,
+  companion permission injection, condition key injection, statement reorganization
+- inventory.py: 6 new methods (resolve_wildcard_resource, get_arns_for_action,
+  has_resources_for_service, generate_placeholder_arn, get_resource_types_for_service,
+  bulk_insert_resources) and 2 class variables (ACTION_RESOURCE_MAP, ARN_TEMPLATES)
+- 86 new tests (48 rewriter, 30 inventory, 8 fixture-related)
+- 2 test fixture files (wildcard_overuse.json, missing_companions.json)
 
 ### Agent 3: Validator
-**Status:** COMPLETE (Phase 1)
-**Mission:** Validate Phase 1 implementation
-**Output Delivered:**
+**Status:** COMPLETE (Phase 1, Phase 2, Phase 3)
+**Mission:** Validate implementation quality
+**Output Delivered (Phase 3):**
 - Comprehensive validation report
-- 1 critical bug identified (UnboundLocalError)
-- CONDITIONAL PASS verdict (92/100)
-- FULL PASS after bug fix (100/100)
-- Ready for Phase 2
+- PASS verdict (95/100)
+- 0 CRITICAL, 0 HIGH, 2 MEDIUM, 5 LOW findings
+- MEDIUM-1 fixed (missing type hints on __init__)
+- MEDIUM-2 acknowledged (design, not a bug)
+- Verified no regression in 201 tests
 
 ---
 
