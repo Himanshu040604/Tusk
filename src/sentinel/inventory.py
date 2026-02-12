@@ -46,6 +46,51 @@ class ResourceInventory:
     Manages storage and querying of AWS resource ARNs for policy validation.
     """
 
+    # Mapping of common IAM actions to their target resource types.
+    ACTION_RESOURCE_MAP: Dict[str, str] = {
+        's3:GetObject': 'object',
+        's3:PutObject': 'object',
+        's3:DeleteObject': 'object',
+        's3:ListBucket': 'bucket',
+        's3:GetBucketPolicy': 'bucket',
+        's3:PutBucketPolicy': 'bucket',
+        'ec2:RunInstances': 'instance',
+        'ec2:TerminateInstances': 'instance',
+        'ec2:DescribeInstances': 'instance',
+        'lambda:InvokeFunction': 'function',
+        'lambda:CreateFunction': 'function',
+        'lambda:UpdateFunctionCode': 'function',
+        'dynamodb:GetItem': 'table',
+        'dynamodb:PutItem': 'table',
+        'dynamodb:DeleteItem': 'table',
+        'dynamodb:Query': 'table',
+        'dynamodb:Scan': 'table',
+        'sqs:SendMessage': 'queue',
+        'sqs:ReceiveMessage': 'queue',
+        'sqs:DeleteMessage': 'queue',
+        'sns:Publish': 'topic',
+        'sns:Subscribe': 'topic',
+        'kms:Decrypt': 'key',
+        'kms:Encrypt': 'key',
+        'kms:GenerateDataKey': 'key',
+        'rds:DescribeDBInstances': 'db',
+        'secretsmanager:GetSecretValue': 'secret',
+    }
+
+    # ARN templates per service for generating placeholder ARNs.
+    ARN_TEMPLATES: Dict[str, str] = {
+        's3': 'arn:aws:s3:::{resource_name}',
+        'ec2': 'arn:aws:ec2:{region}:{account_id}:{resource_type}/{resource_id}',
+        'lambda': 'arn:aws:lambda:{region}:{account_id}:function:{resource_name}',
+        'dynamodb': 'arn:aws:dynamodb:{region}:{account_id}:table/{resource_name}',
+        'sqs': 'arn:aws:sqs:{region}:{account_id}:{resource_name}',
+        'sns': 'arn:aws:sns:{region}:{account_id}:{resource_name}',
+        'kms': 'arn:aws:kms:{region}:{account_id}:key/{resource_id}',
+        'iam': 'arn:aws:iam::{account_id}:{resource_type}/{resource_name}',
+        'rds': 'arn:aws:rds:{region}:{account_id}:db:{resource_name}',
+        'secretsmanager': 'arn:aws:secretsmanager:{region}:{account_id}:secret:{resource_name}',
+    }
+
     def __init__(self, db_path: Path, read_only: bool = False):
         """Initialize resource inventory connection.
 
@@ -409,3 +454,156 @@ class ResourceInventory:
             True if ARN exists, False otherwise
         """
         return self.get_resource_by_arn(arn) is not None
+
+    def resolve_wildcard_resource(
+        self,
+        service_prefix: str,
+        resource_type: Optional[str] = None
+    ) -> List[str]:
+        """Look up real ARNs from inventory to replace wildcard resources.
+
+        Args:
+            service_prefix: AWS service prefix (e.g., 's3', 'ec2')
+            resource_type: Optional resource type filter
+
+        Returns:
+            List of matching resource ARN strings
+        """
+        resources = self.get_resources_by_service(service_prefix, resource_type)
+        return [r.resource_arn for r in resources]
+
+    def get_arns_for_action(self, action: str) -> List[str]:
+        """Find appropriate resource ARNs for a given IAM action.
+
+        Parses the service prefix from the action name and maps common
+        actions to resource types using ACTION_RESOURCE_MAP.
+
+        Args:
+            action: IAM action name (e.g., 's3:GetObject')
+
+        Returns:
+            List of matching resource ARN strings
+        """
+        parts = action.split(':', 1)
+        if len(parts) != 2:
+            return []
+
+        service_prefix = parts[0]
+
+        # Look up resource type from action map
+        resource_type = self.ACTION_RESOURCE_MAP.get(action)
+
+        return self.resolve_wildcard_resource(service_prefix, resource_type)
+
+    def has_resources_for_service(self, service_prefix: str) -> bool:
+        """Check if inventory has any resources for a given service.
+
+        Performs a quick COUNT query without loading full resource objects.
+
+        Args:
+            service_prefix: AWS service prefix
+
+        Returns:
+            True if at least one resource exists for the service
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) as count FROM resources WHERE service_prefix = ?",
+                (service_prefix,)
+            )
+            row = cursor.fetchone()
+            return row['count'] > 0 if row else False
+
+    def generate_placeholder_arn(
+        self,
+        service_prefix: str,
+        resource_type: str,
+        account_id: str = "123456789012",
+        region: str = "us-east-1"
+    ) -> str:
+        """Generate a clearly-marked placeholder ARN.
+
+        Uses ARN_TEMPLATES for service-specific ARN formats. Falls back
+        to a generic format for unknown services.
+
+        Args:
+            service_prefix: AWS service prefix
+            resource_type: Resource type (e.g., 'bucket', 'instance')
+            account_id: AWS account ID (defaults to placeholder)
+            region: AWS region (defaults to us-east-1)
+
+        Returns:
+            Placeholder ARN string with PLACEHOLDER markers
+        """
+        placeholder_name = f"PLACEHOLDER-{resource_type}-name"
+        placeholder_id = f"PLACEHOLDER-{resource_type}-id"
+
+        template = self.ARN_TEMPLATES.get(service_prefix)
+        if template:
+            return template.format(
+                region=region,
+                account_id=account_id,
+                resource_type=resource_type,
+                resource_name=placeholder_name,
+                resource_id=placeholder_id,
+            )
+
+        # Generic fallback for unknown services
+        return (
+            f"arn:aws:{service_prefix}:{region}:{account_id}:"
+            f"{resource_type}/{placeholder_name}"
+        )
+
+    def get_resource_types_for_service(self, service_prefix: str) -> List[str]:
+        """Get distinct resource types available for a service.
+
+        Args:
+            service_prefix: AWS service prefix
+
+        Returns:
+            Sorted list of unique resource type strings
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT DISTINCT resource_type
+                FROM resources
+                WHERE service_prefix = ?
+                ORDER BY resource_type
+            """, (service_prefix,))
+            return [row['resource_type'] for row in cursor.fetchall()]
+
+    def bulk_insert_resources(self, resources: List[Resource]) -> int:
+        """Insert multiple resources efficiently in a single transaction.
+
+        Args:
+            resources: List of Resource objects to insert
+
+        Returns:
+            Count of successfully inserted resources
+        """
+        if not resources:
+            return 0
+
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            data = [
+                (
+                    r.service_prefix,
+                    r.resource_type,
+                    r.resource_arn,
+                    r.resource_name,
+                    r.region,
+                    r.account_id,
+                    r.metadata,
+                )
+                for r in resources
+            ]
+            cursor.executemany("""
+                INSERT OR REPLACE INTO resources
+                (service_prefix, resource_type, resource_arn, resource_name,
+                 region, account_id, metadata, last_seen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, data)
+            return len(data)
