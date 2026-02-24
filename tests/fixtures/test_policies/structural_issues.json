@@ -1,0 +1,23 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "InvalidArnFormat",
+            "Effect": "Allow",
+            "Action": "ec2:DescribeInstances",
+            "Resource": "not-an-arn"
+        },
+        {
+            "Sid": "WildcardEverything",
+            "Effect": "Allow",
+            "Action": "*",
+            "Resource": "*"
+        },
+        {
+            "Sid": "EmptyAction",
+            "Effect": "Allow",
+            "Action": [],
+            "Resource": "*"
+        }
+    ]
+}

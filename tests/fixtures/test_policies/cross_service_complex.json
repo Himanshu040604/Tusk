@@ -1,0 +1,32 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "CrossServiceRead",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "dynamodb:GetItem",
+                "ec2:DescribeInstances",
+                "logs:GetLogEvents"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "Tier2UnknownActions",
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:NewFutureAction",
+                "ec2:SomeNewAction"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "NotActionUsage",
+            "Effect": "Deny",
+            "NotAction": "s3:GetObject",
+            "Resource": "arn:aws:s3:::sensitive-bucket/*"
+        }
+    ]
+}

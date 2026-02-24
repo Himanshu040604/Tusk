@@ -1,0 +1,29 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "MisspelledAction",
+            "Effect": "Allow",
+            "Action": "s3:ReadObject",
+            "Resource": "arn:aws:s3:::my-bucket/*"
+        },
+        {
+            "Sid": "NonExistentService",
+            "Effect": "Allow",
+            "Action": "storage:GetItem",
+            "Resource": "*"
+        },
+        {
+            "Sid": "WrongCaseAction",
+            "Effect": "Allow",
+            "Action": "lambda:execute",
+            "Resource": "arn:aws:lambda:us-east-1:123456789012:function:my-func"
+        },
+        {
+            "Sid": "ValidActionForComparison",
+            "Effect": "Allow",
+            "Action": "s3:GetObject",
+            "Resource": "arn:aws:s3:::my-bucket/*"
+        }
+    ]
+}

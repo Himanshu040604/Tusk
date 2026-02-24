@@ -1,0 +1,24 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "PassRoleWithLambdaCreate",
+            "Effect": "Allow",
+            "Action": [
+                "iam:PassRole",
+                "lambda:CreateFunction",
+                "lambda:InvokeFunction"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "PolicyEscalation",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreatePolicyVersion",
+                "iam:AttachRolePolicy"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
