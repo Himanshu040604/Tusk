@@ -4,12 +4,19 @@ This module provides JSON parsing, validation, and three-tier action classificat
 for IAM policies.
 """
 
+from __future__ import annotations
+
 import json
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Dict, Any, Optional, Set
+from typing import TYPE_CHECKING, List, Dict, Any, Optional, Set
 from pathlib import Path
+
+from .constants import KNOWN_SERVICES as _KNOWN_SERVICES
+
+if TYPE_CHECKING:
+    from .database import Database
 
 
 class ValidationTier(Enum):
@@ -96,33 +103,29 @@ class PolicyParser:
     Provides validation and three-tier action classification.
     """
 
-    # AWS service prefixes commonly seen in IAM actions
-    KNOWN_SERVICES = {
-        's3', 'ec2', 'iam', 'lambda', 'dynamodb', 'sqs', 'sns', 'rds',
-        'cloudformation', 'cloudwatch', 'logs', 'kms', 'secretsmanager',
-        'sts', 'cognito-idp', 'apigateway', 'execute-api', 'elasticloadbalancing',
-        'autoscaling', 'elasticache', 'redshift', 'kinesis', 'firehose',
-        'glue', 'athena', 'emr', 'batch', 'ecs', 'ecr', 'eks', 'fargate',
-        'route53', 'cloudfront', 'acm', 'waf', 'wafv2', 'shield', 'guardduty',
-        'inspector', 'macie', 'config', 'cloudtrail', 'organizations',
-        'ssm', 'backup', 'elasticbeanstalk', 'codebuild', 'codedeploy',
-        'codepipeline', 'codecommit', 'sagemaker', 'comprehend', 'rekognition',
-        'transcribe', 'translate', 'polly', 'lex', 'connect', 'chime'
-    }
-
     # Valid action name pattern: service:ActionName
     ACTION_PATTERN = re.compile(r'^[a-z0-9\-]+:[A-Za-z0-9*]+$')
 
     # Pattern for action names (must start with uppercase or *, no spaces)
     ACTION_NAME_PATTERN = re.compile(r'^[A-Z*][A-Za-z0-9*]*$')
 
-    def __init__(self, database=None):
+    def __init__(self, database: Optional[Database] = None):
         """Initialize parser.
 
         Args:
-            database: Optional Database instance for Tier 1 validation
+            database: Optional Database instance for Tier 1 validation.
+                Also used to merge DB service prefixes into known_services.
         """
         self.database = database
+        self.known_services: Set[str] = set(_KNOWN_SERVICES)
+
+        # Layer 3: merge DB service prefixes
+        if self.database:
+            try:
+                db_prefixes = {s.service_prefix for s in self.database.get_services()}
+                self.known_services |= db_prefixes
+            except Exception:
+                pass  # Continue with JSON/hardcoded set
 
     def parse_policy(self, policy_json: str) -> Policy:
         """Parse IAM policy JSON string.
@@ -268,7 +271,11 @@ class PolicyParser:
         seen_actions = set()
 
         for statement in policy.statements:
-            for action in statement.actions:
+            # Validate both Action and NotAction entries
+            actions_to_validate = list(statement.actions)
+            if statement.not_actions:
+                actions_to_validate.extend(statement.not_actions)
+            for action in actions_to_validate:
                 # Expand wildcards
                 expanded = self._expand_action_wildcard(action)
 
@@ -326,7 +333,7 @@ class PolicyParser:
                 )
 
             # Wildcard with known service is plausible
-            if service_prefix in self.KNOWN_SERVICES or (
+            if service_prefix in self.known_services or (
                 self.database and self.database.service_exists(service_prefix)
             ):
                 return ValidationResult(
@@ -380,7 +387,7 @@ class PolicyParser:
         """
         # Service must be known or exist in database
         service_known = (
-            service_prefix in self.KNOWN_SERVICES or
+            service_prefix in self.known_services or
             (self.database and self.database.service_exists(service_prefix))
         )
 
@@ -401,7 +408,7 @@ class PolicyParser:
         Returns:
             Human-readable reason
         """
-        if service_prefix not in self.KNOWN_SERVICES and (
+        if service_prefix not in self.known_services and (
             not self.database or not self.database.service_exists(service_prefix)
         ):
             return f"Unknown AWS service: {service_prefix}"
@@ -435,10 +442,10 @@ class PolicyParser:
 
         service_prefix, action_pattern = parts
 
-        # Service can be * or valid service name
-        if service_prefix != '*':
-            if not re.match(r'^[a-z0-9\-]+$', service_prefix):
-                return False
+        # Service prefix must be a valid lowercase identifier (not *)
+        # Note: *:* is handled above, so * prefix is invalid here
+        if not re.match(r'^[a-z0-9\-]+$', service_prefix):
+            return False
 
         # Action pattern validation
         # Only one wildcard allowed, at start or end
@@ -545,41 +552,41 @@ class PolicyParser:
         """
         similar = []
 
+        # Cache database services to avoid repeated queries
+        db_service_prefixes: List[str] = []
+        if self.database:
+            db_service_prefixes = [
+                svc.service_prefix for svc in self.database.get_services()
+            ]
+
         # Try different matching strategies
         # 1. Exact prefix match (first N characters)
         for prefix_len in range(min(len(service_prefix), 3), 0, -1):
             match_prefix = service_prefix[:prefix_len]
 
             # Check known services
-            for svc in self.KNOWN_SERVICES:
+            for svc in self.known_services:
                 if svc.startswith(match_prefix) and svc not in similar:
                     similar.append(svc)
 
-            # Check database if available
-            if self.database:
-                db_services = self.database.get_services()
-                for svc in db_services:
-                    if svc.service_prefix.startswith(match_prefix):
-                        if svc.service_prefix not in similar:
-                            similar.append(svc.service_prefix)
+            # Check database services
+            for svc_prefix in db_service_prefixes:
+                if svc_prefix.startswith(match_prefix) and svc_prefix not in similar:
+                    similar.append(svc_prefix)
 
             # If we found matches, return them
             if similar:
                 return sorted(similar)[:5]
 
-        # 2. If no prefix matches, try character similarity (Levenshtein-like)
-        # For simplicity, just check if they share first character
+        # 2. If no prefix matches, try character similarity
         first_char = service_prefix[0] if service_prefix else ''
-        for svc in self.KNOWN_SERVICES:
+        for svc in self.known_services:
             if svc and svc[0] == first_char and svc not in similar:
                 similar.append(svc)
 
-        if self.database:
-            db_services = self.database.get_services()
-            for svc in db_services:
-                if svc.service_prefix and svc.service_prefix[0] == first_char:
-                    if svc.service_prefix not in similar:
-                        similar.append(svc.service_prefix)
+        for svc_prefix in db_service_prefixes:
+            if svc_prefix and svc_prefix[0] == first_char and svc_prefix not in similar:
+                similar.append(svc_prefix)
 
         return sorted(similar)[:5]
 

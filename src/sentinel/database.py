@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 from contextlib import contextmanager
 
+from .constants import SCHEMA_VERSION
+
 
 @dataclass
 class Service:
@@ -127,7 +129,6 @@ class Database:
         """
         self.db_path = Path(db_path)
         self.read_only = read_only
-        self._connection: Optional[sqlite3.Connection] = None
 
     @contextmanager
     def get_connection(self) -> sqlite3.Connection:
@@ -146,14 +147,15 @@ class Database:
                 conn = sqlite3.connect(uri, uri=True)
             else:
                 conn = sqlite3.connect(self.db_path)
-
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA foreign_keys = ON")
-
+        except sqlite3.Error as e:
+            raise DatabaseError(f"Database connection failed: {e}") from e
+        try:
             yield conn
             conn.commit()
         except sqlite3.Error as e:
-            raise DatabaseError(f"Database connection failed: {e}")
+            raise DatabaseError(f"Database operation failed: {e}") from e
         finally:
             if conn:
                 conn.close()
@@ -366,9 +368,13 @@ class Database:
             """)
 
             # Insert initial metadata
+            cursor.execute(
+                "INSERT OR IGNORE INTO metadata (key, value, updated_at) "
+                "VALUES ('schema_version', ?, CURRENT_TIMESTAMP)",
+                (SCHEMA_VERSION,),
+            )
             cursor.execute("""
                 INSERT OR IGNORE INTO metadata (key, value, updated_at) VALUES
-                    ('schema_version', '1.0', CURRENT_TIMESTAMP),
                     ('data_source', 'AWS Service Authorization Reference', CURRENT_TIMESTAMP),
                     ('last_full_update', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             """)

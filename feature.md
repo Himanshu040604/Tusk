@@ -6,7 +6,7 @@ Fully offline IAM Policy Sentinel for AWS security validation and least-privileg
 ## Core Features
 
 ### FEATURE 1: Local IAM Action Database (SQLite)
-**Status:** Pending
+**Status:** COMPLETE (Phase 1)
 **Dependencies:** None
 **Tasks:**
 1. Design SQLite schema for IAM actions database
@@ -16,7 +16,7 @@ Fully offline IAM Policy Sentinel for AWS security validation and least-privileg
 5. Add database versioning and metadata tracking
 
 ### FEATURE 2: Policy Parser and Validator
-**Status:** Pending
+**Status:** COMPLETE (Phase 1)
 **Dependencies:** FEATURE 1
 **Tasks:**
 1. JSON policy structure validator
@@ -26,7 +26,7 @@ Fully offline IAM Policy Sentinel for AWS security validation and least-privileg
 5. Statement structure validation
 
 ### FEATURE 3: Risk Analysis Engine
-**Status:** Pending
+**Status:** COMPLETE (Phase 2)
 **Dependencies:** FEATURE 1, FEATURE 2
 **Tasks:**
 1. Intent-to-access-level mapper (List, Read, Write, PermMgmt, Tagging)
@@ -37,7 +37,7 @@ Fully offline IAM Policy Sentinel for AWS security validation and least-privileg
 6. Cross-statement redundancy analyzer
 
 ### FEATURE 4: Policy Rewriter
-**Status:** Pending
+**Status:** COMPLETE (Phase 3)
 **Dependencies:** FEATURE 1, FEATURE 2, FEATURE 3
 **Tasks:**
 1. Least-privilege policy generator
@@ -47,7 +47,7 @@ Fully offline IAM Policy Sentinel for AWS security validation and least-privileg
 5. Statement reorganization and cleanup
 
 ### FEATURE 5: Resource Inventory System
-**Status:** Pending
+**Status:** COMPLETE (Phase 1 schema, Phase 3 full)
 **Dependencies:** FEATURE 1
 **Tasks:**
 1. SQLite schema for resource inventory
@@ -57,7 +57,7 @@ Fully offline IAM Policy Sentinel for AWS security validation and least-privileg
 5. Placeholder ARN generator for missing resources
 
 ### FEATURE 6: Human-in-the-Loop (HITL) System
-**Status:** Pending
+**Status:** COMPLETE (Phase 2)
 **Dependencies:** FEATURE 2, FEATURE 3
 **Tasks:**
 1. Tier 2 action detection and flagging

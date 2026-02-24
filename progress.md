@@ -1,6 +1,6 @@
 # IAM Policy Sentinel - Work In Progress
 
-## Current Phase: PHASE 3 - Policy Generation (COMPLETE)
+## Current Phase: PHASE 3 - Policy Generation (COMPLETE) + Cross-Phase Bug Fixes Applied
 
 ### Phase Status
 - [x] Read klarna_task.txt specification
@@ -185,10 +185,52 @@
 
 ---
 
+---
+
+### Cross-Phase Bug Fix Round
+**Status:** COMPLETE (12 bugs fixed, 1 skipped)
+**Target:** Fix all issues identified during comprehensive codebase review
+
+**3-Agent Workflow:**
+- [x] Agent 1 (Web Scraper): Research best practices for 5 technical areas
+- [x] Agent 2 (Code Writer): Implement all 12 bug fixes across 5 files
+- [x] Agent 3 (Validator): Verify all fixes (FULL PASS 100/100)
+- [x] All 201 tests passing, zero regressions
+
+**HIGH Severity (2 fixed):**
+- [x] H1: Misleading error messages in get_connection() (database.py, inventory.py)
+      Fix: Separated connection vs operation error handling with `from e` chaining
+- [x] H2: validate_policy() skipped NotAction statements (parser.py)
+      Fix: Now validates both statement.actions and statement.not_actions
+
+**MEDIUM Severity (6 fixed):**
+- [x] M1: Dead self._connection attribute (database.py) - Removed
+- [x] M2: Repeated DB calls in _find_similar_services() (parser.py) - Cached
+- [x] M3: Missing Optional[Database] type hints on 5 __init__ methods (parser.py, analyzer.py) - Added TYPE_CHECKING pattern
+- [x] M4: Duplicate Sids from _generate_sid() (rewriter.py) - Added _generate_unique_sid with counter
+- [x] M5: Shallow dict() copy of conditions (rewriter.py) - Changed to copy.deepcopy()
+- [x] M6: Broad substring matching in _extract_services() (analyzer.py) - Uses \b word boundary regex
+
+**LOW Severity (4 fixed, 1 skipped):**
+- [x] L1: _is_valid_wildcard() accepted *:GetObject (parser.py) - Rejects * prefix now
+- [x] L2: _add_companion_permissions mutated input list (rewriter.py) - Works on copy
+- [x] L3: Overly broad DESTRUCTION_PATTERNS (analyzer.py) - Anchored regex patterns
+- [ ] L4: Test temp file cleanup (test_database.py) - Skipped (testing concern)
+- [x] L5: Companion permissions always started with resources=['*'] (rewriter.py) - Always scopes now
+
+**Files Modified:**
+- src/sentinel/database.py (H1, M1)
+- src/sentinel/inventory.py (H1)
+- src/sentinel/parser.py (H2, M2, M3, L1)
+- src/sentinel/analyzer.py (M3, M6, L3)
+- src/sentinel/rewriter.py (M4, M5, L2, L5)
+
+---
+
 ## Current Work Items
 
 ### Active Tasks
-Phase 3 Complete - Preparing for Phase 4
+Phase 3 Complete + Bug Fixes Complete - Ready for Phase 4
 
 ### Next Up
 1. Begin Phase 4: Quality Assurance (Self-Check)

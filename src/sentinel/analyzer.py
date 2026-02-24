@@ -4,10 +4,21 @@ This module provides intent mapping, risk detection, dangerous permission checki
 companion permission detection, and human-in-the-loop validation system.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Dict, Set, Optional, Tuple, Any
+from typing import TYPE_CHECKING, List, Dict, Set, Optional, Tuple, Any
 import re
+
+from .constants import (
+    SERVICE_NAME_MAPPINGS,
+    SECURITY_CRITICAL_SERVICES,
+    COMPANION_PERMISSION_RULES,
+)
+
+if TYPE_CHECKING:
+    from .database import Database
 
 
 class AccessLevel(Enum):
@@ -162,7 +173,7 @@ class IntentMapper:
         "policy-management": {AccessLevel.PERMISSIONS_MANAGEMENT},
     }
 
-    def __init__(self, database=None):
+    def __init__(self, database: Optional[Database] = None):
         """Initialize intent mapper.
 
         Args:
@@ -244,38 +255,9 @@ class IntentMapper:
         """
         services = set()
 
-        # Common service name mappings
-        service_mappings = {
-            's3': 's3',
-            'bucket': 's3',
-            'object storage': 's3',
-            'ec2': 'ec2',
-            'instance': 'ec2',
-            'compute': 'ec2',
-            'lambda': 'lambda',
-            'function': 'lambda',
-            'dynamodb': 'dynamodb',
-            'dynamo': 'dynamodb',
-            'table': 'dynamodb',
-            'rds': 'rds',
-            'database': 'rds',
-            'iam': 'iam',
-            'role': 'iam',
-            'user': 'iam',
-            'sqs': 'sqs',
-            'queue': 'sqs',
-            'sns': 'sns',
-            'topic': 'sns',
-            'kms': 'kms',
-            'key': 'kms',
-            'secrets': 'secretsmanager',
-            'secret': 'secretsmanager',
-            'cloudwatch': 'logs',
-            'logs': 'logs',
-        }
-
-        for keyword, service in service_mappings.items():
-            if keyword in intent_lower:
+        for keyword, service in SERVICE_NAME_MAPPINGS.items():
+            # Use word boundary matching to avoid substring false positives
+            if re.search(r'\b' + re.escape(keyword) + r'\b', intent_lower):
                 services.add(service)
 
         return services
@@ -419,14 +401,14 @@ class RiskAnalyzer:
 
     # Infrastructure destruction patterns
     DESTRUCTION_PATTERNS = [
-        (r'.*:Delete.*', 'Deletion capability'),
-        (r'.*:Terminate.*', 'Termination capability'),
-        (r'.*:Drop.*', 'Drop capability'),
-        (r'.*:Destroy.*', 'Destruction capability'),
-        (r's3:DeleteBucket', 'S3 bucket deletion'),
-        (r'dynamodb:DeleteTable', 'DynamoDB table deletion'),
-        (r'rds:DeleteDB.*', 'RDS database deletion'),
-        (r'ec2:TerminateInstances', 'EC2 instance termination'),
+        (r'^[a-z0-9\-]+:Delete[A-Z][A-Za-z]*$', 'Deletion capability'),
+        (r'^[a-z0-9\-]+:Terminate[A-Z][A-Za-z]*$', 'Termination capability'),
+        (r'^[a-z0-9\-]+:Drop[A-Z][A-Za-z]*$', 'Drop capability'),
+        (r'^[a-z0-9\-]+:Destroy[A-Z][A-Za-z]*$', 'Destruction capability'),
+        (r'^s3:DeleteBucket$', 'S3 bucket deletion'),
+        (r'^dynamodb:DeleteTable$', 'DynamoDB table deletion'),
+        (r'^rds:DeleteDB[A-Za-z]*$', 'RDS database deletion'),
+        (r'^ec2:TerminateInstances$', 'EC2 instance termination'),
     ]
 
     # Permissions management patterns
@@ -438,7 +420,7 @@ class RiskAnalyzer:
         (r'.*:SetDefaultPolicyVersion', 'Policy version modification'),
     ]
 
-    def __init__(self, database=None):
+    def __init__(self, database: Optional[Database] = None):
         """Initialize risk analyzer.
 
         Args:
@@ -527,7 +509,7 @@ class RiskAnalyzer:
         if action.endswith(':*'):
             service = action.split(':')[0]
             # Critical services get CRITICAL severity
-            if service in ['iam', 'sts', 'organizations', 'kms']:
+            if service in SECURITY_CRITICAL_SERVICES:
                 return RiskSeverity.CRITICAL
             return RiskSeverity.HIGH
 
@@ -750,7 +732,7 @@ class DangerousPermissionChecker:
     Provides detailed analysis of high-risk permissions and their context.
     """
 
-    def __init__(self, database=None):
+    def __init__(self, database: Optional[Database] = None):
         """Initialize dangerous permission checker.
 
         Args:
@@ -806,85 +788,19 @@ class CompanionPermissionDetector:
     to function correctly (e.g., Lambda needs CloudWatch Logs permissions).
     """
 
-    # Companion permission rules
+    # Companion permission rules - built from shared constants
     COMPANION_RULES = {
-        # Lambda execution requires CloudWatch Logs
-        'lambda:InvokeFunction': CompanionPermission(
-            primary_action='lambda:InvokeFunction',
-            companion_actions=[
-                'logs:CreateLogGroup',
-                'logs:CreateLogStream',
-                'logs:PutLogEvents'
-            ],
-            reason='Lambda functions require CloudWatch Logs permissions to write execution logs',
-            severity=RiskSeverity.MEDIUM
-        ),
-        'lambda:CreateFunction': CompanionPermission(
-            primary_action='lambda:CreateFunction',
-            companion_actions=[
-                'logs:CreateLogGroup',
-                'logs:CreateLogStream',
-                'logs:PutLogEvents',
-                'ec2:CreateNetworkInterface',
-                'ec2:DescribeNetworkInterfaces',
-                'ec2:DeleteNetworkInterface'
-            ],
-            reason='Lambda functions require CloudWatch Logs permissions to write execution logs. '
-                   'Lambda functions in VPC require EC2 network interface permissions.',
-            severity=RiskSeverity.HIGH
-        ),
-
-        # KMS encrypted resources need decrypt permission
-        's3:GetObject': CompanionPermission(
-            primary_action='s3:GetObject',
-            companion_actions=['kms:Decrypt'],
-            reason='Reading KMS-encrypted S3 objects requires kms:Decrypt permission',
-            severity=RiskSeverity.MEDIUM
-        ),
-        's3:PutObject': CompanionPermission(
-            primary_action='s3:PutObject',
-            companion_actions=['kms:GenerateDataKey', 'kms:Decrypt'],
-            reason='Writing KMS-encrypted S3 objects requires KMS key generation',
-            severity=RiskSeverity.MEDIUM
-        ),
-
-        # SQS consumer needs full message lifecycle
-        'sqs:ReceiveMessage': CompanionPermission(
-            primary_action='sqs:ReceiveMessage',
-            companion_actions=[
-                'sqs:DeleteMessage',
-                'sqs:GetQueueAttributes',
-                'sqs:ChangeMessageVisibility'
-            ],
-            reason='SQS consumers need permissions for complete message processing lifecycle',
-            severity=RiskSeverity.MEDIUM
-        ),
-
-        # DynamoDB streams processing
-        'dynamodb:GetRecords': CompanionPermission(
-            primary_action='dynamodb:GetRecords',
-            companion_actions=[
-                'dynamodb:GetShardIterator',
-                'dynamodb:DescribeStream',
-                'dynamodb:ListStreams'
-            ],
-            reason='DynamoDB Streams processing requires stream discovery and iteration',
-            severity=RiskSeverity.MEDIUM
-        ),
-
-        # EC2 instance termination with volume cleanup
-        'ec2:TerminateInstances': CompanionPermission(
-            primary_action='ec2:TerminateInstances',
-            companion_actions=[
-                'ec2:DeleteVolume',
-                'ec2:DetachVolume'
-            ],
-            reason='Instance termination may require volume cleanup permissions',
-            severity=RiskSeverity.LOW
-        ),
+        action: CompanionPermission(
+            primary_action=action,
+            companion_actions=companions,
+            reason=reason,
+            severity=RiskSeverity[severity_str],
+        )
+        for action, (companions, reason, severity_str)
+        in COMPANION_PERMISSION_RULES.items()
     }
 
-    def __init__(self, database=None):
+    def __init__(self, database: Optional[Database] = None):
         """Initialize companion permission detector.
 
         Args:

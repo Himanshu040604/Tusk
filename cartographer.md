@@ -1,7 +1,7 @@
 # IAM Policy Sentinel - Codebase Structure
 
 ## Last Updated
-2026-02-12 (Phase 3 Complete)
+2026-02-12 (Phase 3 Complete + Cross-Phase Bug Fixes)
 
 ## Current Structure
 
@@ -22,7 +22,7 @@ klarna/
 └── [various README/docs]     # Previous task documentation (existing)
 ```
 
-## Actual Structure (Phase 3 Complete)
+## Actual Structure (Phase 3 Complete + Bug Fixes)
 
 ```
 klarna/
@@ -30,11 +30,11 @@ klarna/
 ├── src/
 │   └── sentinel/
 │       ├── __init__.py         # Package init, v0.3.0 (Phase 1-3 exports)
-│       ├── database.py         # SQLite database interface (620 lines)
-│       ├── parser.py           # Policy parser and validator (628 lines)
-│       ├── analyzer.py         # Risk analysis engine (934 lines)
-│       ├── rewriter.py         # Policy rewriter (550 lines) [NEW Phase 3]
-│       ├── inventory.py        # Resource inventory manager (560+ lines)
+│       ├── database.py         # SQLite database interface (~620 lines, bug fixes applied)
+│       ├── parser.py           # Policy parser and validator (~640 lines, bug fixes applied)
+│       ├── analyzer.py         # Risk analysis engine (~1050 lines, bug fixes applied)
+│       ├── rewriter.py         # Policy rewriter (~990 lines, bug fixes applied)
+│       ├── inventory.py        # Resource inventory manager (~610 lines, bug fixes applied)
 │       ├── self_check.py       # Self-check validator (Phase 4 - planned)
 │       └── cli.py              # CLI interface (Phase 5 - planned)
 ├── src/
@@ -338,6 +338,16 @@ INDEX idx_type ON resources(resource_type)
 - Added test fixtures: wildcard_overuse.json, missing_companions.json
 - Updated __init__.py with rewriter exports, version bumped to 0.3.0
 - Total: 201 tests across 5 test files
+
+### 2026-02-12 - Cross-Phase Bug Fixes
+- Fixed 12 bugs across 5 source files (2 HIGH, 6 MEDIUM, 4 LOW)
+- database.py: Separated connection vs operation errors, removed dead code
+- inventory.py: Separated connection vs operation errors
+- parser.py: Added NotAction validation, cached DB calls, added type hints, fixed wildcard validation
+- analyzer.py: Added type hints, word boundary regex, anchored destruction patterns
+- rewriter.py: Unique Sid generation, deep copy conditions, list mutation fix, always scope companions
+- All modules now use from __future__ import annotations and TYPE_CHECKING pattern
+- 201 tests still passing, zero regressions
 
 ### Future Updates
 - After Phase 4: Document self-check and pipeline integration

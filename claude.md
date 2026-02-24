@@ -136,7 +136,7 @@ klarna/
 ```
 
 ## Current Phase
-PHASE 3: Policy Generation (COMPLETE) - Ready for Phase 4
+PHASE 3: Policy Generation (COMPLETE) + Cross-Phase Bug Fixes Applied - Ready for Phase 4
 
 ## Known Constraints
 - No external API calls during validation
@@ -310,6 +310,79 @@ if TYPE_CHECKING:
 
 This avoids circular import errors at runtime while still providing type
 checking support via `from __future__ import annotations` (PEP 563).
+
+### 2026-02-12 - Cross-Phase Bug Fix Round
+
+**Comprehensive Codebase Review**
+- Read all 12 Python source and test files
+- Identified 13 issues: 0 CRITICAL, 2 HIGH, 6 MEDIUM, 5 LOW
+
+**Agent 1 (Web Scraper) - Research**
+- Researched 5 technical areas to guide fixes:
+  1. Python contextmanager error handling (separate except blocks, bare raise)
+  2. AWS IAM NotAction syntax (identical to Action, must validate same way)
+  3. SQLite connection patterns (per-operation is fine for CLI tools)
+  4. AWS Sid uniqueness (required unique within a policy document)
+  5. Python regex word boundary matching (\b for accurate keyword extraction)
+
+**Agent 2 (Code Writer) - 12 Bug Fixes**
+- H1: Separated connection vs operation error handling in database.py and inventory.py
+- H2: Added NotAction validation to parser.py validate_policy()
+- M1: Removed dead self._connection in database.py
+- M2: Cached get_services() in parser.py _find_similar_services()
+- M3: Added TYPE_CHECKING pattern with Optional[Database] hints to parser.py and analyzer.py
+- M4: Added _generate_unique_sid() with counter deduplication in rewriter.py
+- M5: Changed to copy.deepcopy() for conditions in rewriter.py
+- M6: Uses \b word boundary regex in analyzer.py _extract_services()
+- L1: Rejects * as service prefix in parser.py _is_valid_wildcard()
+- L2: Works on list copy in rewriter.py _add_companion_permissions()
+- L3: Anchored DESTRUCTION_PATTERNS regex in analyzer.py
+- L5: Always calls _scope_resources for companion statements in rewriter.py
+
+**Agent 3 (Validator) - FULL PASS (100/100)**
+- All 12 fixes verified present and correct
+- No emojis detected
+- No new issues introduced
+- TYPE_CHECKING pattern correctly applied in all files
+- 201/201 tests passing, zero regressions
+
+### Key Learning: Context Manager Error Separation
+
+When using @contextmanager with yield, separate connection setup errors from
+user code errors. The single except block pattern masks real errors:
+
+**Problem Pattern:**
+```python
+@contextmanager
+def get_connection(self):
+    conn = None
+    try:
+        conn = sqlite3.connect(path)
+        yield conn
+        conn.commit()
+    except sqlite3.Error as e:
+        raise DatabaseError(f"connection failed: {e}")  # Masks ALL errors!
+    finally:
+        if conn: conn.close()
+```
+
+**Correct Pattern:**
+```python
+@contextmanager
+def get_connection(self):
+    conn = None
+    try:
+        conn = sqlite3.connect(path)
+    except sqlite3.Error as e:
+        raise DatabaseError(f"connection failed: {e}") from e
+    try:
+        yield conn
+        conn.commit()
+    except sqlite3.Error as e:
+        raise DatabaseError(f"operation failed: {e}") from e
+    finally:
+        if conn: conn.close()
+```
 
 ### Next Steps
 1. Begin Phase 4: Quality Assurance (Self-Check)

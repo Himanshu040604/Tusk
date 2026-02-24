@@ -597,6 +597,95 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 
 ---
 
+## Cross-Phase Bug Fix Commits (Ready to Execute)
+
+### Commit 1: Fix HIGH severity bugs
+```
+fix(database,inventory,parser): Fix error handling and NotAction validation
+
+HIGH-1: Separate connection vs operation errors in get_connection()
+context managers. Previously all sqlite3.Error exceptions were wrapped
+as "connection failed", masking real errors from user code. Now uses
+two try/except blocks with proper exception chaining (from e).
+
+HIGH-2: validate_policy() now validates both Action and NotAction
+entries. Previously NotAction statements were silently skipped since
+they have actions=[] and not_actions=[...].
+
+Files Modified:
+- src/sentinel/database.py (separate try/except in get_connection)
+- src/sentinel/inventory.py (separate try/except in get_connection)
+- src/sentinel/parser.py (validate not_actions in validate_policy)
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
+### Commit 2: Fix MEDIUM severity bugs
+```
+fix(database,parser,analyzer,rewriter): Fix 6 medium severity issues
+
+M1: Remove dead self._connection attribute in Database.__init__
+M2: Cache get_services() result in _find_similar_services() to avoid
+    repeated DB connections in loops
+M3: Add Optional[Database] type hints using TYPE_CHECKING pattern
+    to parser.py (1 method) and analyzer.py (4 methods)
+M4: Add _generate_unique_sid() with counter deduplication to prevent
+    duplicate Sids in rewritten policies
+M5: Use copy.deepcopy() instead of dict() for conditions to prevent
+    mutation leaking through shared inner dict references
+M6: Use \b word boundary regex in _extract_services() to prevent
+    false positives (e.g., 'key' matching 'keyboard')
+
+Files Modified:
+- src/sentinel/database.py (M1: remove dead code)
+- src/sentinel/parser.py (M2: cache services, M3: type hints)
+- src/sentinel/analyzer.py (M3: type hints, M6: word boundary regex)
+- src/sentinel/rewriter.py (M4: unique Sids, M5: deep copy)
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
+### Commit 3: Fix LOW severity bugs
+```
+fix(parser,analyzer,rewriter): Fix 4 low severity issues
+
+L1: Reject * as service prefix in _is_valid_wildcard() since *:*
+    is handled separately and *:GetObject is invalid IAM syntax
+L2: Create list copy in _add_companion_permissions() to avoid
+    mutating the caller's statement list
+L3: Use anchored regex patterns in DESTRUCTION_PATTERNS to prevent
+    overly broad matching (e.g., s3:DeleteObjectTagging)
+L5: Always call _scope_resources for companion statements instead
+    of only when inventory or account_id is available
+
+Files Modified:
+- src/sentinel/parser.py (L1: reject * prefix)
+- src/sentinel/analyzer.py (L3: anchored patterns)
+- src/sentinel/rewriter.py (L2: list copy, L5: always scope)
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
+### Commit 4: Bug fix documentation update
+```
+docs: Update documentation for cross-phase bug fix round
+
+Update all project documentation to reflect 12 bug fixes applied
+across 5 source files. Agent 3 validation: FULL PASS (100/100).
+201/201 tests passing with zero regressions.
+
+Files Modified:
+- feature.md (features 1-6 marked complete)
+- progress.md (bug fix section added)
+- cartographer.md (line counts updated, changelog added)
+- claude.md (thinking log, key learning added)
+- git_commit.md (bug fix commits added)
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+```
+
+---
+
 ## Notes
 
 - All commits must be atomic (single logical change)

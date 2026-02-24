@@ -12,6 +12,17 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Dict, Set, Optional, Tuple, Any
 
+from .constants import (
+    READ_PREFIXES as _READ_PREFIXES,
+    WRITE_PREFIXES as _WRITE_PREFIXES,
+    ADMIN_PREFIXES as _ADMIN_PREFIXES,
+    DEFAULT_ACCOUNT_ID,
+    DEFAULT_REGION,
+    REGION_LESS_GLOBAL_SERVICES,
+    SERVICE_NAME_MAPPINGS,
+    READ_INTENT_KEYWORDS,
+    WRITE_INTENT_KEYWORDS,
+)
 from .parser import Policy, Statement
 from .analyzer import (
     CompanionPermission,
@@ -101,11 +112,9 @@ class PolicyRewriter:
     """
 
     # Access-level keywords used to classify actions for statement grouping
-    READ_PREFIXES = ('Get', 'Describe', 'List', 'Head', 'Batch')
-    WRITE_PREFIXES = ('Put', 'Create', 'Update', 'Delete', 'Remove',
-                      'Terminate', 'Run', 'Start', 'Stop', 'Send',
-                      'Publish', 'Invoke', 'Execute')
-    ADMIN_PREFIXES = ('Attach', 'Detach', 'SetDefault', 'UpdateAssumeRole')
+    READ_PREFIXES = _READ_PREFIXES
+    WRITE_PREFIXES = _WRITE_PREFIXES
+    ADMIN_PREFIXES = _ADMIN_PREFIXES
 
     def __init__(self, database: Optional[Database] = None, inventory: Optional[ResourceInventory] = None):
         """Initialize policy rewriter.
@@ -359,24 +368,18 @@ class PolicyRewriter:
         actions: List[str] = []
 
         # Extract service hints
-        service_mappings = {
-            's3': 's3', 'ec2': 'ec2', 'lambda': 'lambda',
-            'dynamodb': 'dynamodb', 'iam': 'iam', 'sqs': 'sqs',
-            'sns': 'sns', 'rds': 'rds', 'kms': 'kms',
-        }
         target_services: List[str] = []
-        for keyword, service in service_mappings.items():
+        for keyword, service in SERVICE_NAME_MAPPINGS.items():
             if keyword in intent_lower:
-                target_services.append(service)
+                if service not in target_services:
+                    target_services.append(service)
 
         # Determine access level from intent
         is_read_only = any(
-            kw in intent_lower
-            for kw in ('read-only', 'read only', 'readonly', 'view', 'get')
+            kw in intent_lower for kw in READ_INTENT_KEYWORDS
         )
         is_write = any(
-            kw in intent_lower
-            for kw in ('write', 'modify', 'update', 'create', 'manage')
+            kw in intent_lower for kw in WRITE_INTENT_KEYWORDS
         )
 
         for svc in target_services:
@@ -532,8 +535,8 @@ class PolicyRewriter:
         # Determine resource type from actions
         resource_type = self._infer_resource_type(service_prefix, actions)
 
-        account_id = config.account_id or "123456789012"
-        region = config.region or "us-east-1"
+        account_id = config.account_id or DEFAULT_ACCOUNT_ID
+        region = config.region or DEFAULT_REGION
 
         if self.inventory:
             return self.inventory.generate_placeholder_arn(
@@ -601,6 +604,9 @@ class PolicyRewriter:
         changes: List[RewriteChange] = []
         companions_added: List[CompanionPermission] = []
 
+        # Work on a copy to avoid mutating the input list
+        statements = list(statements)
+
         # Collect all Allow actions across all statements
         all_allow_actions: List[str] = []
         for stmt in statements:
@@ -626,11 +632,10 @@ class PolicyRewriter:
                 ),
             )
 
-            # Try to scope companion resources
-            if self.inventory or config.account_id:
-                companion_stmt, _ = self._scope_resources(
-                    companion_stmt, config, len(statements)
-                )
+            # Always attempt to scope companion resources
+            companion_stmt, _ = self._scope_resources(
+                companion_stmt, config, len(statements)
+            )
 
             statements.append(companion_stmt)
             companions_added.append(companion)
@@ -673,7 +678,7 @@ class PolicyRewriter:
         if statement.effect != 'Allow':
             return statement, changes
 
-        conditions = dict(statement.conditions) if statement.conditions else {}
+        conditions = copy.deepcopy(statement.conditions) if statement.conditions else {}
         added_any = False
 
         # Add region restriction if region is specified
@@ -682,8 +687,7 @@ class PolicyRewriter:
                 a.split(':')[0] for a in statement.actions if ':' in a
             }
             # Only add for regional services (not IAM, S3 buckets, etc.)
-            global_services = {'iam', 'sts', 'organizations', 'cloudfront'}
-            regional_services = services_in_stmt - global_services
+            regional_services = services_in_stmt - REGION_LESS_GLOBAL_SERVICES
 
             if regional_services:
                 if 'StringEquals' not in conditions:
@@ -770,7 +774,7 @@ class PolicyRewriter:
         """Reorganize statements for clarity and readability.
 
         Groups related actions, splits large statements, and generates
-        descriptive Sid values.
+        unique descriptive Sid values.
 
         Args:
             statements: List of statements to reorganize
@@ -780,25 +784,36 @@ class PolicyRewriter:
             Reorganized list of statements
         """
         result: List[Statement] = []
+        used_sids: Set[str] = set()
 
         for stmt in statements:
             # Preserve Deny and non-standard statements as-is
             if stmt.effect == 'Deny' or stmt.not_actions or stmt.not_resources:
                 if not stmt.sid:
-                    stmt.sid = self._generate_sid(
+                    stmt.sid = self._generate_unique_sid(
                         stmt.actions or stmt.not_actions or [],
                         stmt.effect,
+                        used_sids,
                     )
+                used_sids.add(stmt.sid)
                 result.append(stmt)
                 continue
 
             # Split large statements
             if len(stmt.actions) > max_actions:
                 split_stmts = self._split_statement(stmt, max_actions)
+                for s in split_stmts:
+                    s.sid = self._generate_unique_sid(
+                        s.actions, s.effect, used_sids
+                    )
+                    used_sids.add(s.sid)
                 result.extend(split_stmts)
             else:
                 if not stmt.sid:
-                    stmt.sid = self._generate_sid(stmt.actions, stmt.effect)
+                    stmt.sid = self._generate_unique_sid(
+                        stmt.actions, stmt.effect, used_sids
+                    )
+                used_sids.add(stmt.sid)
                 result.append(stmt)
 
         return result
@@ -860,8 +875,7 @@ class PolicyRewriter:
                     effect=statement.effect,
                     actions=chunk,
                     resources=list(statement.resources),
-                    sid=self._generate_sid(chunk, statement.effect)
-                         + part_suffix,
+                    sid=None,  # Sid assigned by _reorganize_statements
                     conditions=(
                         dict(statement.conditions)
                         if statement.conditions else None
@@ -910,11 +924,9 @@ class PolicyRewriter:
 
         # Determine access pattern
         if action_verbs:
-            if action_verbs <= {'Get', 'Describe', 'List', 'Head', 'Batch'}:
+            if action_verbs <= set(self.READ_PREFIXES):
                 access_part = "ReadAccess"
-            elif action_verbs <= {
-                'Put', 'Create', 'Update', 'Delete', 'Remove',
-            }:
+            elif action_verbs <= set(self.WRITE_PREFIXES):
                 access_part = "WriteAccess"
             else:
                 access_part = "Access"
@@ -933,6 +945,30 @@ class PolicyRewriter:
         sid = re.sub(r'[^A-Za-z0-9]', '', sid)
 
         return sid
+
+    def _generate_unique_sid(
+        self,
+        actions: List[str],
+        effect: str,
+        used_sids: Set[str],
+    ) -> str:
+        """Generate a unique Sid, appending a counter if needed.
+
+        Args:
+            actions: List of IAM action names
+            effect: Statement effect
+            used_sids: Set of already-used Sid strings
+
+        Returns:
+            Unique Sid string
+        """
+        base_sid = self._generate_sid(actions, effect)
+        if base_sid not in used_sids:
+            return base_sid
+        counter = 2
+        while f"{base_sid}{counter}" in used_sids:
+            counter += 1
+        return f"{base_sid}{counter}"
 
     def to_policy_json(self, policy: Policy) -> Dict[str, Any]:
         """Convert Policy dataclass to IAM policy JSON format.
