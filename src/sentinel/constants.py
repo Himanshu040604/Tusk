@@ -110,93 +110,6 @@ SERVICE_NAME_MAPPINGS: Dict[str, str] = {
     'logs': 'logs',
 }
 
-# ---------------------------------------------------------------------------
-# Known AWS service prefixes  (expanded from 56 -> ~150)
-#
-# Organised by category for readability.
-# ---------------------------------------------------------------------------
-
-_HARDCODED_SERVICES: Set[str] = {
-    # -- Compute --
-    's3', 'ec2', 'lambda', 'ecs', 'ecr', 'eks', 'fargate',
-    'elasticbeanstalk', 'batch', 'lightsail', 'autoscaling',
-    'autoscaling-plans', 'imagebuilder', 'compute-optimizer',
-    'elasticloadbalancing', 'app-mesh', 'apprunner',
-
-    # -- Storage --
-    'ebs', 'efs', 's3-outposts', 'fsx', 'storagegateway',
-    'backup', 'dlm',
-
-    # -- Database --
-    'dynamodb', 'rds', 'redshift', 'elasticache', 'neptune',
-    'docdb-elastic', 'dax', 'memorydb', 'timestream',
-    'qldb', 'keyspaces', 'dms',
-
-    # -- Networking --
-    'vpc', 'route53', 'route53resolver', 'cloudfront',
-    'apigateway', 'execute-api', 'appsync', 'directconnect',
-    'globalaccelerator', 'networkmanager', 'network-firewall',
-    'servicediscovery', 'transitgateway',
-
-    # -- Security, Identity, Compliance --
-    'iam', 'sts', 'organizations', 'kms', 'secretsmanager',
-    'acm', 'acm-pca', 'waf', 'wafv2', 'shield',
-    'guardduty', 'inspector', 'inspector2', 'macie', 'macie2',
-    'cognito-idp', 'cognito-identity', 'sso', 'sso-admin',
-    'ram', 'securityhub', 'access-analyzer', 'detective',
-    'fms', 'artifact', 'auditmanager', 'identitystore',
-    'verifiedpermissions',
-
-    # -- Management & Governance --
-    'cloudformation', 'cloudwatch', 'logs', 'events',
-    'ssm', 'config', 'cloudtrail', 'servicecatalog',
-    'health', 'trustedadvisor', 'resource-groups',
-    'tag', 'license-manager', 'account', 'controltower',
-    'wellarchitected', 'chatbot', 'support', 'ce',
-    'budgets', 'cur',
-
-    # -- Messaging & Integration --
-    'sqs', 'sns', 'ses', 'sesv2', 'pinpoint',
-    'connect', 'chime', 'mq', 'kafka',
-    'states', 'swf', 'scheduler',
-
-    # -- Analytics --
-    'kinesis', 'firehose', 'athena', 'emr', 'emr-serverless',
-    'glue', 'databrew', 'lakeformation', 'quicksight',
-    'opensearch', 'opensearchserverless', 'datapipeline',
-    'msk',
-
-    # -- Application Integration --
-    'stepfunctions', 'eventbridge', 'pipes',
-    'appflow', 'mwaa',
-
-    # -- Developer Tools --
-    'codebuild', 'codedeploy', 'codepipeline', 'codecommit',
-    'codestar', 'codestar-connections', 'codeartifact',
-    'codeguru-reviewer', 'codeguru-profiler', 'xray',
-    'cloud9', 'proton',
-
-    # -- Machine Learning --
-    'sagemaker', 'comprehend', 'rekognition', 'transcribe',
-    'translate', 'polly', 'lex', 'personalize', 'forecast',
-    'textract', 'bedrock', 'lookoutmetrics',
-
-    # -- IoT --
-    'iot', 'iot-data', 'iotanalytics', 'iotevents',
-    'iotsitewise', 'greengrass',
-
-    # -- Media Services --
-    'mediaconvert', 'mediapackage', 'medialive',
-    'mediastore', 'elastictranscoder',
-
-    # -- Migration --
-    'mgn', 'datasync', 'transfer',
-
-    # -- Business Applications --
-    'workspaces', 'workmail', 'workdocs',
-    'appstream',
-}
-
 # Path to JSON data file (project root / data / known_services.json)
 _JSON_PATH: Path = (
     Path(__file__).resolve().parent.parent.parent / "data" / "known_services.json"
@@ -204,24 +117,24 @@ _JSON_PATH: Path = (
 
 
 def load_known_services(json_path: Optional[Path] = None) -> Set[str]:
-    """Load known AWS service prefixes from JSON file with hardcoded fallback.
+    """Load known AWS service prefixes from JSON cache file.
 
     Args:
         json_path: Override path to JSON file (for testing). Defaults to
             ``data/known_services.json`` relative to project root.
 
     Returns:
-        Set of service prefix strings.
+        Set of service prefix strings. Empty set if JSON is missing or invalid.
     """
     path = json_path or _JSON_PATH
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         services = data.get("services", [])
         if not isinstance(services, list) or not services:
-            return set(_HARDCODED_SERVICES)
+            return set()
         return set(services)
     except (FileNotFoundError, json.JSONDecodeError, OSError, KeyError, TypeError):
-        return set(_HARDCODED_SERVICES)
+        return set()
 
 
 KNOWN_SERVICES: Set[str] = load_known_services()
