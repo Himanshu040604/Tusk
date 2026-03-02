@@ -129,7 +129,8 @@ class ResourceInventory:
             raise InventoryError(f"Database connection failed: {e}") from e
         try:
             yield conn
-            conn.commit()
+            if not self.read_only:
+                conn.commit()
         except sqlite3.Error as e:
             raise InventoryError(f"Database operation failed: {e}") from e
         finally:
