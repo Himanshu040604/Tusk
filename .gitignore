@@ -36,3 +36,7 @@ agent_state/
 
 # Downloaded AWS examples (generated at runtime)
 data/aws_examples/
+
+# Intermediate policy_sentry data (source file + per-service conversions)
+data/iam-definition-raw.json
+data/policy_sentry_converted/
