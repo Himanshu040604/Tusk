@@ -153,7 +153,8 @@ class Database:
             raise DatabaseError(f"Database connection failed: {e}") from e
         try:
             yield conn
-            conn.commit()
+            if not self.read_only:
+                conn.commit()
         except sqlite3.Error as e:
             raise DatabaseError(f"Database operation failed: {e}") from e
         finally:
@@ -276,7 +277,12 @@ class Database:
                     condition_key_name TEXT NOT NULL,
                     description TEXT,
                     condition_type TEXT
-                        CHECK(condition_type IN ('String', 'Numeric', 'Date', 'Boolean', 'Binary', 'IPAddress', 'ARN', 'Null')),
+                        CHECK(condition_type IN (
+                            'String', 'Numeric', 'Date', 'Boolean', 'Binary',
+                            'IPAddress', 'ARN', 'Null',
+                            'ArrayOfString', 'ArrayOfARN', 'ArrayOfBool',
+                            'Long', 'Integer', 'Float'
+                        )),
                     reference_url TEXT,
                     is_global BOOLEAN DEFAULT 0,
                     FOREIGN KEY (service_prefix) REFERENCES services(service_prefix) ON DELETE CASCADE,
