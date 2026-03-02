@@ -223,6 +223,33 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output JSON file path (default: data/known_services.json)",
     )
 
+    # fetch-examples
+    p_fetch = subparsers.add_parser(
+        "fetch-examples",
+        parents=[parent],
+        help="Fetch AWS IAM policy examples, normalize, and benchmark",
+    )
+    p_fetch.add_argument(
+        "--output-dir",
+        default=None,
+        help="Directory for downloaded examples (default: data/aws_examples)",
+    )
+    p_fetch.add_argument(
+        "--normalize-only",
+        action="store_true",
+        help="Normalize previously downloaded files without re-fetching",
+    )
+    p_fetch.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run benchmark after normalizing",
+    )
+    p_fetch.add_argument(
+        "--report",
+        default=None,
+        help="Write benchmark report to file (JSON)",
+    )
+
     return parser
 
 
@@ -685,6 +712,63 @@ def cmd_export_services(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+def cmd_fetch_examples(args: argparse.Namespace) -> int:
+    """Execute the fetch-examples subcommand.
+
+    Args:
+        args: Parsed arguments.
+
+    Returns:
+        Exit code.
+    """
+    from src.refresh.aws_examples import (
+        ExampleFetcher,
+        PolicyNormalizer,
+        BenchmarkRunner,
+        BenchmarkReporter,
+    )
+
+    pkg_dir = Path(__file__).resolve().parent.parent.parent
+    output_arg = getattr(args, "output_dir", None)
+    base_dir = Path(output_arg) if output_arg else pkg_dir / "data" / "aws_examples"
+    raw_dir = base_dir / "raw"
+    norm_dir = base_dir / "normalized"
+
+    if not getattr(args, "normalize_only", False):
+        try:
+            fetcher = ExampleFetcher(raw_dir)
+            files = fetcher.fetch_all()
+            print(f"Downloaded {len(files)} JSON files to {raw_dir}")
+        except RuntimeError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return EXIT_IO_ERROR
+
+    normalizer = PolicyNormalizer(raw_dir, norm_dir)
+    policies = normalizer.normalize_all()
+    print(f"Normalized {len(policies)} IAM policies to {norm_dir}")
+
+    if not getattr(args, "benchmark", False):
+        return EXIT_SUCCESS
+
+    db = resolve_database(args)
+    inv = resolve_inventory(args)
+    runner = BenchmarkRunner(db, inv)
+    entries = runner.run_benchmark(policies)
+
+    reporter = BenchmarkReporter()
+    report = reporter.generate_report(entries)
+    print(reporter.format_text(report))
+
+    report_path = getattr(args, "report", None)
+    if report_path:
+        Path(report_path).write_text(
+            json.dumps(report, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"Report written to {report_path}")
+
+    return EXIT_SUCCESS
+
+
 def main() -> None:
     """CLI entry point. Dispatches to subcommand handlers."""
     from . import __version__
@@ -708,6 +792,7 @@ def main() -> None:
         "refresh": cmd_refresh,
         "info": cmd_info,
         "export-services": cmd_export_services,
+        "fetch-examples": cmd_fetch_examples,
     }
 
     handler = handlers.get(args.command)

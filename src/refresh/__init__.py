@@ -2,4 +2,5 @@
 
 Provides loaders for populating the IAM actions database from
 policy_sentry JSON exports and locally saved AWS documentation HTML files.
+Also provides AWS example fetching, normalization, and benchmarking.
 """

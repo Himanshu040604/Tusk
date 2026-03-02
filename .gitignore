@@ -33,3 +33,6 @@ nul
 
 # Agent state (runtime)
 agent_state/
+
+# Downloaded AWS examples (generated at runtime)
+data/aws_examples/
