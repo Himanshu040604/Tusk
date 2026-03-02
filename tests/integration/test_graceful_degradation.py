@@ -359,7 +359,7 @@ class TestOutdatedDatabase:
         assert s3_results[0].tier == ValidationTier.TIER_1_VALID
 
         # lambda:InvokeFunction should be TIER_2_UNKNOWN (known service
-        # prefix from hardcoded list, but action not in DB)
+        # prefix from JSON cache, but action not in partial DB)
         lambda_results = [
             r for r in result.validation_results
             if r.action == "lambda:InvokeFunction"
@@ -552,3 +552,54 @@ class TestCorruptedInput:
         assert original_stmt.conditions is not None
         assert "StringEquals" in original_stmt.conditions
         assert "IpAddress" in original_stmt.conditions
+
+
+# -----------------------------------------------------------------------
+# TestCorruptedDatabase
+# -----------------------------------------------------------------------
+
+
+class TestCorruptedDatabase:
+    """Tests behavior when DB object exists but queries fail at runtime."""
+
+    def test_corrupted_db_init_falls_back_to_json(self, tmp_path):
+        """DB provided but schema missing -- init loads JSON cache."""
+        bad_db = Database(tmp_path / "corrupted.db")
+        # Don't create schema, so queries fail
+
+        parser = PolicyParser(bad_db)
+        assert parser._services_source == "json_cache"
+        assert "s3" in parser.known_services
+
+    def test_corrupted_db_classify_works_via_json(self, tmp_path):
+        """Classification still works using JSON data when DB is broken."""
+        bad_db = Database(tmp_path / "corrupted.db")
+        # No schema
+
+        parser = PolicyParser(bad_db)
+
+        # s3 is in JSON cache, so recognized but not confirmed via DB
+        result = parser.classify_action("s3:GetObject")
+        assert result.tier == ValidationTier.TIER_2_UNKNOWN
+        assert "recognized (cached)" in result.reason
+
+    def test_corrupted_db_unknown_service_invalid(self, tmp_path):
+        """Unknown service stays Tier 3 even with broken DB."""
+        bad_db = Database(tmp_path / "corrupted.db")
+
+        parser = PolicyParser(bad_db)
+        result = parser.classify_action("madeupservice:DoSomething")
+        assert result.tier == ValidationTier.TIER_3_INVALID
+
+    def test_corrupted_db_pipeline_completes(self, tmp_path):
+        """Full pipeline completes with corrupted DB, using JSON fallback."""
+        bad_db = Database(tmp_path / "corrupted.db")
+
+        pipeline = Pipeline(database=bad_db)
+        policy_json = _make_policy_json(actions=["s3:GetObject"])
+        result = pipeline.run(policy_json)
+
+        assert isinstance(result, PipelineResult)
+        assert result.original_policy is not None
+        assert result.rewritten_policy is not None
+        assert result.iterations >= 1
