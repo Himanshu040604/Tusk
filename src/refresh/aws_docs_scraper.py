@@ -355,5 +355,10 @@ class AwsDocsScraper:
 
     def _update_metadata(self) -> None:
         """Update database metadata timestamps."""
+        from datetime import datetime, timezone
+
         self.database.set_metadata("data_source", "aws_docs")
-        self.database.set_metadata("last_full_update", "CURRENT_TIMESTAMP")
+        self.database.set_metadata(
+            "last_full_update",
+            datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        )
