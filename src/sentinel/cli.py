@@ -175,6 +175,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip adding condition keys",
     )
+    p_run.add_argument(
+        "--interactive",
+        action="store_true",
+        default=False,
+        help="Prompt for approval of Tier 2 (unknown) actions before rewriting",
+    )
 
     # refresh
     p_refresh = subparsers.add_parser(
@@ -444,6 +450,8 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     all_actions = []
     for stmt in policy.statements:
         all_actions.extend(stmt.actions)
+        if stmt.not_actions:
+            all_actions.extend(stmt.not_actions)
 
     risk_analyzer = RiskAnalyzer(db)
     findings = risk_analyzer.analyze_actions(all_actions)
@@ -533,6 +541,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         max_self_check_retries=args.max_retries,
         add_companions=not args.no_companions,
         add_conditions=not args.no_conditions,
+        interactive=args.interactive,
     )
 
     pipeline = Pipeline(db, inv)
@@ -574,18 +583,18 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         return EXIT_IO_ERROR
 
     if args.dry_run:
-        # Dry-run: validate data without touching DB
+        # Dry-run: validate data using in-memory DB (no disk writes)
         if args.source == "policy-sentry":
             from src.refresh.policy_sentry_loader import PolicySentryLoader
 
-            db = Database(Path(db_path))
+            db = Database(Path(":memory:"))
             db.create_schema()
             loader = PolicySentryLoader(db)
             errors = loader.validate_data(data_path)
         else:
             from src.refresh.aws_docs_scraper import AwsDocsScraper
 
-            db = Database(Path(db_path))
+            db = Database(Path(":memory:"))
             db.create_schema()
             scraper = AwsDocsScraper(db)
             errors = scraper.validate_data(data_path)
