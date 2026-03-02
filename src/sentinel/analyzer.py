@@ -864,9 +864,17 @@ class HITLSystem:
     user decisions and assumptions.
     """
 
-    def __init__(self):
-        """Initialize HITL system."""
+    def __init__(self, interactive: bool = False):
+        """Initialize HITL system.
+
+        Args:
+            interactive: If True, prompt user via stdin for each
+                Tier 2 action. If False, auto-approve all actions
+                (safe for CI/CD and testing).
+        """
+        self.interactive = interactive
         self.decisions: List[HITLDecision] = []
+        self._skip_remaining = False
 
     def flag_tier2_action(
         self,
@@ -875,29 +883,88 @@ class HITLSystem:
     ) -> bool:
         """Flag Tier 2 action for human review.
 
+        When interactive mode is enabled, prompts the user via stdin
+        to approve, reject, or skip remaining actions. In non-interactive
+        mode, auto-approves all actions.
+
         Args:
             action: Action name to flag
             assumptions: List of assumptions to validate
 
         Returns:
             True to proceed with action, False to reject
-
-        Note:
-            This is a synchronous method. In production, this would
-            integrate with an interactive prompt system.
         """
-        # In a real implementation, this would show an interactive prompt
-        # For testing, we'll return True and track the decision
+        if not self.interactive or self._skip_remaining:
+            decision = HITLDecision(
+                action=action,
+                tier='TIER_2_UNKNOWN',
+                user_approved=True,
+                assumptions_validated=assumptions,
+            )
+            self.decisions.append(decision)
+            return True
 
-        decision = HITLDecision(
-            action=action,
-            tier='TIER_2_UNKNOWN',
-            user_approved=True,  # Default for automated testing
-            assumptions_validated=assumptions
-        )
+        return self._prompt_user(action, assumptions)
 
-        self.decisions.append(decision)
-        return True
+    def _prompt_user(self, action: str, assumptions: List[str]) -> bool:
+        """Prompt user via stdin for a Tier 2 action decision.
+
+        Displays action details and reads user input. Accepts:
+        - 'a' to approve
+        - 'r' to reject
+        - 's' to skip remaining (auto-approve all subsequent)
+
+        Args:
+            action: Action name to review.
+            assumptions: Assumptions about the action.
+
+        Returns:
+            True if approved, False if rejected.
+        """
+        reason = '; '.join(assumptions) if assumptions else 'No details available'
+        print(f"\n[HITL] Tier 2 action: {action}")
+        print(f"  Reason: {reason}")
+
+        while True:
+            try:
+                answer = input(
+                    "  Approve this action? "
+                    "[A]pprove / [R]eject / [S]kip remaining (auto-approve) > "
+                ).strip().lower()
+            except EOFError:
+                answer = 'r'
+
+            if answer in ('a', 'approve'):
+                decision = HITLDecision(
+                    action=action,
+                    tier='TIER_2_UNKNOWN',
+                    user_approved=True,
+                    assumptions_validated=assumptions,
+                )
+                self.decisions.append(decision)
+                return True
+            elif answer in ('r', 'reject'):
+                decision = HITLDecision(
+                    action=action,
+                    tier='TIER_2_UNKNOWN',
+                    user_approved=False,
+                    assumptions_validated=assumptions,
+                )
+                self.decisions.append(decision)
+                return False
+            elif answer in ('s', 'skip'):
+                self._skip_remaining = True
+                decision = HITLDecision(
+                    action=action,
+                    tier='TIER_2_UNKNOWN',
+                    user_approved=True,
+                    user_comment='Auto-approved (skip remaining)',
+                    assumptions_validated=assumptions,
+                )
+                self.decisions.append(decision)
+                return True
+            else:
+                print("  Invalid input. Please enter 'a', 'r', or 's'.")
 
     def record_decision(
         self,
