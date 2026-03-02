@@ -51,7 +51,7 @@ class ValidationResult:
     tier: ValidationTier
     reason: str
     access_level: Optional[str] = None
-    suggestions: List[str] = None
+    suggestions: Optional[List[str]] = None
 
     def __post_init__(self):
         """Initialize suggestions list if not provided."""
@@ -112,20 +112,41 @@ class PolicyParser:
     def __init__(self, database: Optional[Database] = None):
         """Initialize parser.
 
+        Two-layer service resolution:
+            Layer 1 (truth): Database service prefixes
+            Layer 2 (fallback): JSON cache (data/known_services.json)
+        Lenient mode when both are unavailable.
+
         Args:
             database: Optional Database instance for Tier 1 validation.
-                Also used to merge DB service prefixes into known_services.
+                Also used to load service prefixes (Layer 1).
         """
         self.database = database
-        self.known_services: Set[str] = set(_KNOWN_SERVICES)
+        self.known_services: Set[str] = set()
+        self._services_source: str = "none"
 
-        # Layer 3: merge DB service prefixes
+        # Layer 1: DB service prefixes (truth)
         if self.database:
             try:
                 db_prefixes = {s.service_prefix for s in self.database.get_services()}
-                self.known_services |= db_prefixes
+                if db_prefixes:
+                    self.known_services = db_prefixes
+                    self._services_source = "database"
             except Exception:
-                pass  # Continue with JSON/hardcoded set
+                pass  # DB failed, fall through to JSON cache
+
+        # Layer 2: JSON cache (fallback or supplement)
+        json_services = set(_KNOWN_SERVICES)
+        if json_services:
+            if self._services_source == "database":
+                # Merge JSON into DB set (DB is truth, JSON supplements)
+                self.known_services |= json_services
+            else:
+                # No DB available, JSON is primary
+                self.known_services = json_services
+                self._services_source = "json_cache"
+
+        # If both empty, _services_source stays "none" (lenient mode)
 
     def parse_policy(self, policy_json: str) -> Policy:
         """Parse IAM policy JSON string.
@@ -333,9 +354,13 @@ class PolicyParser:
                 )
 
             # Wildcard with known service is plausible
-            if service_prefix in self.known_services or (
-                self.database and self.database.service_exists(service_prefix)
-            ):
+            service_known = service_prefix in self.known_services
+            if not service_known and self.database:
+                try:
+                    service_known = self.database.service_exists(service_prefix)
+                except Exception:
+                    pass
+            if service_known:
                 return ValidationResult(
                     action=action,
                     tier=ValidationTier.TIER_2_UNKNOWN,
@@ -350,21 +375,26 @@ class PolicyParser:
             )
 
         # Tier 1: Check database if available
-        if self.database and self.database.action_exists(action):
-            db_action = self.database.get_action(service_prefix, action_name)
-            return ValidationResult(
-                action=action,
-                tier=ValidationTier.TIER_1_VALID,
-                reason="Action found in IAM database",
-                access_level=db_action.access_level if db_action else None
-            )
+        if self.database:
+            try:
+                if self.database.action_exists(action):
+                    db_action = self.database.get_action(service_prefix, action_name)
+                    return ValidationResult(
+                        action=action,
+                        tier=ValidationTier.TIER_1_VALID,
+                        reason="Action found in IAM database",
+                        access_level=db_action.access_level if db_action else None
+                    )
+            except Exception:
+                pass  # DB query failed, fall through to Tier 2
 
         # Tier 2: Plausible but not in database
         if self._is_plausible_action(service_prefix, action_name):
+            reason = self._get_tier2_reason(service_prefix)
             return ValidationResult(
                 action=action,
                 tier=ValidationTier.TIER_2_UNKNOWN,
-                reason="Action not in database but format is plausible. May be new or custom."
+                reason=reason
             )
 
         # Tier 3: Invalid
@@ -386,10 +416,16 @@ class PolicyParser:
             True if action format is plausible
         """
         # Service must be known or exist in database
-        service_known = (
-            service_prefix in self.known_services or
-            (self.database and self.database.service_exists(service_prefix))
-        )
+        service_known = service_prefix in self.known_services
+        if not service_known and self.database:
+            try:
+                service_known = self.database.service_exists(service_prefix)
+            except Exception:
+                pass
+
+        # In lenient mode (no services loaded), accept valid format
+        if not service_known and self._services_source == "none":
+            service_known = True
 
         if not service_known:
             return False
@@ -397,6 +433,25 @@ class PolicyParser:
         # Action name must follow AWS naming convention
         # Uppercase start, alphanumeric, no spaces
         return bool(self.ACTION_NAME_PATTERN.match(action_name))
+
+    def _get_tier2_reason(self, service_prefix: str) -> str:
+        """Get Tier 2 reason string based on services source.
+
+        Args:
+            service_prefix: Service prefix being classified.
+
+        Returns:
+            Human-readable reason distinguishing cache vs lenient mode.
+        """
+        if self._services_source == "database":
+            return "Action not in database but format is plausible. May be new or custom."
+        elif self._services_source == "json_cache":
+            return (
+                f"Service '{service_prefix}' recognized (cached). "
+                "Action verification requires database."
+            )
+        else:
+            return "No service data available. Action format is valid."
 
     def _get_invalid_reason(self, service_prefix: str, action_name: str) -> str:
         """Get reason why action is invalid.
@@ -408,9 +463,13 @@ class PolicyParser:
         Returns:
             Human-readable reason
         """
-        if service_prefix not in self.known_services and (
-            not self.database or not self.database.service_exists(service_prefix)
-        ):
+        service_known = service_prefix in self.known_services
+        if not service_known and self.database:
+            try:
+                service_known = self.database.service_exists(service_prefix)
+            except Exception:
+                pass
+        if not service_known:
             return f"Unknown AWS service: {service_prefix}"
 
         if not self.ACTION_NAME_PATTERN.match(action_name):
@@ -555,9 +614,12 @@ class PolicyParser:
         # Cache database services to avoid repeated queries
         db_service_prefixes: List[str] = []
         if self.database:
-            db_service_prefixes = [
-                svc.service_prefix for svc in self.database.get_services()
-            ]
+            try:
+                db_service_prefixes = [
+                    svc.service_prefix for svc in self.database.get_services()
+                ]
+            except Exception:
+                pass
 
         # Try different matching strategies
         # 1. Exact prefix match (first N characters)
@@ -593,6 +655,8 @@ class PolicyParser:
     def extract_actions(self, policy: Policy) -> Set[str]:
         """Extract all unique actions from policy.
 
+        Includes both Action and NotAction entries.
+
         Args:
             policy: Policy object
 
@@ -604,6 +668,9 @@ class PolicyParser:
         for statement in policy.statements:
             for action in statement.actions:
                 actions.add(action)
+            if statement.not_actions:
+                for action in statement.not_actions:
+                    actions.add(action)
 
         return actions
 
