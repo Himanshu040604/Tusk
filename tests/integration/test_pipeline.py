@@ -497,3 +497,121 @@ class TestPipelineEndToEnd:
         policy_json = _make_policy_json(actions=["s3:GetObject"])
         result = pipeline.run(policy_json)
         assert result.final_verdict == result.self_check_result.verdict
+
+
+# ---------------------------------------------------------------------------
+# Test Pipeline HITL Interactive Mode
+# ---------------------------------------------------------------------------
+
+class TestPipelineHITL:
+    """Tests for HITL interactive prompting within the pipeline."""
+
+    def _make_tier2_policy_json(self):
+        """Create a policy with a mix of valid and Tier 2 actions.
+
+        Tier 2 actions require a known service prefix with an unknown
+        action name (e.g., s3:FutureAction -- s3 exists in DB but
+        FutureAction does not).
+        """
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:GetObject",
+                        "s3:FutureAction",
+                    ],
+                    "Resource": ["*"],
+                }
+            ],
+        }
+        return json.dumps(policy)
+
+    def test_non_interactive_default_hitl_empty(self, tmp_db):
+        """Default non-interactive mode: Tier 2 handled by self-check loop-back."""
+        pipeline = Pipeline(database=tmp_db)
+        policy_json = self._make_tier2_policy_json()
+        config = PipelineConfig(interactive=False)
+        result = pipeline.run(policy_json, config)
+
+        # No interactive HITL decisions recorded
+        assert result.hitl_decisions == []
+
+    def test_interactive_approve_tier2(self, tmp_db, monkeypatch):
+        """Interactive mode: approved Tier 2 action survives into rewriting."""
+        pipeline = Pipeline(database=tmp_db)
+        policy_json = self._make_tier2_policy_json()
+        config = PipelineConfig(interactive=True)
+
+        # Approve all Tier 2 actions
+        monkeypatch.setattr('builtins.input', lambda _: 'a')
+
+        result = pipeline.run(policy_json, config)
+
+        # Should have HITL decisions
+        assert len(result.hitl_decisions) >= 1
+        assert all(d.user_approved for d in result.hitl_decisions)
+        # Summary should mention HITL
+        assert 'HITL' in result.pipeline_summary
+
+    def test_interactive_reject_tier2(self, tmp_db, monkeypatch):
+        """Interactive mode: rejected Tier 2 action removed before rewriting."""
+        pipeline = Pipeline(database=tmp_db)
+        policy_json = self._make_tier2_policy_json()
+        config = PipelineConfig(interactive=True)
+
+        # Reject all Tier 2 actions
+        monkeypatch.setattr('builtins.input', lambda _: 'r')
+
+        result = pipeline.run(policy_json, config)
+
+        # Should have rejected decisions
+        rejected = [d for d in result.hitl_decisions if not d.user_approved]
+        assert len(rejected) >= 1
+
+        # Rejected action should not appear in rewritten policy
+        all_actions = []
+        for stmt in result.rewritten_policy.statements:
+            all_actions.extend(stmt.actions)
+        for decision in rejected:
+            assert decision.action not in all_actions
+
+    def test_interactive_skip_auto_approves(self, tmp_db, monkeypatch):
+        """Interactive mode: skip remaining auto-approves all subsequent."""
+        pipeline = Pipeline(database=tmp_db)
+        # Policy with two Tier 2 actions (known service, unknown action)
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Action": [
+                        "s3:GetObject",
+                        "s3:FutureAction",
+                        "ec2:FutureAction",
+                    ],
+                    "Resource": ["*"],
+                }
+            ],
+        }
+        policy_json = json.dumps(policy)
+        config = PipelineConfig(interactive=True)
+
+        # Skip on first prompt -- auto-approve all
+        monkeypatch.setattr('builtins.input', lambda _: 's')
+
+        result = pipeline.run(policy_json, config)
+
+        # All Tier 2 actions should be approved
+        assert all(d.user_approved for d in result.hitl_decisions)
+
+    def test_no_tier2_no_hitl(self, tmp_db):
+        """No Tier 2 actions means no HITL decisions even in interactive mode."""
+        pipeline = Pipeline(database=tmp_db)
+        # All actions are valid Tier 1
+        policy_json = _make_policy_json(actions=["s3:GetObject", "s3:PutObject"])
+        config = PipelineConfig(interactive=True)
+        result = pipeline.run(policy_json, config)
+
+        assert result.hitl_decisions == []
