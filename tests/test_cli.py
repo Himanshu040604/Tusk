@@ -310,6 +310,7 @@ class TestCmdRun:
             max_retries=3,
             no_companions=False,
             no_conditions=False,
+            interactive=False,
         )
         code = cmd_run(args)
         # Without DB, self-check may find warnings
@@ -329,6 +330,7 @@ class TestCmdRun:
             max_retries=3,
             no_companions=False,
             no_conditions=False,
+            interactive=False,
         )
         code = cmd_run(args)
         assert code in (EXIT_SUCCESS, EXIT_ISSUES_FOUND)
@@ -347,6 +349,7 @@ class TestCmdRun:
             max_retries=1,
             no_companions=False,
             no_conditions=False,
+            interactive=False,
         )
         code = cmd_run(args)
         # Strict mode with wildcard should fail
@@ -368,6 +371,7 @@ class TestCmdRun:
             max_retries=3,
             no_companions=False,
             no_conditions=False,
+            interactive=False,
         )
         code = cmd_run(args)
         assert code == EXIT_INVALID_ARGS
