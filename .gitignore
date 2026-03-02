@@ -51,6 +51,7 @@ docs/
 # Specific excluded files
 verify_phase1.py
 verify_phase2.py
+verify_bug_fix.py
 klarna_task.txt
 prompt.txt
 work.png
