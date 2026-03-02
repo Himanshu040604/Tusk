@@ -27,6 +27,8 @@ from .analyzer import (
     RiskSeverity,
     CompanionPermissionDetector,
     AccessLevel,
+    HITLSystem,
+    HITLDecision,
 )
 from .rewriter import (
     PolicyRewriter,
@@ -115,6 +117,7 @@ class PipelineConfig:
         max_self_check_retries: Maximum loop-back iterations.
         add_companions: Whether to add companion permissions.
         add_conditions: Whether to inject condition keys.
+        interactive: If True, prompt user for Tier 2 action approval.
     """
     intent: Optional[str] = None
     account_id: Optional[str] = None
@@ -123,6 +126,7 @@ class PipelineConfig:
     max_self_check_retries: int = 3
     add_companions: bool = True
     add_conditions: bool = True
+    interactive: bool = False
 
 
 @dataclass
@@ -139,6 +143,8 @@ class PipelineResult:
         iterations: Number of self-check loop-back iterations run.
         final_verdict: The final verdict after all iterations.
         pipeline_summary: Human-readable pipeline summary.
+        hitl_decisions: HITL decisions for Tier 2 actions (empty if
+            non-interactive).
     """
     original_policy: Policy
     rewritten_policy: Policy
@@ -149,6 +155,7 @@ class PipelineResult:
     iterations: int
     final_verdict: CheckVerdict
     pipeline_summary: str
+    hitl_decisions: List[HITLDecision] = field(default_factory=list)
 
 
 # ARN format: starts with arn: and has at least 5 colon-separated parts
@@ -786,6 +793,8 @@ class Pipeline:
         all_actions: List[str] = []
         for stmt in policy.statements:
             all_actions.extend(stmt.actions)
+            if stmt.not_actions:
+                all_actions.extend(stmt.not_actions)
 
         risk_analyzer = RiskAnalyzer(self.database)
         risk_findings = risk_analyzer.analyze_actions(all_actions)
@@ -794,6 +803,34 @@ class Pipeline:
         missing_companions = companion_detector.detect_missing_companions(
             all_actions
         )
+
+        # Step 2.5: HITL - Interactive Tier 2 action review
+        hitl = HITLSystem(interactive=config.interactive)
+        tier2_actions = [
+            r for r in validation_results
+            if r.tier == ValidationTier.TIER_2_UNKNOWN
+        ]
+        rejected_actions: Set[str] = set()
+
+        if tier2_actions and config.interactive:
+            for vr in tier2_actions:
+                assumptions = [vr.reason] if vr.reason else []
+                approved = hitl.flag_tier2_action(vr.action, assumptions)
+                if not approved:
+                    rejected_actions.add(vr.action)
+
+            # Remove rejected actions from policy before rewriting
+            if rejected_actions:
+                policy = copy.deepcopy(policy)
+                for stmt in policy.statements:
+                    stmt.actions = [
+                        a for a in stmt.actions
+                        if a not in rejected_actions
+                    ]
+                policy.statements = [
+                    s for s in policy.statements
+                    if s.actions or s.not_actions
+                ]
 
         # Step 3: REWRITE
         rewriter = PolicyRewriter(self.database, self.inventory)
@@ -850,6 +887,17 @@ class Pipeline:
             f"(completeness {self_check_result.completeness_score:.0%}).",
         ]
 
+        hitl_decisions = hitl.get_decision_history()
+        if hitl_decisions:
+            approved_count = sum(
+                1 for d in hitl_decisions if d.user_approved
+            )
+            rejected_count = len(hitl_decisions) - approved_count
+            summary_parts.append(
+                f"HITL: {len(hitl_decisions)} Tier 2 action(s) reviewed "
+                f"({approved_count} approved, {rejected_count} rejected)."
+            )
+
         return PipelineResult(
             original_policy=policy,
             rewritten_policy=rewrite_result.rewritten_policy,
@@ -860,6 +908,7 @@ class Pipeline:
             iterations=iterations,
             final_verdict=self_check_result.verdict,
             pipeline_summary=' '.join(summary_parts),
+            hitl_decisions=hitl_decisions,
         )
 
     def _apply_self_check_fixes(
