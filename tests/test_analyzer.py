@@ -487,17 +487,96 @@ class TestCompanionPermissionDetector:
 class TestHITLSystem:
     """Test HITLSystem functionality."""
 
-    def test_flag_tier2_action(self):
-        """Test flagging Tier 2 action for review."""
-        hitl = HITLSystem()
+    def test_flag_tier2_action_non_interactive(self):
+        """Test non-interactive mode auto-approves all actions."""
+        hitl = HITLSystem(interactive=False)
         assumptions = ["Action is for new AWS service", "Format looks correct"]
 
         result = hitl.flag_tier2_action('newservice:GetData', assumptions)
 
-        assert result is True  # Default approval for testing
+        assert result is True
         assert len(hitl.decisions) == 1
         assert hitl.decisions[0].action == 'newservice:GetData'
         assert hitl.decisions[0].tier == 'TIER_2_UNKNOWN'
+        assert hitl.decisions[0].user_approved is True
+
+    def test_flag_tier2_default_non_interactive(self):
+        """Test default constructor is non-interactive."""
+        hitl = HITLSystem()
+        assert hitl.interactive is False
+
+        result = hitl.flag_tier2_action('svc:Action', ['test'])
+        assert result is True
+
+    def test_interactive_approve(self, monkeypatch):
+        """Test interactive mode with user approving action."""
+        hitl = HITLSystem(interactive=True)
+        monkeypatch.setattr('builtins.input', lambda _: 'a')
+
+        result = hitl.flag_tier2_action('newservice:GetData', ['New service'])
+
+        assert result is True
+        assert len(hitl.decisions) == 1
+        assert hitl.decisions[0].user_approved is True
+
+    def test_interactive_reject(self, monkeypatch):
+        """Test interactive mode with user rejecting action."""
+        hitl = HITLSystem(interactive=True)
+        monkeypatch.setattr('builtins.input', lambda _: 'r')
+
+        result = hitl.flag_tier2_action('newservice:GetData', ['New service'])
+
+        assert result is False
+        assert len(hitl.decisions) == 1
+        assert hitl.decisions[0].user_approved is False
+
+    def test_interactive_skip_remaining(self, monkeypatch):
+        """Test interactive mode with skip auto-approves rest."""
+        hitl = HITLSystem(interactive=True)
+        call_count = 0
+
+        def fake_input(_):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return 's'
+            raise AssertionError("Should not prompt again after skip")
+
+        monkeypatch.setattr('builtins.input', fake_input)
+
+        r1 = hitl.flag_tier2_action('svc:Action1', ['assumption1'])
+        r2 = hitl.flag_tier2_action('svc:Action2', ['assumption2'])
+
+        assert r1 is True
+        assert r2 is True
+        assert len(hitl.decisions) == 2
+        assert hitl.decisions[0].user_comment == 'Auto-approved (skip remaining)'
+        # Second call should not have prompted (skip_remaining is True)
+        assert call_count == 1
+
+    def test_interactive_invalid_then_approve(self, monkeypatch):
+        """Test interactive mode re-prompts on invalid input."""
+        responses = iter(['x', 'invalid', 'a'])
+        monkeypatch.setattr('builtins.input', lambda _: next(responses))
+
+        hitl = HITLSystem(interactive=True)
+        result = hitl.flag_tier2_action('svc:Action', ['test'])
+
+        assert result is True
+        assert hitl.decisions[0].user_approved is True
+
+    def test_interactive_eof_rejects(self, monkeypatch):
+        """Test interactive mode treats EOF as rejection."""
+        hitl = HITLSystem(interactive=True)
+
+        def raise_eof(_):
+            raise EOFError()
+
+        monkeypatch.setattr('builtins.input', raise_eof)
+
+        result = hitl.flag_tier2_action('svc:Action', ['test'])
+        assert result is False
+        assert hitl.decisions[0].user_approved is False
 
     def test_record_decision_approved(self):
         """Test recording approved decision."""
@@ -577,8 +656,8 @@ class TestHITLSystem:
         stats = hitl.get_approval_stats()
         assert stats['total_reviews'] == 0
 
-    def test_multiple_flag_calls(self):
-        """Test multiple flag calls track separately."""
+    def test_multiple_flag_calls_non_interactive(self):
+        """Test multiple flag calls track separately in non-interactive mode."""
         hitl = HITLSystem()
 
         hitl.flag_tier2_action('action1', ['assumption1'])
@@ -647,14 +726,14 @@ class TestIntegration:
         assert len(missing) > 0
 
     def test_hitl_with_risk_findings(self):
-        """Test HITL system with risk findings."""
+        """Test HITL system with risk findings (non-interactive)."""
         analyzer = RiskAnalyzer()
-        hitl = HITLSystem()
+        hitl = HITLSystem(interactive=False)
 
         # Analyze unknown action
         findings = analyzer.analyze_actions(['newservice:GetData'])
 
-        # Flag for HITL review
+        # Flag for HITL review (auto-approved in non-interactive mode)
         approved = hitl.flag_tier2_action(
             'newservice:GetData',
             ['New service', 'Plausible format']
