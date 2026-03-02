@@ -877,7 +877,7 @@ class PolicyRewriter:
                     resources=list(statement.resources),
                     sid=None,  # Sid assigned by _reorganize_statements
                     conditions=(
-                        dict(statement.conditions)
+                        copy.deepcopy(statement.conditions)
                         if statement.conditions else None
                     ),
                     principals=statement.principals,
