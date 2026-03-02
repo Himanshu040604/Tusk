@@ -631,3 +631,22 @@ class TestSuggestions:
         similar = parser_with_db._find_similar_services('ec')
 
         assert 'ec2' in similar
+
+
+class TestNoDBParserBehavior:
+    """Test parser behavior without a database (JSON cache source)."""
+
+    def test_no_db_source_is_json_cache(self, parser):
+        """Parser without DB uses json_cache as source."""
+        assert parser._services_source == "json_cache"
+
+    def test_no_db_known_service_is_tier2(self, parser):
+        """Without DB, known-service action is Tier 2 with cache reason."""
+        result = parser.classify_action("s3:GetObject")
+        assert result.tier == ValidationTier.TIER_2_UNKNOWN
+        assert "recognized (cached)" in result.reason
+
+    def test_no_db_unknown_service_is_tier3(self, parser):
+        """Without DB, unknown service is still Tier 3."""
+        result = parser.classify_action("madeupservice:DoSomething")
+        assert result.tier == ValidationTier.TIER_3_INVALID
