@@ -14,7 +14,7 @@ from src.sentinel.parser import PolicyParser, ValidationTier
 from src.sentinel.database import Database, Service, Action
 from src.sentinel.inventory import ResourceInventory, Resource
 from src.sentinel.self_check import Pipeline, PipelineConfig, PipelineResult, CheckVerdict
-from src.sentinel.constants import KNOWN_SERVICES, _HARDCODED_SERVICES
+from src.sentinel.constants import KNOWN_SERVICES
 
 
 # -----------------------------------------------------------------------
@@ -63,21 +63,21 @@ class TestLayer3Merge:
     def test_new_service_recognized_after_merge(self, db_with_new_service):
         parser = PolicyParser(db_with_new_service)
 
-        # bedrock-agent is NOT in hardcoded set
-        assert "bedrock-agent" not in _HARDCODED_SERVICES
+        # bedrock-agent is NOT in the JSON cache
+        assert "bedrock-agent" not in KNOWN_SERVICES
         # But it IS in parser.known_services after DB merge
         assert "bedrock-agent" in parser.known_services
 
-    def test_hardcoded_services_still_present(self, db_with_new_service):
+    def test_json_cache_services_still_present(self, db_with_new_service):
         parser = PolicyParser(db_with_new_service)
 
-        # All hardcoded services should still be present
+        # Core services from JSON cache should still be present
         for svc in ["s3", "ec2", "lambda", "iam", "kms"]:
             assert svc in parser.known_services
 
-    def test_known_services_superset_of_hardcoded(self, db_with_new_service):
+    def test_known_services_superset_of_json_cache(self, db_with_new_service):
         parser = PolicyParser(db_with_new_service)
-        assert parser.known_services >= _HARDCODED_SERVICES
+        assert parser.known_services >= KNOWN_SERVICES
 
 
 class TestNewServiceValidation:
