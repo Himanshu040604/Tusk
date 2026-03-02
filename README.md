@@ -43,7 +43,7 @@ Savings:         $175/month (97% reduction)
 
 ```bash
 # 1. Navigate to directory
-cd C:\Users\KIIT\Desktop\klarna
+cd C:\Users\KIIT\Desktop\project
 
 # 2. Run the quickstart (zero dependencies!)
 python quickstart.py

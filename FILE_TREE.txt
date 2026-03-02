@@ -1,7 +1,7 @@
 Persistent AI Agent System - File Structure
 ===========================================
 
-C:\Users\KIIT\Desktop\klarna\
+C:\Users\KIIT\Desktop\project\
 │
 ├── README.md                        START HERE
 │   Main entry point with quick start, overview, and usage examples
@@ -79,7 +79,7 @@ C:\Users\KIIT\Desktop\klarna\
 Generated Directories (at runtime):
 ====================================
 
-C:\Users\KIIT\Desktop\klarna\
+C:\Users\KIIT\Desktop\project\
 └── agent_state\                        PERSISTENT STORAGE
     ├── user_123.db                     - SQLite per-agent database
     ├── user_456.db                     - Separate DB per user
