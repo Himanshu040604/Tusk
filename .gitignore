@@ -40,3 +40,17 @@ data/aws_examples/
 # Intermediate policy_sentry data (source file + per-service conversions)
 data/iam-definition-raw.json
 data/policy_sentry_converted/
+
+# Docs folder
+docs/
+
+# All .md files except README.md
+*.md
+!README.md
+
+# Specific excluded files
+verify_phase1.py
+verify_phase2.py
+klarna_task.txt
+prompt.txt
+work.png
