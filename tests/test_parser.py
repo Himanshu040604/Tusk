@@ -4,6 +4,7 @@ import pytest
 import json
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 from src.sentinel.parser import (
     PolicyParser,
@@ -631,6 +632,110 @@ class TestSuggestions:
         similar = parser_with_db._find_similar_services('ec')
 
         assert 'ec2' in similar
+
+
+class TestYAMLParsing:
+    """Test YAML policy parsing."""
+
+    def test_parse_yaml_simple_policy(self, parser):
+        """Test parsing a valid YAML policy string."""
+        yaml_str = (
+            'Version: "2012-10-17"\n'
+            'Statement:\n'
+            '  - Effect: Allow\n'
+            '    Action: s3:GetObject\n'
+            '    Resource: "*"\n'
+        )
+        policy = parser.parse_policy_yaml(yaml_str)
+
+        assert policy.version == "2012-10-17"
+        assert len(policy.statements) == 1
+        assert policy.statements[0].effect == "Allow"
+        assert policy.statements[0].actions == ["s3:GetObject"]
+
+    def test_parse_yaml_with_anchors(self, parser):
+        """Test YAML anchors and aliases parse correctly."""
+        yaml_str = (
+            'Version: "2012-10-17"\n'
+            'Statement:\n'
+            '  - &base\n'
+            '    Effect: Allow\n'
+            '    Action: s3:GetObject\n'
+            '    Resource: "arn:aws:s3:::bucket-a/*"\n'
+            '  - <<: *base\n'
+            '    Resource: "arn:aws:s3:::bucket-b/*"\n'
+        )
+        policy = parser.parse_policy_yaml(yaml_str)
+
+        assert len(policy.statements) == 2
+        assert policy.statements[0].resources == ["arn:aws:s3:::bucket-a/*"]
+        assert policy.statements[1].resources == ["arn:aws:s3:::bucket-b/*"]
+        assert policy.statements[1].actions == ["s3:GetObject"]
+
+    def test_parse_yaml_invalid_raises_error(self, parser):
+        """Test invalid YAML raises PolicyParserError."""
+        bad_yaml = ":\n  - :\n    [invalid"
+        with pytest.raises(PolicyParserError, match="Invalid YAML"):
+            parser.parse_policy_yaml(bad_yaml)
+
+    def test_parse_yaml_non_dict_raises_error(self, parser):
+        """Test YAML that deserializes to non-dict raises error."""
+        with pytest.raises(PolicyParserError, match="must be a mapping"):
+            parser.parse_policy_yaml("- item1\n- item2\n")
+
+    def test_parse_policy_auto_json(self, parser):
+        """Test parse_policy_auto dispatches JSON correctly."""
+        policy_json = json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": "s3:GetObject",
+                "Resource": "*",
+            }],
+        })
+        policy = parser.parse_policy_auto(policy_json, "json")
+        assert policy.version == "2012-10-17"
+
+    def test_parse_policy_auto_yaml(self, parser):
+        """Test parse_policy_auto dispatches YAML correctly."""
+        yaml_str = (
+            'Version: "2012-10-17"\n'
+            'Statement:\n'
+            '  - Effect: Allow\n'
+            '    Action: s3:GetObject\n'
+            '    Resource: "*"\n'
+        )
+        policy = parser.parse_policy_auto(yaml_str, "yaml")
+        assert policy.version == "2012-10-17"
+
+    def test_parse_policy_auto_unsupported_format(self, parser):
+        """Test parse_policy_auto rejects unknown format."""
+        with pytest.raises(PolicyParserError, match="Unsupported input format"):
+            parser.parse_policy_auto("{}", "toml")
+
+    def test_parse_yaml_fixture_file(self, parser):
+        """Test parsing the YAML fixture file through parse_policy_yaml."""
+        fixture = Path(__file__).parent / "fixtures" / "test_policies" / "simple_policy.yaml"
+        content = fixture.read_text(encoding="utf-8")
+        policy = parser.parse_policy_yaml(content)
+
+        assert policy.version == "2012-10-17"
+        assert len(policy.statements) == 1
+        assert policy.statements[0].sid == "AllowS3Read"
+        assert "s3:GetObject" in policy.statements[0].actions
+        assert "s3:ListBuckets" in policy.statements[0].actions
+
+    def test_parse_yaml_without_pyyaml_installed(self, parser):
+        """Test parse_policy_yaml raises clear error when pyyaml is missing."""
+        with patch("src.sentinel.parser.yaml", None):
+            with pytest.raises(PolicyParserError, match="PyYAML is required"):
+                parser.parse_policy_yaml("Version: '2012-10-17'")
+
+    def test_parse_auto_yaml_without_pyyaml_installed(self, parser):
+        """Test parse_policy_auto raises clear error for yaml format when pyyaml is missing."""
+        with patch("src.sentinel.parser.yaml", None):
+            with pytest.raises(PolicyParserError, match="PyYAML is required"):
+                parser.parse_policy_auto("Version: '2012-10-17'", "yaml")
 
 
 class TestNoDBParserBehavior:
