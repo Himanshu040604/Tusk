@@ -13,6 +13,11 @@ from enum import Enum
 from typing import TYPE_CHECKING, List, Dict, Any, Optional, Set
 from pathlib import Path
 
+try:
+    import yaml
+except ImportError:
+    yaml = None  # type: ignore[assignment]
+
 from .constants import KNOWN_SERVICES as _KNOWN_SERVICES
 
 if TYPE_CHECKING:
@@ -185,8 +190,59 @@ class PolicyParser:
             return self.parse_policy(content)
         except FileNotFoundError:
             raise PolicyParserError(f"Policy file not found: {file_path}")
+        except PolicyParserError:
+            raise  # Don't re-wrap our own errors
         except Exception as e:
             raise PolicyParserError(f"Error reading policy file: {e}")
+
+    def parse_policy_yaml(self, yaml_string: str) -> Policy:
+        """Parse IAM policy from a YAML string.
+
+        Args:
+            yaml_string: YAML string containing IAM policy.
+
+        Returns:
+            Policy object.
+
+        Raises:
+            PolicyParserError: If pyyaml is not installed or YAML is invalid.
+        """
+        if yaml is None:
+            raise PolicyParserError(
+                "PyYAML is required for YAML input. "
+                "Install it with: pip install pyyaml"
+            )
+        try:
+            data = yaml.safe_load(yaml_string)
+        except yaml.YAMLError as e:
+            raise PolicyParserError(f"Invalid YAML: {e}")
+
+        if not isinstance(data, dict):
+            raise PolicyParserError(
+                "YAML content must be a mapping, got "
+                f"{type(data).__name__}"
+            )
+
+        return self._parse_policy_dict(data)
+
+    def parse_policy_auto(self, content: str, fmt: str) -> Policy:
+        """Parse IAM policy, dispatching by format.
+
+        Args:
+            content: Raw policy text (JSON or YAML).
+            fmt: Format identifier — ``"json"`` or ``"yaml"``.
+
+        Returns:
+            Policy object.
+
+        Raises:
+            PolicyParserError: On parse errors or unsupported format.
+        """
+        if fmt == "yaml":
+            return self.parse_policy_yaml(content)
+        if fmt == "json":
+            return self.parse_policy(content)
+        raise PolicyParserError(f"Unsupported input format: {fmt}")
 
     def _parse_policy_dict(self, data: Dict[str, Any]) -> Policy:
         """Parse policy dictionary.
@@ -611,15 +667,8 @@ class PolicyParser:
         """
         similar = []
 
-        # Cache database services to avoid repeated queries
-        db_service_prefixes: List[str] = []
-        if self.database:
-            try:
-                db_service_prefixes = [
-                    svc.service_prefix for svc in self.database.get_services()
-                ]
-            except Exception:
-                pass
+        # Use cached database service prefixes (loaded once in __init__)
+        db_service_prefixes = sorted(self.known_services)
 
         # Try different matching strategies
         # 1. Exact prefix match (first N characters)
