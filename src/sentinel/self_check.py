@@ -339,7 +339,12 @@ class SelfCheckValidator:
         findings: List[CheckFinding] = []
 
         for stmt in policy.statements:
-            for resource in stmt.resources:
+            # Check both resources and not_resources for ARN issues
+            all_resources = list(stmt.resources)
+            if stmt.not_resources:
+                all_resources.extend(stmt.not_resources)
+
+            for resource in all_resources:
                 if resource == '*':
                     findings.append(CheckFinding(
                         check_type="REMAINING_WILDCARD",
@@ -428,7 +433,8 @@ class SelfCheckValidator:
         if config.intent:
             intent_lower = config.intent.lower()
             is_read_only = any(
-                kw in intent_lower for kw in READ_INTENT_KEYWORDS
+                re.search(r'\b' + re.escape(kw) + r'\b', intent_lower)
+                for kw in READ_INTENT_KEYWORDS
             )
             if is_read_only:
                 write_actions = self._find_write_actions(policy)
@@ -697,7 +703,10 @@ class SelfCheckValidator:
         """
         services: Set[str] = set()
         for stmt in policy.statements:
-            for action in stmt.actions:
+            all_actions = list(stmt.actions)
+            if stmt.not_actions:
+                all_actions.extend(stmt.not_actions)
+            for action in all_actions:
                 parts = action.split(':', 1)
                 if len(parts) == 2 and parts[0] != '*':
                     services.add(parts[0])
@@ -758,6 +767,7 @@ class Pipeline:
         """
         self.database = database
         self.inventory = inventory
+        self._companion_detector = CompanionPermissionDetector(database)
 
     def run(
         self,
@@ -938,7 +948,12 @@ class Pipeline:
         companions_to_add: List[str] = []
 
         for finding in findings:
-            if finding.severity != CheckSeverity.ERROR:
+            # MISSING_COMPANION findings are WARNING severity but still
+            # need processing in the loop-back to add companion actions.
+            if (
+                finding.severity != CheckSeverity.ERROR
+                and finding.check_type != "MISSING_COMPANION"
+            ):
                 continue
 
             if finding.check_type in ("ACTION_VALIDATION", "TIER2_IN_POLICY"):
@@ -946,13 +961,12 @@ class Pipeline:
                     actions_to_remove.add(finding.action)
 
             elif finding.check_type == "MISSING_COMPANION":
-                if finding.remediation and "Add companion actions:" in finding.remediation:
-                    actions_str = finding.remediation.split(
-                        "Add companion actions: "
-                    )[-1]
-                    companions_to_add.extend(
-                        a.strip() for a in actions_str.split(',')
+                if finding.action:
+                    detected = self._companion_detector.detect_missing_companions(
+                        [finding.action]
                     )
+                    for comp in detected:
+                        companions_to_add.extend(comp.companion_actions)
 
         # Remove invalid actions from all statements
         if actions_to_remove:
@@ -967,15 +981,24 @@ class Pipeline:
                 if s.actions or s.not_actions
             ]
 
-        # Add missing companion actions
+        # Add missing companion actions (skip those already in the policy)
         if companions_to_add:
-            companion_stmt = Statement(
-                effect='Allow',
-                actions=companions_to_add,
-                resources=['*'],
-                sid='AllowCompanionPermissions',
-            )
-            fixed.statements.append(companion_stmt)
+            existing_actions: Set[str] = set()
+            for stmt in fixed.statements:
+                existing_actions.update(stmt.actions)
+                if stmt.not_actions:
+                    existing_actions.update(stmt.not_actions)
+            new_companions = [
+                a for a in companions_to_add if a not in existing_actions
+            ]
+            if new_companions:
+                companion_stmt = Statement(
+                    effect='Allow',
+                    actions=new_companions,
+                    resources=['*'],
+                    sid='AllowCompanionPermissions',
+                )
+                fixed.statements.append(companion_stmt)
 
         return fixed
 
