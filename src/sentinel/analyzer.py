@@ -233,9 +233,11 @@ class IntentMapper:
         """
         access_levels = set()
 
-        # Check each keyword pattern
+        # Check each keyword pattern with word boundaries to avoid
+        # false positives (e.g. "target" matching "get", "blacklist"
+        # matching "list").
         for keyword, levels in self.INTENT_KEYWORDS.items():
-            if keyword in intent_lower:
+            if re.search(r'\b' + re.escape(keyword) + r'\b', intent_lower):
                 access_levels.update(levels)
 
         # If no keywords matched, default to read-only for safety
@@ -387,16 +389,16 @@ class RiskAnalyzer:
         'datapipeline:PutPipelineDefinition',
     }
 
-    # Data exfiltration patterns
+    # Data exfiltration patterns (anchored with ^ and $)
     DATA_EXFILTRATION_PATTERNS = [
-        (r's3:GetObject.*', 'S3 object read access'),
-        (r'secretsmanager:GetSecretValue.*', 'Secrets Manager access'),
-        (r'ssm:GetParameter.*', 'SSM Parameter Store access'),
-        (r'rds:CopyDBSnapshot', 'RDS snapshot copy'),
-        (r'rds:CreateDBSnapshot', 'RDS snapshot creation'),
-        (r'ec2:CreateSnapshot', 'EC2 snapshot creation'),
-        (r'dynamodb:GetItem', 'DynamoDB item read'),
-        (r'kms:Decrypt', 'KMS decryption'),
+        (r'^s3:GetObject[A-Za-z]*$', 'S3 object read access'),
+        (r'^secretsmanager:GetSecretValue$', 'Secrets Manager access'),
+        (r'^ssm:GetParameter[A-Za-z]*$', 'SSM Parameter Store access'),
+        (r'^rds:CopyDBSnapshot$', 'RDS snapshot copy'),
+        (r'^rds:CreateDBSnapshot$', 'RDS snapshot creation'),
+        (r'^ec2:CreateSnapshot$', 'EC2 snapshot creation'),
+        (r'^dynamodb:GetItem$', 'DynamoDB item read'),
+        (r'^kms:Decrypt$', 'KMS decryption'),
     ]
 
     # Infrastructure destruction patterns
@@ -411,13 +413,13 @@ class RiskAnalyzer:
         (r'^ec2:TerminateInstances$', 'EC2 instance termination'),
     ]
 
-    # Permissions management patterns
+    # Permissions management patterns (anchored, Attach requires start-of-action)
     PERMISSIONS_MGMT_PATTERNS = [
-        (r'.*:Put.*Policy.*', 'Policy modification'),
-        (r'.*:Attach.*Policy.*', 'Policy attachment'),
-        (r'.*:UpdateAssumeRolePolicy', 'Trust policy modification'),
-        (r'.*:CreatePolicy.*', 'Policy creation'),
-        (r'.*:SetDefaultPolicyVersion', 'Policy version modification'),
+        (r'^[a-z0-9\-]+:Put[A-Za-z]*Policy[A-Za-z]*$', 'Policy modification'),
+        (r'^[a-z0-9\-]+:Attach[A-Za-z]*Policy[A-Za-z]*$', 'Policy attachment'),
+        (r'^[a-z0-9\-]+:UpdateAssumeRolePolicy$', 'Trust policy modification'),
+        (r'^[a-z0-9\-]+:CreatePolicy[A-Za-z]*$', 'Policy creation'),
+        (r'^[a-z0-9\-]+:SetDefaultPolicyVersion$', 'Policy version modification'),
     ]
 
     def __init__(self, database: Optional[Database] = None):
