@@ -1,8 +1,8 @@
 # Core dependencies for persistent agent system
 # All dependencies are optional based on deployment needs
 
-# Core (minimal for basic functionality)
-# No external dependencies required - uses Python stdlib only!
+# Core
+pyyaml>=6.0                    # YAML policy input support
 
 # Optional: LLM API integrations (uncomment as needed)
 # openai>=1.0.0              # OpenAI GPT-4, GPT-3.5
