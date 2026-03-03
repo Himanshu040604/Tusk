@@ -11,7 +11,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 from .constants import (
     EXIT_SUCCESS,
@@ -108,7 +108,13 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[parent],
         help="Validate an IAM policy",
     )
-    p_validate.add_argument("policy_file", help="Policy JSON file (use - for stdin)")
+    p_validate.add_argument("policy_file", help="Policy file (use - for stdin)")
+    p_validate.add_argument(
+        "--input-format",
+        choices=["auto", "json", "yaml"],
+        default="auto",
+        help="Input format (default: auto-detect from extension)",
+    )
 
     # analyze
     p_analyze = subparsers.add_parser(
@@ -116,7 +122,13 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[parent],
         help="Analyze an IAM policy for risks",
     )
-    p_analyze.add_argument("policy_file", help="Policy JSON file (use - for stdin)")
+    p_analyze.add_argument("policy_file", help="Policy file (use - for stdin)")
+    p_analyze.add_argument(
+        "--input-format",
+        choices=["auto", "json", "yaml"],
+        default="auto",
+        help="Input format (default: auto-detect from extension)",
+    )
     p_analyze.add_argument(
         "--intent",
         default=None,
@@ -129,7 +141,13 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[parent],
         help="Rewrite an IAM policy for least privilege",
     )
-    p_rewrite.add_argument("policy_file", help="Policy JSON file (use - for stdin)")
+    p_rewrite.add_argument("policy_file", help="Policy file (use - for stdin)")
+    p_rewrite.add_argument(
+        "--input-format",
+        choices=["auto", "json", "yaml"],
+        default="auto",
+        help="Input format (default: auto-detect from extension)",
+    )
     p_rewrite.add_argument("--intent", default=None, help="Developer intent description")
     p_rewrite.add_argument("--account-id", default=None, help="AWS account ID for ARN generation")
     p_rewrite.add_argument("--region", default=None, help="AWS region for ARN generation")
@@ -150,7 +168,13 @@ def build_parser() -> argparse.ArgumentParser:
         parents=[parent],
         help="Run the full Validate-Analyze-Rewrite-SelfCheck pipeline",
     )
-    p_run.add_argument("policy_file", help="Policy JSON file (use - for stdin)")
+    p_run.add_argument("policy_file", help="Policy file (use - for stdin)")
+    p_run.add_argument(
+        "--input-format",
+        choices=["auto", "json", "yaml"],
+        default="auto",
+        help="Input format (default: auto-detect from extension)",
+    )
     p_run.add_argument("--intent", default=None, help="Developer intent description")
     p_run.add_argument("--account-id", default=None, help="AWS account ID")
     p_run.add_argument("--region", default=None, help="AWS region")
@@ -259,26 +283,54 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def read_policy_input(policy_file: str) -> str:
-    """Read policy JSON from file or stdin.
+def _detect_format(policy_file: str, input_format: str) -> str:
+    """Detect the input format for a policy file.
 
     Args:
         policy_file: File path or '-' for stdin.
+        input_format: Explicit format ('json', 'yaml') or 'auto'.
 
     Returns:
-        Policy JSON string.
+        Resolved format string: 'json' or 'yaml'.
+    """
+    if input_format != "auto":
+        return input_format
+
+    if policy_file == "-":
+        return "json"
+
+    suffix = Path(policy_file).suffix.lower()
+    if suffix in (".yaml", ".yml"):
+        return "yaml"
+    return "json"
+
+
+def read_policy_input(
+    policy_file: str,
+    input_format: str = "auto",
+) -> Tuple[str, str]:
+    """Read policy content from file or stdin.
+
+    Args:
+        policy_file: File path or '-' for stdin.
+        input_format: Explicit format or 'auto' for extension-based detection.
+
+    Returns:
+        Tuple of (content_string, resolved_format).
 
     Raises:
-        SystemExit: If file cannot be read.
+        FileNotFoundError: If file cannot be read.
     """
+    fmt = _detect_format(policy_file, input_format)
+
     if policy_file == "-":
-        return sys.stdin.read()
+        return sys.stdin.read(), fmt
 
     path = Path(policy_file)
     if not path.exists():
         raise FileNotFoundError(f"Policy file not found: {policy_file}")
 
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8"), fmt
 
 
 def _get_formatter(
@@ -396,7 +448,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     from .parser import ValidationTier
 
     try:
-        policy_json = read_policy_input(args.policy_file)
+        content, fmt = read_policy_input(args.policy_file, args.input_format)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
@@ -405,7 +457,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     parser = PolicyParser(db)
 
     try:
-        policy = parser.parse_policy(policy_json)
+        policy = parser.parse_policy_auto(content, fmt)
     except PolicyParserError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_INVALID_ARGS
@@ -433,7 +485,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     from .analyzer import RiskAnalyzer, CompanionPermissionDetector
 
     try:
-        policy_json = read_policy_input(args.policy_file)
+        content, fmt = read_policy_input(args.policy_file, args.input_format)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
@@ -442,7 +494,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     parser = PolicyParser(db)
 
     try:
-        policy = parser.parse_policy(policy_json)
+        policy = parser.parse_policy_auto(content, fmt)
     except PolicyParserError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_INVALID_ARGS
@@ -479,7 +531,7 @@ def cmd_rewrite(args: argparse.Namespace) -> int:
     from .rewriter import PolicyRewriter, RewriteConfig
 
     try:
-        policy_json = read_policy_input(args.policy_file)
+        content, fmt = read_policy_input(args.policy_file, args.input_format)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
@@ -489,7 +541,7 @@ def cmd_rewrite(args: argparse.Namespace) -> int:
     parser = PolicyParser(db)
 
     try:
-        policy = parser.parse_policy(policy_json)
+        policy = parser.parse_policy_auto(content, fmt)
     except PolicyParserError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_INVALID_ARGS
@@ -521,14 +573,41 @@ def cmd_run(args: argparse.Namespace) -> int:
     Returns:
         Exit code.
     """
-    from .parser import PolicyParserError
+    from .parser import PolicyParser, PolicyParserError
     from .self_check import Pipeline, PipelineConfig, CheckVerdict
 
     try:
-        policy_json = read_policy_input(args.policy_file)
+        content, fmt = read_policy_input(args.policy_file, args.input_format)
     except FileNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
+
+    # Pipeline.run() expects a JSON string internally.
+    # If the input is YAML, deserialize then re-serialize to JSON.
+    if fmt == "yaml":
+        try:
+            import yaml
+        except ImportError:
+            print(
+                "Error: PyYAML is required for YAML input. "
+                "Install it with: pip install pyyaml",
+                file=sys.stderr,
+            )
+            return EXIT_INVALID_ARGS
+        try:
+            data = yaml.safe_load(content)
+        except yaml.YAMLError as e:
+            print(f"Error: Invalid YAML: {e}", file=sys.stderr)
+            return EXIT_INVALID_ARGS
+        if not isinstance(data, dict):
+            print(
+                f"Error: YAML content must be a mapping, "
+                f"got {type(data).__name__}",
+                file=sys.stderr,
+            )
+            return EXIT_INVALID_ARGS
+        content = json.dumps(data)
+    policy_json = content
 
     db = resolve_database(args)
     inv = resolve_inventory(args)
