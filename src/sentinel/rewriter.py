@@ -367,19 +367,21 @@ class PolicyRewriter:
         intent_lower = intent.lower()
         actions: List[str] = []
 
-        # Extract service hints
+        # Extract service hints (word boundary to avoid e.g. "turkey" matching "key")
         target_services: List[str] = []
         for keyword, service in SERVICE_NAME_MAPPINGS.items():
-            if keyword in intent_lower:
+            if re.search(r'\b' + re.escape(keyword) + r'\b', intent_lower):
                 if service not in target_services:
                     target_services.append(service)
 
-        # Determine access level from intent
+        # Determine access level from intent (word boundary matching)
         is_read_only = any(
-            kw in intent_lower for kw in READ_INTENT_KEYWORDS
+            re.search(r'\b' + re.escape(kw) + r'\b', intent_lower)
+            for kw in READ_INTENT_KEYWORDS
         )
         is_write = any(
-            kw in intent_lower for kw in WRITE_INTENT_KEYWORDS
+            re.search(r'\b' + re.escape(kw) + r'\b', intent_lower)
+            for kw in WRITE_INTENT_KEYWORDS
         )
 
         for svc in target_services:
@@ -787,6 +789,10 @@ class PolicyRewriter:
         used_sids: Set[str] = set()
 
         for stmt in statements:
+            # Skip empty statements (no actions and no not_actions)
+            if not stmt.actions and not stmt.not_actions:
+                continue
+
             # Preserve Deny and non-standard statements as-is
             if stmt.effect == 'Deny' or stmt.not_actions or stmt.not_resources:
                 if not stmt.sid:
@@ -880,7 +886,10 @@ class PolicyRewriter:
                         copy.deepcopy(statement.conditions)
                         if statement.conditions else None
                     ),
-                    principals=statement.principals,
+                    principals=(
+                        copy.deepcopy(statement.principals)
+                        if statement.principals else None
+                    ),
                 )
                 result.append(new_stmt)
 
@@ -988,6 +997,11 @@ class PolicyRewriter:
 
         statements: List[Dict[str, Any]] = []
         for stmt in policy.statements:
+            # Skip statements with no actions at all (can happen after
+            # loop-back removes all invalid actions from a statement).
+            if not stmt.actions and not stmt.not_actions:
+                continue
+
             stmt_dict: Dict[str, Any] = {
                 'Effect': stmt.effect,
             }
@@ -1006,12 +1020,14 @@ class PolicyRewriter:
 
             if stmt.not_resources:
                 stmt_dict['NotResource'] = stmt.not_resources
-            else:
+            elif stmt.resources:
                 stmt_dict['Resource'] = (
                     stmt.resources[0]
                     if len(stmt.resources) == 1
                     else stmt.resources
                 )
+            else:
+                stmt_dict['Resource'] = '*'
 
             if stmt.conditions:
                 stmt_dict['Condition'] = stmt.conditions
