@@ -1,37 +1,84 @@
 # IAM Policy Sentinel
 
-Fully offline AWS IAM policy validation and least-privilege enforcement tool. No live AWS calls -- uses local SQLite databases for all lookups.
+Offline AWS IAM policy validation and least-privilege enforcement tool. Works entirely without live AWS calls, using local SQLite databases for all lookups.
 
 ## What It Does
 
-A four-step pipeline that takes an IAM policy and produces a least-privilege version:
+Takes an IAM policy as input and produces a tightened, least-privilege version through a four-step pipeline:
 
-1. **Validate** -- Parse policy JSON, classify every action into Tier 1 (valid), Tier 2 (unknown), or Tier 3 (invalid)
-2. **Analyze** -- Detect wildcards, privilege escalation, data exfiltration risks, and missing companion permissions
-3. **Rewrite** -- Generate a least-privilege policy with specific ARNs or placeholders
-4. **Self-Check** -- Re-validate the rewritten policy and loop back if issues remain
+1. **Validate** -- Parse the policy, classify every action into Tier 1 (valid), Tier 2 (unknown), or Tier 3 (invalid).
+2. **Analyze** -- Detect wildcards, privilege escalation paths, data exfiltration risks, and missing companion permissions.
+3. **Rewrite** -- Generate a least-privilege policy with specific ARNs or clearly marked placeholders.
+4. **Self-Check** -- Re-validate the rewritten policy. If issues remain, loop back and fix them automatically.
+
+## Supported Input Formats
+
+- **JSON** -- Standard IAM policy format (default).
+- **YAML** -- Files with `.yaml` or `.yml` extension are auto-detected as YAML.
+
+Format can also be set explicitly with `--input-format json` or `--input-format yaml`.
+
+## Installation
+
+```bash
+# Clone the repository
+git clone <repo-url>
+cd klarna
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+Requires Python 3.9 or later. No AWS SDK or network access needed.
 
 ## Quick Start
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the full pipeline on a policy
+# Run the full pipeline on a JSON policy
 python -m sentinel run tests/fixtures/test_policies/wildcard_overuse.json
 
+# Run on a YAML policy
+python -m sentinel run tests/fixtures/test_policies/simple_policy.yaml
+
 # Validate a policy
-python -m sentinel validate tests/fixtures/test_policies/hallucinated_actions.json
+python -m sentinel validate policy.json
 
-# Analyze risks
-python -m sentinel analyze tests/fixtures/test_policies/privilege_escalation.json
+# Analyze for security risks
+python -m sentinel analyze policy.json
 
-# Rewrite for least privilege
-python -m sentinel rewrite tests/fixtures/test_policies/wildcard_overuse.json --intent "read-only s3"
+# Rewrite for least privilege with developer intent
+python -m sentinel rewrite policy.json --intent "read-only s3"
 
-# Interactive mode -- approve/reject unknown actions before rewriting
+# Interactive mode -- approve or reject unknown actions before rewriting
 python -m sentinel run policy.json --interactive
+
+# Read policy from stdin
+cat policy.json | python -m sentinel validate -
 ```
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `sentinel validate <policy>` | Validate and classify all actions |
+| `sentinel analyze <policy>` | Analyze for security risks |
+| `sentinel rewrite <policy>` | Rewrite for least privilege |
+| `sentinel run <policy>` | Run the full four-step pipeline |
+| `sentinel refresh --source <src> --data-path <path>` | Refresh IAM actions database |
+| `sentinel info` | Show database statistics |
+
+Use `-` as the policy path to read from stdin.
+
+### Flags
+
+| Flag | Description |
+|------|-------------|
+| `--intent "read-only s3"` | Guide rewriting with developer intent |
+| `--input-format auto\|json\|yaml` | Set input format (default: auto-detect) |
+| `--interactive` | Approve or reject Tier 2 actions before rewriting |
+| `--strict` | Treat warnings as failures |
+| `--database <path>` | Path to a custom IAM actions database |
+| `--output-format json\|text\|markdown` | Choose output format |
 
 ## Project Structure
 
@@ -57,30 +104,11 @@ data/                  SQLite databases
   resource_inventory.db Resource inventory
   known_services.json  Exported service prefixes
 
-tests/                 Test suite (500+ tests)
+tests/                 Test suite (519 tests)
   test_*.py            Unit tests for each module
   integration/         Pipeline and end-to-end tests
-  fixtures/            7 categories of test policies
+  fixtures/            Test policies in JSON and YAML
 ```
-
-## CLI Commands
-
-| Command | Description |
-|---------|-------------|
-| `sentinel validate <policy>` | Validate and classify actions |
-| `sentinel analyze <policy>` | Analyze for security risks |
-| `sentinel rewrite <policy>` | Rewrite for least privilege |
-| `sentinel run <policy>` | Full four-step pipeline |
-| `sentinel refresh --source <src> --data-path <path>` | Refresh IAM database |
-| `sentinel info` | Show database stats |
-
-### Key Flags
-
-- `--intent "read-only s3"` -- Guide rewriting with developer intent
-- `--interactive` -- Approve/reject Tier 2 actions before rewriting
-- `--strict` -- Treat warnings as failures
-- `--database <path>` -- Custom IAM database path
-- `--output-format json|text|markdown` -- Output format
 
 ## Running Tests
 
@@ -98,6 +126,7 @@ python -m pytest tests/integration/ -v
 ## Tech Stack
 
 - Python 3.9+
-- SQLite3 (no external database)
-- pytest (testing)
+- SQLite3 for local data storage
+- PyYAML for YAML input support
+- pytest for testing
 - No AWS SDK dependencies -- fully offline
