@@ -219,13 +219,15 @@ class TestReadPolicyInput:
     """Test policy file reading."""
 
     def test_read_from_file(self, tmp_policy_file: Path):
-        content = read_policy_input(str(tmp_policy_file))
+        content, fmt = read_policy_input(str(tmp_policy_file))
         assert '"Version"' in content
+        assert fmt == "json"
 
     def test_read_from_stdin(self):
         with patch("sys.stdin", StringIO(VALID_POLICY)):
-            content = read_policy_input("-")
+            content, fmt = read_policy_input("-")
             assert '"Version"' in content
+            assert fmt == "json"
 
     def test_missing_file_raises(self):
         with pytest.raises(FileNotFoundError):
@@ -246,6 +248,7 @@ class TestCmdValidate:
             inventory=None,
             output_format="text",
             output=None,
+            input_format="auto",
         )
         code = cmd_validate(args)
         assert code == EXIT_SUCCESS
@@ -259,6 +262,7 @@ class TestCmdValidate:
             inventory=None,
             output_format="text",
             output=None,
+            input_format="auto",
         )
         code = cmd_validate(args)
         assert code == EXIT_INVALID_ARGS
@@ -270,6 +274,7 @@ class TestCmdValidate:
             inventory=None,
             output_format="text",
             output=None,
+            input_format="auto",
         )
         code = cmd_validate(args)
         assert code == EXIT_IO_ERROR
@@ -282,6 +287,7 @@ class TestCmdValidate:
             inventory=None,
             output_format="json",
             output=str(out_file),
+            input_format="auto",
         )
         code = cmd_validate(args)
         assert code == EXIT_SUCCESS
@@ -303,6 +309,7 @@ class TestCmdRun:
             inventory=None,
             output_format="text",
             output=None,
+            input_format="auto",
             intent=None,
             account_id=None,
             region=None,
@@ -323,6 +330,7 @@ class TestCmdRun:
             inventory=None,
             output_format="json",
             output=None,
+            input_format="auto",
             intent="read-only s3",
             account_id=None,
             region=None,
@@ -342,6 +350,7 @@ class TestCmdRun:
             inventory=None,
             output_format="text",
             output=None,
+            input_format="auto",
             intent=None,
             account_id=None,
             region=None,
@@ -364,6 +373,7 @@ class TestCmdRun:
             inventory=None,
             output_format="text",
             output=None,
+            input_format="auto",
             intent=None,
             account_id=None,
             region=None,
@@ -642,6 +652,7 @@ class TestCmdAnalyze:
             inventory=None,
             output_format="text",
             output=None,
+            input_format="auto",
             intent=None,
         )
         code = cmd_analyze(args)
@@ -655,6 +666,7 @@ class TestCmdAnalyze:
             inventory=None,
             output_format="text",
             output=None,
+            input_format="auto",
             intent=None,
         )
         code = cmd_analyze(args)
@@ -675,6 +687,7 @@ class TestCmdRewrite:
             inventory=None,
             output_format="text",
             output=None,
+            input_format="auto",
             intent=None,
             account_id=None,
             region=None,
@@ -692,6 +705,7 @@ class TestCmdRewrite:
             inventory=None,
             output_format="json",
             output=str(out_file),
+            input_format="auto",
             intent=None,
             account_id=None,
             region=None,
