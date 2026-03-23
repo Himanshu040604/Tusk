@@ -241,6 +241,9 @@ class SelfCheckValidator:
             f.severity == CheckSeverity.ERROR for f in assumption_findings
         )
 
+        # Check 7: Low-confidence rewrite decisions
+        findings.extend(self._check_low_confidence(rewrite_result))
+
         # Tier 2 exclusion result
         tier2_excluded = not any(
             f.check_type == "TIER2_IN_POLICY"
@@ -658,6 +661,32 @@ class SelfCheckValidator:
                     remediation="Remove empty assumptions or add content",
                 ))
 
+        return findings
+
+    def _check_low_confidence(
+        self,
+        rewrite_result: RewriteResult,
+    ) -> List[CheckFinding]:
+        """Flag rewrite changes with confidence below 0.5.
+
+        Args:
+            rewrite_result: Output from the rewriter.
+
+        Returns:
+            List of CheckFinding objects for low-confidence decisions.
+        """
+        findings: List[CheckFinding] = []
+        for change in rewrite_result.changes:
+            if change.confidence < 0.5:
+                findings.append(CheckFinding(
+                    check_type="LOW_CONFIDENCE",
+                    severity=CheckSeverity.WARNING,
+                    message=(
+                        f"Low confidence ({change.confidence}) on "
+                        f"{change.change_type}: {change.description}"
+                    ),
+                    remediation="Review this change manually",
+                ))
         return findings
 
     def _compute_verdict(
