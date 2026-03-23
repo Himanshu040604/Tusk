@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, List, Dict, Any, Optional, Set
@@ -19,6 +20,7 @@ except ImportError:
     yaml = None  # type: ignore[assignment]
 
 from .constants import KNOWN_SERVICES as _KNOWN_SERVICES
+from .database import DatabaseError as _DatabaseError
 
 if TYPE_CHECKING:
     from .database import Database
@@ -139,7 +141,7 @@ class PolicyParser:
                 if db_prefixes:
                     self.known_services = db_prefixes
                     self._services_source = "database"
-            except Exception:
+            except (sqlite3.Error, OSError, _DatabaseError):
                 pass  # DB failed, fall through to JSON cache
 
         # Layer 2: JSON cache (fallback or supplement)
@@ -306,10 +308,26 @@ class PolicyParser:
 
         if 'Action' in stmt:
             action_data = stmt['Action']
+            if not isinstance(action_data, (str, list)):
+                raise PolicyParserError(
+                    "Action must be a string or list of strings"
+                )
             actions = [action_data] if isinstance(action_data, str) else action_data
+            if isinstance(action_data, list) and not all(isinstance(a, str) for a in actions):
+                raise PolicyParserError(
+                    "All Action entries must be strings"
+                )
         elif 'NotAction' in stmt:
             not_action_data = stmt['NotAction']
+            if not isinstance(not_action_data, (str, list)):
+                raise PolicyParserError(
+                    "NotAction must be a string or list of strings"
+                )
             not_actions = [not_action_data] if isinstance(not_action_data, str) else not_action_data
+            if isinstance(not_action_data, list) and not all(isinstance(a, str) for a in not_actions):
+                raise PolicyParserError(
+                    "All NotAction entries must be strings"
+                )
         else:
             raise PolicyParserError("Statement missing 'Action' or 'NotAction'")
 
@@ -319,10 +337,26 @@ class PolicyParser:
 
         if 'Resource' in stmt:
             resource_data = stmt['Resource']
+            if not isinstance(resource_data, (str, list)):
+                raise PolicyParserError(
+                    "Resource must be a string or list of strings"
+                )
             resources = [resource_data] if isinstance(resource_data, str) else resource_data
+            if isinstance(resource_data, list) and not all(isinstance(r, str) for r in resources):
+                raise PolicyParserError(
+                    "All Resource entries must be strings"
+                )
         elif 'NotResource' in stmt:
             not_resource_data = stmt['NotResource']
+            if not isinstance(not_resource_data, (str, list)):
+                raise PolicyParserError(
+                    "NotResource must be a string or list of strings"
+                )
             not_resources = [not_resource_data] if isinstance(not_resource_data, str) else not_resource_data
+            if isinstance(not_resource_data, list) and not all(isinstance(r, str) for r in not_resources):
+                raise PolicyParserError(
+                    "All NotResource entries must be strings"
+                )
         else:
             raise PolicyParserError("Statement missing 'Resource' or 'NotResource'")
 
@@ -419,7 +453,7 @@ class PolicyParser:
             if not service_known and self.database:
                 try:
                     service_known = self.database.service_exists(service_prefix)
-                except Exception:
+                except (sqlite3.Error, OSError, _DatabaseError):
                     pass
             if service_known:
                 return ValidationResult(
@@ -449,7 +483,7 @@ class PolicyParser:
                         access_level=db_action.access_level if db_action else None,
                         confidence=1.0,
                     )
-            except Exception:
+            except (sqlite3.Error, OSError, _DatabaseError):
                 pass  # DB query failed, fall through to Tier 2
 
         # Tier 2: Plausible but not in database
@@ -486,7 +520,7 @@ class PolicyParser:
         if not service_known and self.database:
             try:
                 service_known = self.database.service_exists(service_prefix)
-            except Exception:
+            except (sqlite3.Error, OSError, _DatabaseError):
                 pass
 
         # In lenient mode (no services loaded), accept valid format
@@ -533,7 +567,7 @@ class PolicyParser:
         if not service_known and self.database:
             try:
                 service_known = self.database.service_exists(service_prefix)
-            except Exception:
+            except (sqlite3.Error, OSError, _DatabaseError):
                 pass
         if not service_known:
             return f"Unknown AWS service: {service_prefix}"
@@ -614,25 +648,28 @@ class PolicyParser:
         # service:*
         if action_pattern == '*':
             actions = self.database.get_actions_by_service(service_prefix)
-            return [f"{service_prefix}:{a.action_name}" for a in actions]
+            expanded = [f"{service_prefix}:{a.action_name}" for a in actions]
+            return expanded if expanded else [action]
 
         # Prefix/suffix matching: service:Get*, service:*Object
         if action_pattern.startswith('*'):
             suffix = action_pattern[1:]
             actions = self.database.get_actions_by_service(service_prefix)
-            return [
+            expanded = [
                 f"{service_prefix}:{a.action_name}"
                 for a in actions
                 if a.action_name.endswith(suffix)
             ]
+            return expanded if expanded else [action]
         elif action_pattern.endswith('*'):
             prefix = action_pattern[:-1]
             actions = self.database.get_actions_by_service(service_prefix)
-            return [
+            expanded = [
                 f"{service_prefix}:{a.action_name}"
                 for a in actions
                 if a.action_name.startswith(prefix)
             ]
+            return expanded if expanded else [action]
 
         return [action]
 
