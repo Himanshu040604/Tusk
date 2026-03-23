@@ -606,6 +606,8 @@ class SelfCheckValidator:
         rewritten_actions = set()
         for stmt in policy.statements:
             rewritten_actions.update(stmt.actions)
+            if stmt.not_actions:
+                rewritten_actions.update(stmt.not_actions)
 
         for action in sorted(tier2_actions & rewritten_actions):
             findings.append(CheckFinding(
