@@ -384,7 +384,8 @@ class PolicyParser:
             return ValidationResult(
                 action=action,
                 tier=ValidationTier.TIER_2_UNKNOWN,
-                reason="Wildcard action grants all permissions"
+                reason="Wildcard action grants all permissions",
+                confidence=0.5,
             )
 
         # Basic format validation
@@ -393,7 +394,8 @@ class PolicyParser:
                 action=action,
                 tier=ValidationTier.TIER_3_INVALID,
                 reason="Invalid action format. Expected 'service:ActionName'",
-                suggestions=self._suggest_corrections(action)
+                suggestions=self._suggest_corrections(action),
+                confidence=0.0,
             )
 
         # Split into service and action name
@@ -408,7 +410,8 @@ class PolicyParser:
                 return ValidationResult(
                     action=action,
                     tier=ValidationTier.TIER_3_INVALID,
-                    reason="Invalid wildcard pattern"
+                    reason="Invalid wildcard pattern",
+                    confidence=0.0,
                 )
 
             # Wildcard with known service is plausible
@@ -422,14 +425,16 @@ class PolicyParser:
                 return ValidationResult(
                     action=action,
                     tier=ValidationTier.TIER_2_UNKNOWN,
-                    reason=f"Wildcard action for known service '{service_prefix}'"
+                    reason=f"Wildcard action for known service '{service_prefix}'",
+                    confidence=0.5,
                 )
 
             return ValidationResult(
                 action=action,
                 tier=ValidationTier.TIER_3_INVALID,
                 reason=f"Unknown service prefix: {service_prefix}",
-                suggestions=[f"{svc}:{action_name}" for svc in self._find_similar_services(service_prefix)]
+                suggestions=[f"{svc}:{action_name}" for svc in self._find_similar_services(service_prefix)],
+                confidence=0.0,
             )
 
         # Tier 1: Check database if available
@@ -441,7 +446,8 @@ class PolicyParser:
                         action=action,
                         tier=ValidationTier.TIER_1_VALID,
                         reason="Action found in IAM database",
-                        access_level=db_action.access_level if db_action else None
+                        access_level=db_action.access_level if db_action else None,
+                        confidence=1.0,
                     )
             except Exception:
                 pass  # DB query failed, fall through to Tier 2
@@ -452,7 +458,8 @@ class PolicyParser:
             return ValidationResult(
                 action=action,
                 tier=ValidationTier.TIER_2_UNKNOWN,
-                reason=reason
+                reason=reason,
+                confidence=0.6,
             )
 
         # Tier 3: Invalid
@@ -460,7 +467,8 @@ class PolicyParser:
             action=action,
             tier=ValidationTier.TIER_3_INVALID,
             reason=self._get_invalid_reason(service_prefix, action_name),
-            suggestions=self._suggest_corrections(action)
+            suggestions=self._suggest_corrections(action),
+            confidence=0.0,
         )
 
     def _is_plausible_action(self, service_prefix: str, action_name: str) -> bool:
