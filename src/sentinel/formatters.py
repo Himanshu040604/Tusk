@@ -170,6 +170,20 @@ class TextFormatter:
             f"{tier_counts['INVALID']} invalid"
         )
 
+        # Tier 2 actions kept for review
+        tier2_kept = [
+            r for r in result.validation_results
+            if r.tier.value == "UNKNOWN"
+        ]
+        if tier2_kept:
+            lines.append("")
+            lines.append("--- Tier 2 Actions Kept For Review ---")
+            for r in tier2_kept:
+                conf = getattr(r, 'confidence', 'N/A')
+                lines.append(f"  [REVIEW] {r.action} (confidence: {conf})")
+                lines.append(f"    {r.reason}")
+            lines.append("")
+
         # Risk summary
         lines.append(f"Risk findings: {len(result.risk_findings)}")
 
@@ -337,8 +351,18 @@ class JsonFormatter:
                     "tier": r.tier.value,
                     "reason": r.reason,
                     "access_level": r.access_level,
+                    "confidence": getattr(r, 'confidence', 1.0),
                 }
                 for r in result.validation_results
+            ],
+            "tier2_actions_for_review": [
+                {
+                    "action": r.action,
+                    "reason": r.reason,
+                    "confidence": getattr(r, 'confidence', 0.6),
+                }
+                for r in result.validation_results
+                if r.tier.value == "UNKNOWN"
             ],
             "risk_findings": [
                 {
@@ -531,6 +555,22 @@ class MarkdownFormatter:
         lines.append(f"| Unknown | {tier_counts['UNKNOWN']} |")
         lines.append(f"| Invalid | {tier_counts['INVALID']} |")
         lines.append("")
+
+        # Tier 2 actions kept for review
+        tier2_kept = [
+            r for r in result.validation_results
+            if r.tier.value == "UNKNOWN"
+        ]
+        if tier2_kept:
+            lines.append("## Tier 2 Actions Kept For Review")
+            lines.append("")
+            lines.append("| Action | Confidence | Reason |")
+            lines.append("|--------|------------|--------|")
+            for r in tier2_kept:
+                conf = getattr(r, 'confidence', 'N/A')
+                reason_esc = r.reason.replace("|", "\\|")
+                lines.append(f"| `{r.action}` | {conf} | {reason_esc} |")
+            lines.append("")
 
         # Risk findings
         if result.risk_findings:

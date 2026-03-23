@@ -122,6 +122,8 @@ class PipelineConfig:
         interactive: If True, prompt user for Tier 2 action approval.
         policy_type: Policy type hint (identity/resource/scp/boundary/None).
         condition_profile: Condition injection profile (strict/moderate/none).
+        allow_wildcard_actions: Downgrade wildcard action ERRORs to WARNINGs.
+        allow_wildcard_resources: Downgrade wildcard resource ERRORs to WARNINGs.
     """
     intent: Optional[str] = None
     account_id: Optional[str] = None
@@ -133,6 +135,8 @@ class PipelineConfig:
     interactive: bool = False
     policy_type: Optional[str] = None
     condition_profile: str = "moderate"
+    allow_wildcard_actions: bool = False
+    allow_wildcard_resources: bool = False
 
 
 @dataclass
@@ -219,7 +223,7 @@ class SelfCheckValidator:
         findings.extend(self._validate_actions(policy))
 
         # Check 2: Check ARN formats
-        findings.extend(self._check_arn_formats(policy))
+        findings.extend(self._check_arn_formats(policy, config))
 
         # Check 3: Functional completeness
         completeness_findings, completeness_score = (
@@ -228,7 +232,7 @@ class SelfCheckValidator:
         findings.extend(completeness_findings)
 
         # Check 4: Overly broad permissions
-        findings.extend(self._check_overly_broad_permissions(policy))
+        findings.extend(self._check_overly_broad_permissions(policy, config))
 
         # Check 5: Tier 2 exclusion
         original_validation = self.parser.validate_policy(
@@ -318,22 +322,26 @@ class SelfCheckValidator:
                     ))
                 elif result.tier == ValidationTier.TIER_2_UNKNOWN:
                     findings.append(CheckFinding(
-                        check_type="ACTION_VALIDATION",
-                        severity=CheckSeverity.ERROR,
+                        check_type="TIER2_ACTION_KEPT",
+                        severity=CheckSeverity.WARNING,
                         message=(
-                            f"Tier 2 unknown action '{action}' should not "
-                            "appear in rewritten policy"
+                            f"Tier 2 unknown action '{action}' kept in "
+                            "rewritten policy (requires manual review)"
                         ),
                         action=action,
                         remediation=(
-                            f"Remove unknown action '{action}' or verify "
-                            "it exists in the IAM database"
+                            f"Verify action '{action}' exists or refresh "
+                            "the IAM database"
                         ),
                     ))
 
         return findings
 
-    def _check_arn_formats(self, policy: Policy) -> List[CheckFinding]:
+    def _check_arn_formats(
+        self,
+        policy: Policy,
+        config: Optional[PipelineConfig] = None,
+    ) -> List[CheckFinding]:
         """Validate ARN formats in the rewritten policy.
 
         Checks for remaining wildcards, placeholder markers, and
@@ -353,15 +361,21 @@ class SelfCheckValidator:
             if stmt.not_resources:
                 all_resources.extend(stmt.not_resources)
 
+            allow_wc_res = config.allow_wildcard_resources if config else False
             for resource in all_resources:
                 if resource == '*':
+                    severity = (
+                        CheckSeverity.WARNING if allow_wc_res
+                        else CheckSeverity.ERROR
+                    )
                     findings.append(CheckFinding(
                         check_type="REMAINING_WILDCARD",
-                        severity=CheckSeverity.WARNING,
+                        severity=severity,
                         message="Wildcard resource '*' remains in rewritten policy",
                         resource=resource,
                         remediation=(
-                            "Replace with specific resource ARNs"
+                            "Replace with specific resource ARNs "
+                            "(use --allow-wildcard-resources to downgrade)"
                         ),
                     ))
                 elif 'PLACEHOLDER' in resource:
@@ -521,12 +535,15 @@ class SelfCheckValidator:
         return findings, completeness_score
 
     def _check_overly_broad_permissions(
-        self, policy: Policy,
+        self,
+        policy: Policy,
+        config: Optional[PipelineConfig] = None,
     ) -> List[CheckFinding]:
         """Check for surviving wildcard actions and resources.
 
-        Detects wildcards in actions, wildcard resources where specific
-        ARNs should exist, and missing conditions on sensitive actions.
+        Full wildcards (*, *:*) are ERROR by default (fail-closed).
+        Service wildcards (s3:*) remain WARNING. Partial wildcards
+        remain INFO. Use config.allow_wildcard_actions to downgrade.
 
         Args:
             policy: Rewritten policy to check.
@@ -535,6 +552,7 @@ class SelfCheckValidator:
             List of CheckFinding objects.
         """
         findings: List[CheckFinding] = []
+        allow_wc_actions = config.allow_wildcard_actions if config else False
 
         for stmt in policy.statements:
             if stmt.effect != 'Allow':
@@ -542,14 +560,21 @@ class SelfCheckValidator:
 
             for action in stmt.actions:
                 if action == '*' or action == '*:*':
+                    severity = (
+                        CheckSeverity.WARNING if allow_wc_actions
+                        else CheckSeverity.ERROR
+                    )
                     findings.append(CheckFinding(
                         check_type="OVERLY_BROAD_ACTION",
-                        severity=CheckSeverity.WARNING,
+                        severity=severity,
                         message=(
                             f"Full wildcard action '{action}' in rewritten policy"
                         ),
                         action=action,
-                        remediation="Replace with specific service actions",
+                        remediation=(
+                            "Replace with specific service actions "
+                            "(use --allow-wildcard-actions to downgrade)"
+                        ),
                     ))
                 elif action.endswith(':*'):
                     findings.append(CheckFinding(
@@ -990,6 +1015,14 @@ class Pipeline:
             if (
                 finding.severity != CheckSeverity.ERROR
                 and finding.check_type != "MISSING_COMPANION"
+            ):
+                continue
+
+            # Skip unfixable wildcard findings — these cannot be
+            # auto-resolved without additional context (inventory, intent).
+            # The loop-back would waste retries on them.
+            if finding.check_type in (
+                "OVERLY_BROAD_ACTION", "REMAINING_WILDCARD",
             ):
                 continue
 
