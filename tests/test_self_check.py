@@ -1070,7 +1070,12 @@ class TestSelfCheckVerdict:
             rewritten_policy=rewritten,
             assumptions=["Test assumption."],
         )
-        config = PipelineConfig(strict_mode=False)
+        # Use allow_wildcard_resources to downgrade Resource:* from
+        # ERROR to WARNING, so we can test the WARNING verdict path.
+        config = PipelineConfig(
+            strict_mode=False,
+            allow_wildcard_resources=True,
+        )
         check_result = validator.run_self_check(result, config)
         assert check_result.verdict == CheckVerdict.WARNING
 
