@@ -525,12 +525,15 @@ class SelfCheckValidator:
         return findings, completeness_score
 
     def _check_overly_broad_permissions(
-        self, policy: Policy,
+        self,
+        policy: Policy,
+        config: Optional[PipelineConfig] = None,
     ) -> List[CheckFinding]:
         """Check for surviving wildcard actions and resources.
 
-        Detects wildcards in actions, wildcard resources where specific
-        ARNs should exist, and missing conditions on sensitive actions.
+        Full wildcards (*, *:*) are ERROR by default (fail-closed).
+        Service wildcards (s3:*) remain WARNING. Partial wildcards
+        remain INFO. Use config.allow_wildcard_actions to downgrade.
 
         Args:
             policy: Rewritten policy to check.
@@ -539,6 +542,7 @@ class SelfCheckValidator:
             List of CheckFinding objects.
         """
         findings: List[CheckFinding] = []
+        allow_wc_actions = config.allow_wildcard_actions if config else False
 
         for stmt in policy.statements:
             if stmt.effect != 'Allow':
@@ -546,14 +550,21 @@ class SelfCheckValidator:
 
             for action in stmt.actions:
                 if action == '*' or action == '*:*':
+                    severity = (
+                        CheckSeverity.WARNING if allow_wc_actions
+                        else CheckSeverity.ERROR
+                    )
                     findings.append(CheckFinding(
                         check_type="OVERLY_BROAD_ACTION",
-                        severity=CheckSeverity.WARNING,
+                        severity=severity,
                         message=(
                             f"Full wildcard action '{action}' in rewritten policy"
                         ),
                         action=action,
-                        remediation="Replace with specific service actions",
+                        remediation=(
+                            "Replace with specific service actions "
+                            "(use --allow-wildcard-actions to downgrade)"
+                        ),
                     ))
                 elif action.endswith(':*'):
                     findings.append(CheckFinding(
