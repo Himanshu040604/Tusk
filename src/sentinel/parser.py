@@ -452,7 +452,7 @@ class PolicyParser:
             if not service_known and self.database:
                 try:
                     service_known = self.database.service_exists(service_prefix)
-                except Exception:
+                except (sqlite3.Error, OSError):
                     pass
             if service_known:
                 return ValidationResult(
@@ -482,7 +482,7 @@ class PolicyParser:
                         access_level=db_action.access_level if db_action else None,
                         confidence=1.0,
                     )
-            except Exception:
+            except (sqlite3.Error, OSError):
                 pass  # DB query failed, fall through to Tier 2
 
         # Tier 2: Plausible but not in database
@@ -519,7 +519,7 @@ class PolicyParser:
         if not service_known and self.database:
             try:
                 service_known = self.database.service_exists(service_prefix)
-            except Exception:
+            except (sqlite3.Error, OSError):
                 pass
 
         # In lenient mode (no services loaded), accept valid format
@@ -566,7 +566,7 @@ class PolicyParser:
         if not service_known and self.database:
             try:
                 service_known = self.database.service_exists(service_prefix)
-            except Exception:
+            except (sqlite3.Error, OSError):
                 pass
         if not service_known:
             return f"Unknown AWS service: {service_prefix}"
