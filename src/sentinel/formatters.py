@@ -61,6 +61,8 @@ class TextFormatter:
             lines.append(f"    Reason: {r.reason}")
             if r.access_level:
                 lines.append(f"    Access level: {r.access_level}")
+            if hasattr(r, 'confidence') and r.confidence < 1.0:
+                lines.append(f"    Confidence: {r.confidence:.1f}")
             if r.suggestions:
                 lines.append(
                     f"    Suggestions: {', '.join(r.suggestions)}"
@@ -243,6 +245,7 @@ class JsonFormatter:
                     "reason": r.reason,
                     "access_level": r.access_level,
                     "suggestions": r.suggestions or [],
+                    "confidence": getattr(r, 'confidence', 1.0),
                 }
                 for r in results
             ],
@@ -408,11 +411,12 @@ class MarkdownFormatter:
         lines.append(f"- **Actions validated:** {len(results)}")
         lines.append("")
 
-        lines.append("| Action | Tier | Reason |")
-        lines.append("|--------|------|--------|")
+        lines.append("| Action | Tier | Confidence | Reason |")
+        lines.append("|--------|------|------------|--------|")
         for r in results:
             reason_escaped = r.reason.replace("|", "\\|")
-            lines.append(f"| `{r.action}` | {r.tier.value} | {reason_escaped} |")
+            conf = getattr(r, 'confidence', 1.0)
+            lines.append(f"| `{r.action}` | {r.tier.value} | {conf:.1f} | {reason_escaped} |")
 
         return "\n".join(lines)
 
