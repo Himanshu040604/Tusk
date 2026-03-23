@@ -646,25 +646,28 @@ class PolicyParser:
         # service:*
         if action_pattern == '*':
             actions = self.database.get_actions_by_service(service_prefix)
-            return [f"{service_prefix}:{a.action_name}" for a in actions]
+            expanded = [f"{service_prefix}:{a.action_name}" for a in actions]
+            return expanded if expanded else [action]
 
         # Prefix/suffix matching: service:Get*, service:*Object
         if action_pattern.startswith('*'):
             suffix = action_pattern[1:]
             actions = self.database.get_actions_by_service(service_prefix)
-            return [
+            expanded = [
                 f"{service_prefix}:{a.action_name}"
                 for a in actions
                 if a.action_name.endswith(suffix)
             ]
+            return expanded if expanded else [action]
         elif action_pattern.endswith('*'):
             prefix = action_pattern[:-1]
             actions = self.database.get_actions_by_service(service_prefix)
-            return [
+            expanded = [
                 f"{service_prefix}:{a.action_name}"
                 for a in actions
                 if a.action_name.startswith(prefix)
             ]
+            return expanded if expanded else [action]
 
         return [action]
 
