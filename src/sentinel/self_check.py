@@ -223,7 +223,7 @@ class SelfCheckValidator:
         findings.extend(self._validate_actions(policy))
 
         # Check 2: Check ARN formats
-        findings.extend(self._check_arn_formats(policy))
+        findings.extend(self._check_arn_formats(policy, config))
 
         # Check 3: Functional completeness
         completeness_findings, completeness_score = (
@@ -232,7 +232,7 @@ class SelfCheckValidator:
         findings.extend(completeness_findings)
 
         # Check 4: Overly broad permissions
-        findings.extend(self._check_overly_broad_permissions(policy))
+        findings.extend(self._check_overly_broad_permissions(policy, config))
 
         # Check 5: Tier 2 exclusion
         original_validation = self.parser.validate_policy(
