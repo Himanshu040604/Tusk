@@ -112,6 +112,12 @@ class BenchmarkEntry:
         risk_count: Number of risk findings.
         rewrite_changes: Number of rewrite changes applied.
         verdict: Self-check verdict string.
+        original_action_count: Actions in original policy.
+        rewritten_action_count: Actions in rewritten policy.
+        wildcards_resolved: Wildcard patterns expanded to specifics.
+        wildcards_surviving: Wildcard patterns remaining after rewrite.
+        completeness_score: Self-check completeness score (0.0-1.0).
+        elapsed_ms: Pipeline execution time in milliseconds.
     """
 
     policy_path: str
@@ -125,6 +131,12 @@ class BenchmarkEntry:
     risk_count: int = 0
     rewrite_changes: int = 0
     verdict: Optional[str] = None
+    original_action_count: int = 0
+    rewritten_action_count: int = 0
+    wildcards_resolved: int = 0
+    wildcards_surviving: int = 0
+    completeness_score: float = 0.0
+    elapsed_ms: float = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -261,6 +273,31 @@ def format_pct(part: int, total: int) -> str:
     if total == 0:
         return "0.0%"
     return f"{part / total * 100:.1f}%"
+
+
+def count_wildcards(actions: List[str]) -> int:
+    """Count wildcard patterns in an action list.
+
+    Counts full wildcards (*, *:*), service wildcards (s3:*),
+    and prefix/suffix wildcards (s3:Get*, s3:*Object).
+    """
+    count = 0
+    for action in actions:
+        if action in ("*", "*:*"):
+            count += 1
+        elif "*" in action:
+            count += 1
+    return count
+
+
+def collect_policy_actions(policy: Any) -> List[str]:
+    """Extract all actions from a Policy object."""
+    actions: List[str] = []
+    for stmt in policy.statements:
+        actions.extend(stmt.actions)
+        if stmt.not_actions:
+            actions.extend(stmt.not_actions)
+    return actions
 
 
 # ---------------------------------------------------------------------------
@@ -431,6 +468,7 @@ class BenchmarkRunner:
 
     def _run_single(self, policy: NormalizedPolicy) -> BenchmarkEntry:
         """Run a single policy through the pipeline."""
+        import time
         from src.sentinel.self_check import Pipeline, PipelineConfig
         from src.sentinel.parser import ValidationTier
 
@@ -444,7 +482,10 @@ class BenchmarkRunner:
             policy_json = policy.local_path.read_text(encoding="utf-8")
             pipeline = Pipeline(self.database, self.inventory)
             config = PipelineConfig(max_self_check_retries=1)
+
+            start = time.monotonic()
             result = pipeline.run(policy_json, config)
+            entry.elapsed_ms = (time.monotonic() - start) * 1000
 
             entry.success = True
             entry.verdict = result.final_verdict.value
@@ -457,6 +498,18 @@ class BenchmarkRunner:
                     entry.tier3_count += 1
             entry.risk_count = len(result.risk_findings)
             entry.rewrite_changes = len(result.rewrite_result.changes)
+
+            orig = collect_policy_actions(result.original_policy)
+            rewr = collect_policy_actions(result.rewritten_policy)
+            entry.original_action_count = len(orig)
+            entry.rewritten_action_count = len(rewr)
+            entry.wildcards_resolved = (
+                count_wildcards(orig) - count_wildcards(rewr)
+            )
+            entry.wildcards_surviving = count_wildcards(rewr)
+            entry.completeness_score = (
+                result.self_check_result.completeness_score
+            )
         except Exception as exc:
             entry.error = str(exc)
         return entry
@@ -492,6 +545,32 @@ class BenchmarkReporter:
             by_repo[e.source_repo] = by_repo.get(e.source_repo, 0) + 1
             by_cat[e.category] = by_cat.get(e.category, 0) + 1
 
+        total_orig = sum(e.original_action_count for e in succeeded)
+        total_rewr = sum(e.rewritten_action_count for e in succeeded)
+        total_wc_resolved = sum(e.wildcards_resolved for e in succeeded)
+        total_wc_surviving = sum(e.wildcards_surviving for e in succeeded)
+        n = len(succeeded) or 1
+        avg_completeness = sum(
+            e.completeness_score for e in succeeded
+        ) / n
+        avg_elapsed = sum(e.elapsed_ms for e in succeeded) / n
+
+        reduction_pct = format_pct(
+            total_orig - total_rewr, total_orig
+        ) if total_orig > 0 else "N/A"
+        wc_total = total_wc_resolved + total_wc_surviving
+        wc_elim_pct = format_pct(total_wc_resolved, wc_total)
+
+        risk_dist: Dict[str, int] = {}
+        for e in succeeded:
+            # Count risk findings by risk_count only (no severity yet)
+            if e.risk_count > 0:
+                risk_dist["policies_with_risks"] = (
+                    risk_dist.get("policies_with_risks", 0) + 1
+                )
+
+        hallucination_catch = format_pct(t3, t3 + t2) if (t3 + t2) else "N/A"
+
         return {
             "summary": {
                 "total_policies": len(entries),
@@ -507,9 +586,23 @@ class BenchmarkReporter:
                 "tier2_pct": format_pct(t2, total_actions),
                 "tier3_pct": format_pct(t3, total_actions),
             },
+            "reduction": {
+                "original_actions": total_orig,
+                "rewritten_actions": total_rewr,
+                "action_reduction_pct": reduction_pct,
+                "wildcards_resolved": total_wc_resolved,
+                "wildcards_surviving": total_wc_surviving,
+                "wildcard_elimination_pct": wc_elim_pct,
+                "avg_completeness_score": round(avg_completeness, 3),
+                "hallucination_catch_rate": hallucination_catch,
+            },
+            "performance": {
+                "avg_elapsed_ms": round(avg_elapsed, 1),
+            },
             "verdicts": verdicts,
             "by_repo": by_repo,
             "by_category": by_cat,
+            "risk_distribution": risk_dist,
             "failures": [
                 {"path": e.policy_path, "error": e.error} for e in failed
             ],
@@ -520,6 +613,8 @@ class BenchmarkReporter:
         """Format report as human-readable text."""
         s = report["summary"]
         t = report["tiers"]
+        r = report.get("reduction", {})
+        p = report.get("performance", {})
         lines = [
             "=== AWS Policy Benchmark Report ===",
             "",
@@ -531,9 +626,27 @@ class BenchmarkReporter:
             f"  Tier 2 (unknown): {t['tier2_unknown']:>5}  ({t['tier2_pct']})",
             f"  Tier 3 (invalid): {t['tier3_invalid']:>5}  ({t['tier3_pct']})",
             f"  Total actions:    {t['total_actions']:>5}",
-            "",
-            "--- Self-Check Verdicts ---",
         ]
+        if r:
+            lines.extend([
+                "",
+                "--- Least-Privilege Reduction ---",
+                f"  Original actions:       {r['original_actions']}",
+                f"  Rewritten actions:      {r['rewritten_actions']}",
+                f"  Action reduction:       {r['action_reduction_pct']}",
+                f"  Wildcards resolved:     {r['wildcards_resolved']}",
+                f"  Wildcards surviving:    {r['wildcards_surviving']}",
+                f"  Wildcard elimination:   {r['wildcard_elimination_pct']}",
+                f"  Avg completeness:       {r['avg_completeness_score']}",
+                f"  Hallucination catch:    {r['hallucination_catch_rate']}",
+            ])
+        if p:
+            lines.extend([
+                "",
+                "--- Performance ---",
+                f"  Avg pipeline time:      {p['avg_elapsed_ms']:.1f} ms",
+            ])
+        lines.extend(["", "--- Self-Check Verdicts ---"])
         for verdict, count in report["verdicts"].items():
             lines.append(f"  {verdict}: {count}")
         if report["failures"]:
