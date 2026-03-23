@@ -545,6 +545,32 @@ class BenchmarkReporter:
             by_repo[e.source_repo] = by_repo.get(e.source_repo, 0) + 1
             by_cat[e.category] = by_cat.get(e.category, 0) + 1
 
+        total_orig = sum(e.original_action_count for e in succeeded)
+        total_rewr = sum(e.rewritten_action_count for e in succeeded)
+        total_wc_resolved = sum(e.wildcards_resolved for e in succeeded)
+        total_wc_surviving = sum(e.wildcards_surviving for e in succeeded)
+        n = len(succeeded) or 1
+        avg_completeness = sum(
+            e.completeness_score for e in succeeded
+        ) / n
+        avg_elapsed = sum(e.elapsed_ms for e in succeeded) / n
+
+        reduction_pct = format_pct(
+            total_orig - total_rewr, total_orig
+        ) if total_orig > 0 else "N/A"
+        wc_total = total_wc_resolved + total_wc_surviving
+        wc_elim_pct = format_pct(total_wc_resolved, wc_total)
+
+        risk_dist: Dict[str, int] = {}
+        for e in succeeded:
+            # Count risk findings by risk_count only (no severity yet)
+            if e.risk_count > 0:
+                risk_dist["policies_with_risks"] = (
+                    risk_dist.get("policies_with_risks", 0) + 1
+                )
+
+        hallucination_catch = format_pct(t3, t3 + t2) if (t3 + t2) else "N/A"
+
         return {
             "summary": {
                 "total_policies": len(entries),
@@ -560,9 +586,23 @@ class BenchmarkReporter:
                 "tier2_pct": format_pct(t2, total_actions),
                 "tier3_pct": format_pct(t3, total_actions),
             },
+            "reduction": {
+                "original_actions": total_orig,
+                "rewritten_actions": total_rewr,
+                "action_reduction_pct": reduction_pct,
+                "wildcards_resolved": total_wc_resolved,
+                "wildcards_surviving": total_wc_surviving,
+                "wildcard_elimination_pct": wc_elim_pct,
+                "avg_completeness_score": round(avg_completeness, 3),
+                "hallucination_catch_rate": hallucination_catch,
+            },
+            "performance": {
+                "avg_elapsed_ms": round(avg_elapsed, 1),
+            },
             "verdicts": verdicts,
             "by_repo": by_repo,
             "by_category": by_cat,
+            "risk_distribution": risk_dist,
             "failures": [
                 {"path": e.policy_path, "error": e.error} for e in failed
             ],
