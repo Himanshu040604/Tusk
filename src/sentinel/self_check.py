@@ -337,7 +337,11 @@ class SelfCheckValidator:
 
         return findings
 
-    def _check_arn_formats(self, policy: Policy) -> List[CheckFinding]:
+    def _check_arn_formats(
+        self,
+        policy: Policy,
+        config: Optional[PipelineConfig] = None,
+    ) -> List[CheckFinding]:
         """Validate ARN formats in the rewritten policy.
 
         Checks for remaining wildcards, placeholder markers, and
@@ -357,15 +361,21 @@ class SelfCheckValidator:
             if stmt.not_resources:
                 all_resources.extend(stmt.not_resources)
 
+            allow_wc_res = config.allow_wildcard_resources if config else False
             for resource in all_resources:
                 if resource == '*':
+                    severity = (
+                        CheckSeverity.WARNING if allow_wc_res
+                        else CheckSeverity.ERROR
+                    )
                     findings.append(CheckFinding(
                         check_type="REMAINING_WILDCARD",
-                        severity=CheckSeverity.WARNING,
+                        severity=severity,
                         message="Wildcard resource '*' remains in rewritten policy",
                         resource=resource,
                         remediation=(
-                            "Replace with specific resource ARNs"
+                            "Replace with specific resource ARNs "
+                            "(use --allow-wildcard-resources to downgrade)"
                         ),
                     ))
                 elif 'PLACEHOLDER' in resource:
