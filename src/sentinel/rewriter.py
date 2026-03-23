@@ -49,6 +49,8 @@ class RewriteConfig:
         placeholder_format: Marker text for placeholder ARNs
         preserve_deny_statements: Keep Deny statements unchanged
         max_actions_per_statement: Max actions per statement for readability
+        policy_type: Policy type hint (identity/resource/scp/boundary/None for auto-detect)
+        condition_profile: Condition injection profile (strict/moderate/none)
     """
     intent: Optional[str] = None
     account_id: Optional[str] = None
@@ -58,6 +60,8 @@ class RewriteConfig:
     placeholder_format: str = "PLACEHOLDER"
     preserve_deny_statements: bool = True
     max_actions_per_statement: int = 15
+    policy_type: Optional[str] = None
+    condition_profile: str = "moderate"
 
 
 @dataclass
