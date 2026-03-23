@@ -468,6 +468,7 @@ class BenchmarkRunner:
 
     def _run_single(self, policy: NormalizedPolicy) -> BenchmarkEntry:
         """Run a single policy through the pipeline."""
+        import time
         from src.sentinel.self_check import Pipeline, PipelineConfig
         from src.sentinel.parser import ValidationTier
 
@@ -481,7 +482,10 @@ class BenchmarkRunner:
             policy_json = policy.local_path.read_text(encoding="utf-8")
             pipeline = Pipeline(self.database, self.inventory)
             config = PipelineConfig(max_self_check_retries=1)
+
+            start = time.monotonic()
             result = pipeline.run(policy_json, config)
+            entry.elapsed_ms = (time.monotonic() - start) * 1000
 
             entry.success = True
             entry.verdict = result.final_verdict.value
@@ -494,6 +498,18 @@ class BenchmarkRunner:
                     entry.tier3_count += 1
             entry.risk_count = len(result.risk_findings)
             entry.rewrite_changes = len(result.rewrite_result.changes)
+
+            orig = collect_policy_actions(result.original_policy)
+            rewr = collect_policy_actions(result.rewritten_policy)
+            entry.original_action_count = len(orig)
+            entry.rewritten_action_count = len(rewr)
+            entry.wildcards_resolved = (
+                count_wildcards(orig) - count_wildcards(rewr)
+            )
+            entry.wildcards_surviving = count_wildcards(rewr)
+            entry.completeness_score = (
+                result.self_check_result.completeness_score
+            )
         except Exception as exc:
             entry.error = str(exc)
         return entry
