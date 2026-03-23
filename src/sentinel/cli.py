@@ -173,6 +173,18 @@ def build_parser() -> argparse.ArgumentParser:
         default="moderate",
         help="Condition injection profile (default: moderate)",
     )
+    p_rewrite.add_argument(
+        "--allow-wildcard-actions",
+        action="store_true",
+        default=False,
+        help="Downgrade wildcard action errors to warnings",
+    )
+    p_rewrite.add_argument(
+        "--allow-wildcard-resources",
+        action="store_true",
+        default=False,
+        help="Downgrade wildcard resource errors to warnings",
+    )
 
     # run (full pipeline)
     p_run = subparsers.add_parser(
@@ -228,6 +240,18 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["strict", "moderate", "none"],
         default="moderate",
         help="Condition injection profile (default: moderate)",
+    )
+    p_run.add_argument(
+        "--allow-wildcard-actions",
+        action="store_true",
+        default=False,
+        help="Downgrade wildcard action errors to warnings",
+    )
+    p_run.add_argument(
+        "--allow-wildcard-resources",
+        action="store_true",
+        default=False,
+        help="Downgrade wildcard resource errors to warnings",
     )
 
     # refresh
@@ -649,6 +673,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         interactive=args.interactive,
         policy_type=getattr(args, 'policy_type', None),
         condition_profile=getattr(args, 'condition_profile', 'moderate'),
+        allow_wildcard_actions=getattr(args, 'allow_wildcard_actions', False),
+        allow_wildcard_resources=getattr(args, 'allow_wildcard_resources', False),
     )
 
     pipeline = Pipeline(db, inv)
