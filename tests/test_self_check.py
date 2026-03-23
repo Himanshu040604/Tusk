@@ -481,8 +481,8 @@ class TestArnFormatValidation:
         findings = validator._check_arn_formats(policy)
         assert len(findings) == 0
 
-    def test_wildcard_resource_flagged_warning(self):
-        """Wildcard resource flagged as WARNING."""
+    def test_wildcard_resource_flagged_error_by_default(self):
+        """Wildcard resource flagged as ERROR by default (fail-closed)."""
         validator = SelfCheckValidator()
         policy = Policy(
             version='2012-10-17',
@@ -495,9 +495,9 @@ class TestArnFormatValidation:
             ],
         )
         findings = validator._check_arn_formats(policy)
-        warnings = [f for f in findings if f.severity == CheckSeverity.WARNING]
-        assert len(warnings) >= 1
-        assert warnings[0].check_type == "REMAINING_WILDCARD"
+        errors = [f for f in findings if f.severity == CheckSeverity.ERROR]
+        assert len(errors) >= 1
+        assert errors[0].check_type == "REMAINING_WILDCARD"
 
     def test_placeholder_arn_flagged_info(self):
         """Placeholder ARN flagged as INFO (not error)."""
@@ -778,8 +778,8 @@ class TestOverlyBroadPermissions:
         findings = validator._check_overly_broad_permissions(policy)
         assert len(findings) == 0
 
-    def test_full_wildcard_action_detected(self):
-        """Full wildcard action flagged as WARNING."""
+    def test_full_wildcard_action_detected_as_error(self):
+        """Full wildcard action flagged as ERROR by default (fail-closed)."""
         validator = SelfCheckValidator()
         policy = Policy(
             version='2012-10-17',
@@ -792,8 +792,12 @@ class TestOverlyBroadPermissions:
             ],
         )
         findings = validator._check_overly_broad_permissions(policy)
-        warnings = [f for f in findings if f.check_type == "OVERLY_BROAD_ACTION"]
-        assert len(warnings) >= 1
+        errors = [
+            f for f in findings
+            if f.check_type == "OVERLY_BROAD_ACTION"
+            and f.severity == CheckSeverity.ERROR
+        ]
+        assert len(errors) >= 1
 
     def test_service_wildcard_detected(self):
         """Service wildcard action flagged as WARNING."""
