@@ -275,6 +275,31 @@ def format_pct(part: int, total: int) -> str:
     return f"{part / total * 100:.1f}%"
 
 
+def count_wildcards(actions: List[str]) -> int:
+    """Count wildcard patterns in an action list.
+
+    Counts full wildcards (*, *:*), service wildcards (s3:*),
+    and prefix/suffix wildcards (s3:Get*, s3:*Object).
+    """
+    count = 0
+    for action in actions:
+        if action in ("*", "*:*"):
+            count += 1
+        elif "*" in action:
+            count += 1
+    return count
+
+
+def collect_policy_actions(policy: Any) -> List[str]:
+    """Extract all actions from a Policy object."""
+    actions: List[str] = []
+    for stmt in policy.statements:
+        actions.extend(stmt.actions)
+        if stmt.not_actions:
+            actions.extend(stmt.not_actions)
+    return actions
+
+
 # ---------------------------------------------------------------------------
 # ExampleFetcher
 # ---------------------------------------------------------------------------
