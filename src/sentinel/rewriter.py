@@ -186,6 +186,11 @@ class PolicyRewriter:
         if config is None:
             config = RewriteConfig()
 
+        # Auto-detect policy type if not explicitly set
+        self._current_policy_type = (
+            config.policy_type or self.detect_policy_type(policy)
+        )
+
         all_changes: List[RewriteChange] = []
         assumptions: List[str] = []
         warnings: List[str] = []
@@ -718,6 +723,15 @@ class PolicyRewriter:
         if statement.effect != 'Allow':
             return statement, changes
 
+        # Respect condition_profile: 'none' skips all injection
+        if config.condition_profile == "none":
+            return statement, changes
+
+        # Resolve policy type (explicit or auto-detect)
+        policy_type = config.policy_type
+        if policy_type is None and hasattr(self, '_current_policy_type'):
+            policy_type = self._current_policy_type
+
         conditions = copy.deepcopy(statement.conditions) if statement.conditions else {}
         added_any = False
 
@@ -774,7 +788,10 @@ class PolicyRewriter:
                 ))
 
         # Add source account condition for cross-service actions
-        if config.account_id:
+        # aws:SourceAccount is meaningful in resource-based policies only,
+        # not in identity policies where the caller IS the account.
+        skip_source_account = (policy_type == "identity")
+        if config.account_id and not skip_source_account:
             cross_service_actions = {
                 'lambda:InvokeFunction', 'sns:Publish', 'sqs:SendMessage',
             }
