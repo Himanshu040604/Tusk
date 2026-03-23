@@ -203,13 +203,26 @@ class IntentMapper:
 
         # Query database for matching actions if available
         actions = []
-        confidence = 1.0
 
         if self.database and access_levels:
             actions = self._query_actions_by_access_levels(access_levels, services)
-            # Lower confidence if no actions found
-            if not actions:
-                confidence = 0.7
+
+        # Graduate confidence based on keyword match count and DB results
+        keyword_hits = sum(
+            1 for kw in self.INTENT_KEYWORDS
+            if re.search(r'\b' + re.escape(kw) + r'\b', intent_lower)
+        )
+        if keyword_hits >= 3:
+            confidence = 1.0
+        elif keyword_hits == 2:
+            confidence = 0.8
+        elif keyword_hits == 1:
+            confidence = 0.6
+        else:
+            confidence = 0.4
+        # Lower if DB available but returned no matching actions
+        if self.database and not actions and confidence > 0.5:
+            confidence -= 0.3
 
         explanation = self._generate_explanation(intent, access_levels, services, actions)
 
@@ -218,7 +231,7 @@ class IntentMapper:
             access_levels=access_levels,
             services=services,
             actions=actions,
-            confidence=confidence,
+            confidence=round(confidence, 2),
             explanation=explanation
         )
 
