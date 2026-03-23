@@ -322,16 +322,16 @@ class SelfCheckValidator:
                     ))
                 elif result.tier == ValidationTier.TIER_2_UNKNOWN:
                     findings.append(CheckFinding(
-                        check_type="ACTION_VALIDATION",
-                        severity=CheckSeverity.ERROR,
+                        check_type="TIER2_ACTION_KEPT",
+                        severity=CheckSeverity.WARNING,
                         message=(
-                            f"Tier 2 unknown action '{action}' should not "
-                            "appear in rewritten policy"
+                            f"Tier 2 unknown action '{action}' kept in "
+                            "rewritten policy (requires manual review)"
                         ),
                         action=action,
                         remediation=(
-                            f"Remove unknown action '{action}' or verify "
-                            "it exists in the IAM database"
+                            f"Verify action '{action}' exists or refresh "
+                            "the IAM database"
                         ),
                     ))
 
