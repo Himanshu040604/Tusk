@@ -112,6 +112,12 @@ class BenchmarkEntry:
         risk_count: Number of risk findings.
         rewrite_changes: Number of rewrite changes applied.
         verdict: Self-check verdict string.
+        original_action_count: Actions in original policy.
+        rewritten_action_count: Actions in rewritten policy.
+        wildcards_resolved: Wildcard patterns expanded to specifics.
+        wildcards_surviving: Wildcard patterns remaining after rewrite.
+        completeness_score: Self-check completeness score (0.0-1.0).
+        elapsed_ms: Pipeline execution time in milliseconds.
     """
 
     policy_path: str
@@ -125,6 +131,12 @@ class BenchmarkEntry:
     risk_count: int = 0
     rewrite_changes: int = 0
     verdict: Optional[str] = None
+    original_action_count: int = 0
+    rewritten_action_count: int = 0
+    wildcards_resolved: int = 0
+    wildcards_surviving: int = 0
+    completeness_score: float = 0.0
+    elapsed_ms: float = 0.0
 
 
 # ---------------------------------------------------------------------------
