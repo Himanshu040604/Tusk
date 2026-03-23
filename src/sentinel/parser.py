@@ -520,7 +520,7 @@ class PolicyParser:
         if not service_known and self.database:
             try:
                 service_known = self.database.service_exists(service_prefix)
-            except (sqlite3.Error, OSError):
+            except (sqlite3.Error, OSError, _DatabaseError):
                 pass
 
         # In lenient mode (no services loaded), accept valid format
@@ -567,7 +567,7 @@ class PolicyParser:
         if not service_known and self.database:
             try:
                 service_known = self.database.service_exists(service_prefix)
-            except (sqlite3.Error, OSError):
+            except (sqlite3.Error, OSError, _DatabaseError):
                 pass
         if not service_known:
             return f"Unknown AWS service: {service_prefix}"
