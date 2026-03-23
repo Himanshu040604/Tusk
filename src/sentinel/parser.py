@@ -20,6 +20,7 @@ except ImportError:
     yaml = None  # type: ignore[assignment]
 
 from .constants import KNOWN_SERVICES as _KNOWN_SERVICES
+from .database import DatabaseError as _DatabaseError
 
 if TYPE_CHECKING:
     from .database import Database
@@ -140,7 +141,7 @@ class PolicyParser:
                 if db_prefixes:
                     self.known_services = db_prefixes
                     self._services_source = "database"
-            except (sqlite3.Error, OSError):
+            except (sqlite3.Error, OSError, _DatabaseError):
                 pass  # DB failed, fall through to JSON cache
 
         # Layer 2: JSON cache (fallback or supplement)
@@ -452,7 +453,7 @@ class PolicyParser:
             if not service_known and self.database:
                 try:
                     service_known = self.database.service_exists(service_prefix)
-                except (sqlite3.Error, OSError):
+                except (sqlite3.Error, OSError, _DatabaseError):
                     pass
             if service_known:
                 return ValidationResult(
@@ -482,7 +483,7 @@ class PolicyParser:
                         access_level=db_action.access_level if db_action else None,
                         confidence=1.0,
                     )
-            except (sqlite3.Error, OSError):
+            except (sqlite3.Error, OSError, _DatabaseError):
                 pass  # DB query failed, fall through to Tier 2
 
         # Tier 2: Plausible but not in database
