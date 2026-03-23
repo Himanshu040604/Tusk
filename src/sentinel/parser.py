@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+import sqlite3
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, List, Dict, Any, Optional, Set
@@ -139,7 +140,7 @@ class PolicyParser:
                 if db_prefixes:
                     self.known_services = db_prefixes
                     self._services_source = "database"
-            except Exception:
+            except (sqlite3.Error, OSError):
                 pass  # DB failed, fall through to JSON cache
 
         # Layer 2: JSON cache (fallback or supplement)
