@@ -120,6 +120,8 @@ class PipelineConfig:
         add_companions: Whether to add companion permissions.
         add_conditions: Whether to inject condition keys.
         interactive: If True, prompt user for Tier 2 action approval.
+        policy_type: Policy type hint (identity/resource/scp/boundary/None).
+        condition_profile: Condition injection profile (strict/moderate/none).
     """
     intent: Optional[str] = None
     account_id: Optional[str] = None
@@ -129,6 +131,8 @@ class PipelineConfig:
     add_companions: bool = True
     add_conditions: bool = True
     interactive: bool = False
+    policy_type: Optional[str] = None
+    condition_profile: str = "moderate"
 
 
 @dataclass
@@ -1052,4 +1056,6 @@ class Pipeline:
             region=config.region,
             add_companions=config.add_companions,
             add_conditions=config.add_conditions,
+            policy_type=config.policy_type,
+            condition_profile=config.condition_profile,
         )

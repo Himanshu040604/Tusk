@@ -576,6 +576,8 @@ def cmd_rewrite(args: argparse.Namespace) -> int:
         region=args.region,
         add_companions=not args.no_companions,
         add_conditions=not args.no_conditions,
+        policy_type=getattr(args, 'policy_type', None),
+        condition_profile=getattr(args, 'condition_profile', 'moderate'),
     )
 
     rewriter = PolicyRewriter(db, inv)
@@ -645,6 +647,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         add_companions=not args.no_companions,
         add_conditions=not args.no_conditions,
         interactive=args.interactive,
+        policy_type=getattr(args, 'policy_type', None),
+        condition_profile=getattr(args, 'condition_profile', 'moderate'),
     )
 
     pipeline = Pipeline(db, inv)
