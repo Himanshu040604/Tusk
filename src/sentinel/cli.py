@@ -693,7 +693,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         return EXIT_IO_ERROR
 
     if args.source == "policy-sentry":
-        from src.refresh.policy_sentry_loader import PolicySentryLoader
+        from ..refresh.policy_sentry_loader import PolicySentryLoader
 
         loader = PolicySentryLoader(db)
         if data_path.is_dir():
@@ -701,7 +701,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         else:
             stats, changelog = loader.load_from_file(data_path)
     else:
-        from src.refresh.aws_docs_scraper import AwsDocsScraper
+        from ..refresh.aws_docs_scraper import AwsDocsScraper
 
         scraper = AwsDocsScraper(db)
         if data_path.is_dir():
