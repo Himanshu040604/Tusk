@@ -122,6 +122,8 @@ class PipelineConfig:
         interactive: If True, prompt user for Tier 2 action approval.
         policy_type: Policy type hint (identity/resource/scp/boundary/None).
         condition_profile: Condition injection profile (strict/moderate/none).
+        allow_wildcard_actions: Downgrade wildcard action ERRORs to WARNINGs.
+        allow_wildcard_resources: Downgrade wildcard resource ERRORs to WARNINGs.
     """
     intent: Optional[str] = None
     account_id: Optional[str] = None
@@ -133,6 +135,8 @@ class PipelineConfig:
     interactive: bool = False
     policy_type: Optional[str] = None
     condition_profile: str = "moderate"
+    allow_wildcard_actions: bool = False
+    allow_wildcard_resources: bool = False
 
 
 @dataclass
