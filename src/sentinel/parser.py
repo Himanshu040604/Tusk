@@ -335,10 +335,26 @@ class PolicyParser:
 
         if 'Resource' in stmt:
             resource_data = stmt['Resource']
+            if not isinstance(resource_data, (str, list)):
+                raise PolicyParserError(
+                    "Resource must be a string or list of strings"
+                )
             resources = [resource_data] if isinstance(resource_data, str) else resource_data
+            if isinstance(resource_data, list) and not all(isinstance(r, str) for r in resources):
+                raise PolicyParserError(
+                    "All Resource entries must be strings"
+                )
         elif 'NotResource' in stmt:
             not_resource_data = stmt['NotResource']
+            if not isinstance(not_resource_data, (str, list)):
+                raise PolicyParserError(
+                    "NotResource must be a string or list of strings"
+                )
             not_resources = [not_resource_data] if isinstance(not_resource_data, str) else not_resource_data
+            if isinstance(not_resource_data, list) and not all(isinstance(r, str) for r in not_resources):
+                raise PolicyParserError(
+                    "All NotResource entries must be strings"
+                )
         else:
             raise PolicyParserError("Statement missing 'Resource' or 'NotResource'")
 
