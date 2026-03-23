@@ -135,6 +135,36 @@ class PolicyRewriter:
         self.inventory = inventory
         self.companion_detector = CompanionPermissionDetector(database)
 
+    @staticmethod
+    def detect_policy_type(policy: Policy) -> str:
+        """Auto-detect policy type from policy structure.
+
+        Heuristic:
+          - Any statement with Principal field -> 'resource'
+          - All statements are Deny with no resource constraints -> 'scp'
+          - Otherwise -> 'identity'
+
+        Args:
+            policy: Parsed policy object.
+
+        Returns:
+            One of 'identity', 'resource', 'scp'.
+        """
+        has_principal = any(
+            stmt.principals is not None for stmt in policy.statements
+        )
+        if has_principal:
+            return "resource"
+
+        all_deny = (
+            policy.statements
+            and all(stmt.effect == 'Deny' for stmt in policy.statements)
+        )
+        if all_deny:
+            return "scp"
+
+        return "identity"
+
     def rewrite_policy(
         self,
         policy: Policy,
