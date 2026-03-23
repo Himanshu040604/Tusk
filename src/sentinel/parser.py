@@ -306,10 +306,26 @@ class PolicyParser:
 
         if 'Action' in stmt:
             action_data = stmt['Action']
+            if not isinstance(action_data, (str, list)):
+                raise PolicyParserError(
+                    "Action must be a string or list of strings"
+                )
             actions = [action_data] if isinstance(action_data, str) else action_data
+            if isinstance(action_data, list) and not all(isinstance(a, str) for a in actions):
+                raise PolicyParserError(
+                    "All Action entries must be strings"
+                )
         elif 'NotAction' in stmt:
             not_action_data = stmt['NotAction']
+            if not isinstance(not_action_data, (str, list)):
+                raise PolicyParserError(
+                    "NotAction must be a string or list of strings"
+                )
             not_actions = [not_action_data] if isinstance(not_action_data, str) else not_action_data
+            if isinstance(not_action_data, list) and not all(isinstance(a, str) for a in not_actions):
+                raise PolicyParserError(
+                    "All NotAction entries must be strings"
+                )
         else:
             raise PolicyParserError("Statement missing 'Action' or 'NotAction'")
 
