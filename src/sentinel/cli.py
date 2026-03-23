@@ -664,14 +664,14 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     if args.dry_run:
         # Dry-run: validate data using in-memory DB (no disk writes)
         if args.source == "policy-sentry":
-            from src.refresh.policy_sentry_loader import PolicySentryLoader
+            from ..refresh.policy_sentry_loader import PolicySentryLoader
 
             db = Database(Path(":memory:"))
             db.create_schema()
             loader = PolicySentryLoader(db)
             errors = loader.validate_data(data_path)
         else:
-            from src.refresh.aws_docs_scraper import AwsDocsScraper
+            from ..refresh.aws_docs_scraper import AwsDocsScraper
 
             db = Database(Path(":memory:"))
             db.create_schema()
