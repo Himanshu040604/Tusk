@@ -51,12 +51,14 @@ class ValidationResult:
         reason: Human-readable explanation
         access_level: Access level if known (List, Read, Write, etc.)
         suggestions: List of suggested corrections if applicable
+        confidence: Classification confidence (1.0=DB match, 0.6=known svc, 0.5=wildcard, 0.0=invalid)
     """
     action: str
     tier: ValidationTier
     reason: str
     access_level: Optional[str] = None
     suggestions: Optional[List[str]] = None
+    confidence: float = 1.0
 
     def __post_init__(self):
         """Initialize suggestions list if not provided."""
