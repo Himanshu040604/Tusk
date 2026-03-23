@@ -1018,6 +1018,14 @@ class Pipeline:
             ):
                 continue
 
+            # Skip unfixable wildcard findings — these cannot be
+            # auto-resolved without additional context (inventory, intent).
+            # The loop-back would waste retries on them.
+            if finding.check_type in (
+                "OVERLY_BROAD_ACTION", "REMAINING_WILDCARD",
+            ):
+                continue
+
             if finding.check_type in ("ACTION_VALIDATION", "TIER2_IN_POLICY"):
                 if finding.action:
                     actions_to_remove.add(finding.action)
