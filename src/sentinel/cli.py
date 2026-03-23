@@ -809,7 +809,7 @@ def cmd_fetch_examples(args: argparse.Namespace) -> int:
     Returns:
         Exit code.
     """
-    from src.refresh.aws_examples import (
+    from ..refresh.aws_examples import (
         ExampleFetcher,
         PolicyNormalizer,
         BenchmarkRunner,
