@@ -578,7 +578,9 @@ class TestConditionKeyInjection:
         )
 
     def test_source_account_condition_added(self, tmp_db):
-        """Source account condition added for cross-service actions."""
+        """Source account condition added for resource-based policies only."""
+        # aws:SourceAccount is meaningful in resource-based policies
+        # (with Principal), not identity policies.
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -586,13 +588,13 @@ class TestConditionKeyInjection:
                     effect='Allow',
                     actions=['lambda:InvokeFunction'],
                     resources=['*'],
+                    principals={'AWS': 'arn:aws:iam::111222333444:root'},
                 )
             ],
         )
         rewriter = PolicyRewriter(database=tmp_db)
         config = RewriteConfig(account_id='123456789012')
         result = rewriter.rewrite_policy(policy, config)
-        # Find the statement with lambda:InvokeFunction
         for stmt in result.rewritten_policy.statements:
             if 'lambda:InvokeFunction' in stmt.actions:
                 assert stmt.conditions is not None
