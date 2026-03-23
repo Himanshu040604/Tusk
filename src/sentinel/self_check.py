@@ -96,6 +96,7 @@ class SelfCheckResult:
         assumptions_valid: Whether rewrite assumptions are reasonable.
         tier2_excluded: Whether Tier 2 actions were properly excluded.
         summary: Human-readable summary of the self-check.
+        confidence_summary: Per-aspect confidence scores from the pipeline.
     """
     verdict: CheckVerdict
     findings: List[CheckFinding]
@@ -103,6 +104,7 @@ class SelfCheckResult:
     assumptions_valid: bool
     tier2_excluded: bool
     summary: str
+    confidence_summary: Dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
