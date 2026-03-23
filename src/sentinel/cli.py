@@ -161,6 +161,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip adding condition keys",
     )
+    p_rewrite.add_argument(
+        "--policy-type",
+        choices=["identity", "resource", "scp", "boundary"],
+        default=None,
+        help="Policy type (default: auto-detect from structure)",
+    )
+    p_rewrite.add_argument(
+        "--condition-profile",
+        choices=["strict", "moderate", "none"],
+        default="moderate",
+        help="Condition injection profile (default: moderate)",
+    )
 
     # run (full pipeline)
     p_run = subparsers.add_parser(
@@ -204,6 +216,18 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=False,
         help="Prompt for approval of Tier 2 (unknown) actions before rewriting",
+    )
+    p_run.add_argument(
+        "--policy-type",
+        choices=["identity", "resource", "scp", "boundary"],
+        default=None,
+        help="Policy type (default: auto-detect from structure)",
+    )
+    p_run.add_argument(
+        "--condition-profile",
+        choices=["strict", "moderate", "none"],
+        default="moderate",
+        help="Condition injection profile (default: moderate)",
     )
 
     # refresh
