@@ -70,12 +70,16 @@ class RewriteChange:
         original_value: What was changed from
         new_value: What was changed to
         statement_index: Which statement was affected
+        confidence: How confident the rewrite decision is (1.0=DB-backed, 0.7=intent, 0.5=placeholder)
+        rationale: Explanation of why this specific rewrite choice was made
     """
     change_type: str
     description: str
     original_value: str
     new_value: str
     statement_index: int = 0
+    confidence: float = 1.0
+    rationale: Optional[str] = None
 
 
 @dataclass
