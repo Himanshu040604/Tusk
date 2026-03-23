@@ -613,6 +613,8 @@ class BenchmarkReporter:
         """Format report as human-readable text."""
         s = report["summary"]
         t = report["tiers"]
+        r = report.get("reduction", {})
+        p = report.get("performance", {})
         lines = [
             "=== AWS Policy Benchmark Report ===",
             "",
@@ -624,9 +626,27 @@ class BenchmarkReporter:
             f"  Tier 2 (unknown): {t['tier2_unknown']:>5}  ({t['tier2_pct']})",
             f"  Tier 3 (invalid): {t['tier3_invalid']:>5}  ({t['tier3_pct']})",
             f"  Total actions:    {t['total_actions']:>5}",
-            "",
-            "--- Self-Check Verdicts ---",
         ]
+        if r:
+            lines.extend([
+                "",
+                "--- Least-Privilege Reduction ---",
+                f"  Original actions:       {r['original_actions']}",
+                f"  Rewritten actions:      {r['rewritten_actions']}",
+                f"  Action reduction:       {r['action_reduction_pct']}",
+                f"  Wildcards resolved:     {r['wildcards_resolved']}",
+                f"  Wildcards surviving:    {r['wildcards_surviving']}",
+                f"  Wildcard elimination:   {r['wildcard_elimination_pct']}",
+                f"  Avg completeness:       {r['avg_completeness_score']}",
+                f"  Hallucination catch:    {r['hallucination_catch_rate']}",
+            ])
+        if p:
+            lines.extend([
+                "",
+                "--- Performance ---",
+                f"  Avg pipeline time:      {p['avg_elapsed_ms']:.1f} ms",
+            ])
+        lines.extend(["", "--- Self-Check Verdicts ---"])
         for verdict, count in report["verdicts"].items():
             lines.append(f"  {verdict}: {count}")
         if report["failures"]:
