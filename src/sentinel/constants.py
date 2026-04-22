@@ -137,6 +137,11 @@ def load_known_services(json_path: Optional[Path] = None) -> Set[str]:
         return set()
 
 
+# TODO(Phase 1.5): L6 lazy loader — see prod_imp.md § 12 Phase 1 Task 10.
+# Replace this eager module-level materialization with a lazy-cached
+# `parser._known_services()` helper that reads from Settings.  Must land
+# atomically with the Phase 1.5 conftest `cache_clear()` autouse fixture
+# (Phase 1.5 Task 5) — otherwise test isolation rots under xdist.
 KNOWN_SERVICES: Set[str] = load_known_services()
 
 # ---------------------------------------------------------------------------
