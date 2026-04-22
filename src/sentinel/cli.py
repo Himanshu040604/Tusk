@@ -1115,6 +1115,18 @@ def cmd_info(args: argparse.Namespace) -> int:
         cursor.execute("SELECT key, value FROM metadata")
         metadata = {row["key"]: row["value"] for row in cursor.fetchall()}
 
+    # Phase 5 Task 12: surface the current Alembic revision.  Uses the
+    # read-only helper from :mod:`sentinel.migrations` — defensive so a
+    # pre-Alembic DB still renders the rest of the info block.
+    try:
+        from .migrations import _current_revision
+
+        rev = _current_revision(db.db_path)
+        if rev is not None:
+            metadata.setdefault("alembic_revision", rev)
+    except Exception as exc:  # noqa: BLE001
+        metadata.setdefault("alembic_revision", f"<error: {exc}>")
+
     formatter = _get_formatter(args)
     output = formatter.format_db_info(metadata, service_count, action_count)
     _write_output(args, output)
