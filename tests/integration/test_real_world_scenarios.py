@@ -155,6 +155,15 @@ def db(tmp_path):
             access_level=level, is_read=is_read, is_write=is_write,
         ))
 
+    # Seed Phase 2 baseline (dangerous_actions, companion_rules, etc.)
+    # so the RiskAnalyzer / CompanionPermissionDetector bulk-load path
+    # has data.  Without this, analyze_actions()/detect_missing_companions()
+    # return empty findings and the privilege-escalation + companion tests
+    # fail (0 findings vs ≥1 expected).
+    from src.sentinel.seed_data import seed_all_baseline
+
+    seed_all_baseline(db_path)
+
     return database
 
 
