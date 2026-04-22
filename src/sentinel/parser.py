@@ -350,6 +350,15 @@ class PolicyParser:
         Raises:
             PolicyParserError: If required fields missing
         """
+        # Top-level MUST be a JSON object.  Without this guard,
+        # ``'Version' not in data`` raises ``TypeError`` for bools,
+        # ints, lists, None, etc.  Caught by hypothesis fuzzing.
+        if not isinstance(data, dict):
+            raise PolicyParserError(
+                "Policy root must be a JSON object, got "
+                f"{type(data).__name__}"
+            )
+
         if 'Version' not in data:
             raise PolicyParserError("Policy missing required 'Version' field")
 
