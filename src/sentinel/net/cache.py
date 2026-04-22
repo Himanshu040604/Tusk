@@ -116,3 +116,104 @@ def _default_cache_dir() -> Path:
         if local:
             return Path(local) / "sentinel" / "cache"
     return Path.home() / ".cache" / "sentinel"
+
+
+def _default_ttl_by_source() -> dict[str, int]:
+    """Default TTL map mirroring ``[cache]`` in defaults.toml (seconds)."""
+    return {
+        "aws_docs": 168 * 3600,
+        "policy_sentry": 72 * 3600,
+        "github": 24 * 3600,
+        "user_url": 1 * 3600,
+    }
+
+
+def _sign(key: bytes, url_hash: str, source: str, body: bytes,
+          etag: str | None, fetched_at: float) -> str:
+    """Compute the HMAC-SHA256 hex digest for a cache entry.
+
+    Input binds all forgery-sensitive fields: the URL hash (key),
+    source (TTL bucket), body SHA-256 (content), etag (conditional
+    refresh token), fetched_at timestamp (freshness anchor).  A label
+    prefix domain-separates this MAC from any other HMAC that might
+    later reuse the same key.
+    """
+    body_hash = hashlib.sha256(body).hexdigest()
+    msg = b"\x1e".join([
+        _SIG_LABEL,
+        url_hash.encode("ascii"),
+        source.encode("utf-8"),
+        body_hash.encode("ascii"),
+        (etag or "").encode("utf-8"),
+        f"{fetched_at:.6f}".encode("ascii"),
+    ])
+    return hmac.new(key, msg, hashlib.sha256).hexdigest()
+
+
+class DiskCache:
+    """HMAC-signed on-disk response cache with per-source TTL.
+
+    Instances are cheap to construct; file I/O is lazy.  The cache key
+    (``K_cache``) is derived once per process from
+    :func:`sentinel.hmac_keys.derive_cache_key` and memoised on the
+    instance.  If the cache directory cannot be created / written, the
+    cache transparently falls back to an in-memory dict for the process
+    lifetime (documented behaviour in § 8.5).
+    """
+
+    def __init__(
+        self,
+        cache_dir: Path | None = None,
+        ttl_seconds_by_source: dict[str, int] | None = None,
+    ) -> None:
+        self._cache_dir = cache_dir or _default_cache_dir()
+        self._ttl = ttl_seconds_by_source or _default_ttl_by_source()
+        self._mem: dict[str, bytes] | None = None
+        self._key: bytes | None = None
+        self._log = structlog.get_logger("sentinel.net.cache")
+        self._ensure_dir()
+
+    # ------------------------------------------------------------------ utils
+
+    def _ensure_dir(self) -> None:
+        """Create the cache dir; fall back to in-memory on OSError."""
+        try:
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            self._log.warning(
+                "cache_dir_unwritable",
+                path=str(self._cache_dir),
+                error=str(exc),
+                note="falling back to in-memory cache for this process",
+            )
+            self._mem = {}
+
+    def _derived_key(self) -> bytes:
+        if self._key is None:
+            try:
+                self._key = derive_cache_key()
+            except OSError as exc:
+                # Cache-key storage itself unwritable — in-memory fallback.
+                self._log.warning(
+                    "cache_key_unwritable",
+                    error=str(exc),
+                    note="falling back to in-memory cache",
+                )
+                # Derive an ephemeral per-process key so HMAC still binds.
+                import secrets as _secrets
+
+                self._key = _secrets.token_bytes(32)
+                if self._mem is None:
+                    self._mem = {}
+        return self._key
+
+    def _entry_path(self, url: str) -> Path:
+        return self._cache_dir / (url_key(url) + ".json")
+
+    def key(self, url: str) -> str:
+        """Public accessor for the cache key (SHA-256 of canonical URL)."""
+        return url_key(url)
+
+    def ttl_for(self, source: str) -> int:
+        """Return the TTL (seconds) for a source, defaulting to ``user_url``."""
+        return self._ttl.get(source, self._ttl.get("user_url", 3600))
