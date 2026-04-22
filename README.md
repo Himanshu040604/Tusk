@@ -20,16 +20,43 @@ Format can also be set explicitly with `--input-format json` or `--input-format 
 
 ## Installation
 
+Sentinel ships as a PEP 621 project and is installed from a clone. The
+primary supported workflow uses [uv](https://github.com/astral-sh/uv); a
+pip fallback is documented below for users on older tooling.
+
+### Primary (uv, recommended)
+
 ```bash
-# Clone the repository
 git clone <repo-url>
 cd klarna
-
-# Install dependencies
-pip install -r requirements.txt
+uv sync                 # installs runtime + dev deps, generates .venv
+uv run sentinel info    # confirm install
 ```
 
-Requires Python 3.9 or later. No AWS SDK or network access needed.
+`uv` reads `pyproject.toml` and `uv.lock`, creates a project-local
+virtualenv, and pins every transitive dep to the exact version recorded
+in the lockfile. Requires Python 3.11 or later (the runtime guard in
+`src/sentinel/__main__.py` enforces this).
+
+### Pip fallback (for pip < 23.1 or environments without uv)
+
+```bash
+git clone <repo-url>
+cd klarna
+python -m venv .venv
+source .venv/bin/activate    # or  .venv\Scripts\activate  on Windows
+pip install -e .[dev]
+sentinel info
+```
+
+The `[dev]` extra pulls in the same test / lint / type-check toolchain
+that `uv sync` produces. For a reproducible pinned install matching
+`uv.lock`, regenerate a `requirements-frozen.txt` via
+`uv export --format requirements-txt > requirements-frozen.txt`
+and install from it with `pip install -r requirements-frozen.txt`.
+
+Python 3.11+ is required. No AWS SDK or network access is needed for the
+offline validation pipeline; live-fetch features activate opt-in.
 
 ## Quick Start
 
