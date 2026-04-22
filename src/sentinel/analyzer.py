@@ -14,7 +14,6 @@ import re
 from .constants import (
     SERVICE_NAME_MAPPINGS,
     SECURITY_CRITICAL_SERVICES,
-    COMPANION_PERMISSION_RULES,
 )
 
 if TYPE_CHECKING:
@@ -366,70 +365,6 @@ class RiskAnalyzer:
     and other security issues in IAM policies.
     """
 
-    # [PHASE2-TRANSITIONAL] delete in Task 8.
-    # Legacy class-level fallback used only when the database lacks
-    # `dangerous_actions` rows (fresh-install bootstrap).  Bulk-loaded
-    # classification lives on the instance (self._privilege_escalation,
-    # self._exfil_patterns, etc.) — see RiskAnalyzer.__init__.
-    PRIVILEGE_ESCALATION_ACTIONS = {
-        'iam:PassRole',
-        'iam:CreatePolicyVersion',
-        'iam:SetDefaultPolicyVersion',
-        'iam:AttachUserPolicy',
-        'iam:AttachGroupPolicy',
-        'iam:AttachRolePolicy',
-        'iam:PutUserPolicy',
-        'iam:PutGroupPolicy',
-        'iam:PutRolePolicy',
-        'iam:AddUserToGroup',
-        'iam:UpdateAssumeRolePolicy',
-        'iam:CreateAccessKey',
-        'iam:CreateLoginProfile',
-        'sts:AssumeRole',
-        'lambda:UpdateFunctionCode',
-        'lambda:CreateFunction',
-        'lambda:InvokeFunction',
-        'glue:CreateDevEndpoint',
-        'glue:UpdateDevEndpoint',
-        'cloudformation:CreateStack',
-        'cloudformation:UpdateStack',
-        'datapipeline:CreatePipeline',
-        'datapipeline:PutPipelineDefinition',
-    }
-
-    # [PHASE2-TRANSITIONAL] delete in Task 8.
-    DATA_EXFILTRATION_PATTERNS = [
-        (r'^s3:GetObject[A-Za-z]*$', 'S3 object read access'),
-        (r'^secretsmanager:GetSecretValue$', 'Secrets Manager access'),
-        (r'^ssm:GetParameter[A-Za-z]*$', 'SSM Parameter Store access'),
-        (r'^rds:CopyDBSnapshot$', 'RDS snapshot copy'),
-        (r'^rds:CreateDBSnapshot$', 'RDS snapshot creation'),
-        (r'^ec2:CreateSnapshot$', 'EC2 snapshot creation'),
-        (r'^dynamodb:GetItem$', 'DynamoDB item read'),
-        (r'^kms:Decrypt$', 'KMS decryption'),
-    ]
-
-    # [PHASE2-TRANSITIONAL] delete in Task 8.
-    DESTRUCTION_PATTERNS = [
-        (r'^[a-z0-9\-]+:Delete[A-Z][A-Za-z]*$', 'Deletion capability'),
-        (r'^[a-z0-9\-]+:Terminate[A-Z][A-Za-z]*$', 'Termination capability'),
-        (r'^[a-z0-9\-]+:Drop[A-Z][A-Za-z]*$', 'Drop capability'),
-        (r'^[a-z0-9\-]+:Destroy[A-Z][A-Za-z]*$', 'Destruction capability'),
-        (r'^s3:DeleteBucket$', 'S3 bucket deletion'),
-        (r'^dynamodb:DeleteTable$', 'DynamoDB table deletion'),
-        (r'^rds:DeleteDB[A-Za-z]*$', 'RDS database deletion'),
-        (r'^ec2:TerminateInstances$', 'EC2 instance termination'),
-    ]
-
-    # [PHASE2-TRANSITIONAL] delete in Task 8.
-    PERMISSIONS_MGMT_PATTERNS = [
-        (r'^[a-z0-9\-]+:Put[A-Za-z]*Policy[A-Za-z]*$', 'Policy modification'),
-        (r'^[a-z0-9\-]+:Attach[A-Za-z]*Policy[A-Za-z]*$', 'Policy attachment'),
-        (r'^[a-z0-9\-]+:UpdateAssumeRolePolicy$', 'Trust policy modification'),
-        (r'^[a-z0-9\-]+:CreatePolicy[A-Za-z]*$', 'Policy creation'),
-        (r'^[a-z0-9\-]+:SetDefaultPolicyVersion$', 'Policy version modification'),
-    ]
-
     def __init__(self, database: Optional[Database] = None):
         """Initialize risk analyzer with bulk-loaded classification tables.
 
@@ -439,11 +374,10 @@ class RiskAnalyzer:
         regex tuples for O(1) / O(n_patterns) hot-path lookups.  No per-
         action SQL — matches § 12 Phase 2 Task 6 "no N+1" mandate.
 
-        Falls back to the class-level ``PRIVILEGE_ESCALATION_ACTIONS`` /
-        pattern constants (marked ``# [PHASE2-TRANSITIONAL]``) when:
-        a) ``database`` is ``None`` (Task 8b will make this a hard-fail),
-        b) ``dangerous_actions`` table is absent (pre-migration DB), OR
-        c) no rows present (fresh install before ``seed_all_baseline``).
+        Task 8: class-level fallback constants are gone.  When
+        ``database`` is None the analyzer initialises with empty
+        classification sets; downstream risk checks simply find no
+        matches until Task 8b flips the None path to a hard-fail.
 
         Args:
             database: Optional Database instance for action validation
@@ -462,28 +396,10 @@ class RiskAnalyzer:
         self._destruction_patterns: tuple[tuple["re.Pattern[str]", str], ...] = ()
         self._perms_mgmt_patterns: tuple[tuple["re.Pattern[str]", str], ...] = ()
 
-        loaded = False
         if database is not None:
-            try:
-                loaded = self._bulk_load_classifications(database)
-            except Exception:
-                # Propagate HMAC/DatabaseError failures — do NOT silently
-                # fall through, that would defeat the tamper defense.
-                raise
-
-        if not loaded:
-            # Fallback to class constants — Theme G3: pre-compile once here,
-            # never inside the hot path.
-            self._priv_escalation = frozenset(self.PRIVILEGE_ESCALATION_ACTIONS)
-            self._exfil_patterns = tuple(
-                (re.compile(p), d) for p, d in self.DATA_EXFILTRATION_PATTERNS
-            )
-            self._destruction_patterns = tuple(
-                (re.compile(p), d) for p, d in self.DESTRUCTION_PATTERNS
-            )
-            self._perms_mgmt_patterns = tuple(
-                (re.compile(p), d) for p, d in self.PERMISSIONS_MGMT_PATTERNS
-            )
+            # Propagate HMAC/DatabaseError failures — do NOT silently
+            # swallow, that would defeat the tamper defense.
+            self._bulk_load_classifications(database)
 
     def _bulk_load_classifications(self, database: Database) -> bool:
         """Load + HMAC-verify rows from ``dangerous_actions``.
@@ -922,11 +838,9 @@ class CompanionPermissionDetector:
     to function correctly (e.g., Lambda needs CloudWatch Logs permissions).
     """
 
-    # COMPANION_RULES class-level dict comprehension removed in Task 6
-    # (atomic with Task 6a HMAC signing).  Rules now live on the instance
-    # as self._companion_rules, loaded from the `companion_rules` table
-    # at __init__ time.  Fallback to COMPANION_PERMISSION_RULES constant
-    # if the table is absent or empty (pre-migration / pre-seed install).
+    # Task 8: class-level COMPANION_PERMISSION_RULES import and
+    # fallback-reconstruction block deleted.  Rules live exclusively in
+    # the `companion_rules` DB table (migration 0004 + seed_all_baseline).
 
     def __init__(self, database: Optional[Database] = None):
         """Initialize companion permission detector.
@@ -936,8 +850,8 @@ class CompanionPermissionDetector:
         instance-level lookup dict.  Hot path is O(1) dict access.
 
         Args:
-            database: Optional Database instance.  If None or unpopulated,
-                falls back to COMPANION_PERMISSION_RULES shipped constant.
+            database: Optional Database instance.  If None the detector
+                starts with an empty ruleset (Task 8b will hard-fail).
 
         Raises:
             DatabaseError: On HMAC row signature mismatch.
@@ -945,25 +859,13 @@ class CompanionPermissionDetector:
         self.database = database
         self._companion_rules: dict[str, CompanionPermission] = {}
 
-        loaded = False
+        # Task 8: COMPANION_PERMISSION_RULES fallback deleted — rules
+        # now live exclusively in the `companion_rules` DB table
+        # (migration 0004 + seed_all_baseline).  When ``database`` is
+        # None the detector starts with an empty ruleset; Task 8b flips
+        # this path to a hard-fail.
         if database is not None:
-            try:
-                loaded = self._bulk_load_companion_rules(database)
-            except Exception:
-                raise
-
-        if not loaded:
-            # Fallback: rebuild what the deleted class dict provided.
-            self._companion_rules = {
-                action: CompanionPermission(
-                    primary_action=action,
-                    companion_actions=list(companions),
-                    reason=reason,
-                    severity=RiskSeverity[severity_str],
-                )
-                for action, (companions, reason, severity_str)
-                in COMPANION_PERMISSION_RULES.items()
-            }
+            self._bulk_load_companion_rules(database)
 
     def _bulk_load_companion_rules(self, database: Database) -> bool:
         """Load + HMAC-verify rows from ``companion_rules``.
