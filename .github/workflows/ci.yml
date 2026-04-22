@@ -1,0 +1,81 @@
+# PR-gate CI (Amendment 6 C-F1).
+#
+# Runs on every pull request and every push to main.  Matrix: Linux +
+# Windows, Python 3.11 + 3.12.  All test / lint / type-check steps are
+# required; the dev-dep drift guard (H18) and the Theme G3 regex
+# pre-compilation cap are also enforced here.
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: quality (${{ matrix.os }} / py${{ matrix.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.11", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+
+      - name: Cache uv downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format
+        run: uv run ruff format --check .
+
+      - name: mypy
+        run: uv run mypy src/
+
+      - name: Pytest (not live)
+        run: uv run pytest -m "not live" -n auto --cov=src --cov-fail-under=80
+
+      - name: pre-commit
+        if: runner.os == 'Linux'
+        run: uv run pre-commit run --all-files
+
+      - name: Dev-dep drift (H18)
+        if: runner.os == 'Linux'
+        run: python scripts/check_dev_deps_match.py
+
+      - name: Regex pre-compile cap (Theme G3)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          count=$(grep -rnE 're\.compile' src/sentinel/analyzer.py | wc -l)
+          echo "re.compile count in analyzer.py: $count"
+          if [ "$count" -gt 8 ]; then
+            echo "::error::Theme G3 regex pre-compile cap exceeded: $count > 8"
+            exit 1
+          fi

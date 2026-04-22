@@ -1,0 +1,18 @@
+{
+  // Renovate configuration (M19).
+  //
+  // The uv lock-file is maintained weekly and vulnerability alerts are
+  // always created (per L4 coordination with the live-tests workflow).
+  extends: ["config:recommended"],
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: ["before 6am on saturday"],
+  },
+  vulnerabilityAlerts: {
+    enabled: true,
+    labels: ["security"],
+  },
+  // L4 coordination: uv-native lock-file regeneration.  Renovate calls
+  // ``uv lock`` under the hood when this option is active.
+  postUpdateOptions: ["uvLockFileMaintenance"],
+}

@@ -1,0 +1,66 @@
+# Live-tests workflow (M21).
+#
+# Nightly cron run at 02:00 UTC.  Executes tests marked ``live`` against
+# the real network.  Failures file a GitHub issue via
+# peter-evans/create-issue-from-file so regressions surface on the
+# next morning's triage.
+
+name: live-tests
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies (L4 — frozen lock)
+        run: uv sync --frozen
+
+      - name: Run live tests
+        id: tests
+        env:
+          SENTINEL_GITHUB_TOKEN: ${{ secrets.SENTINEL_GITHUB_TOKEN }}
+        run: |
+          set -o pipefail
+          uv run pytest -m live 2>&1 | tee live-test-output.txt
+
+      - name: Prepare failure report
+        if: failure() && steps.tests.outcome == 'failure'
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          {
+            echo "## Live-tests failed on $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "Run ID: $RUN_ID"
+            echo ""
+            echo '```'
+            tail -n 200 live-test-output.txt || true
+            echo '```'
+          } > issue-body.md
+
+      - name: File issue on failure
+        if: failure() && steps.tests.outcome == 'failure'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "Live-tests failure — nightly run"
+          content-filepath: issue-body.md
+          labels: |
+            bug
+            live-tests

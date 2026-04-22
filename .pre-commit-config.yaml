@@ -1,0 +1,45 @@
+# Pre-commit hooks (M22).
+#
+# Run locally via ``uv run pre-commit run --all-files`` and in CI under
+# the PR-gate workflow.  The custom secret-grep hook wraps
+# :func:`sentinel.secrets_patterns.grep_sources` so the same patterns
+# that scrub logs / cassettes also block commits.
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.5
+    hooks:
+      - id: ruff
+        name: ruff-check
+        args: ["--fix"]
+      - id: ruff-format
+        name: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - pydantic>=2.7
+          - pydantic-settings>=2.4
+        args: ["--ignore-missing-imports"]
+        files: ^src/
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args:
+          - --baseline
+          - .secrets.baseline
+        exclude: ^tests/cassettes/
+
+  - repo: local
+    hooks:
+      - id: sentinel-secret-grep
+        name: sentinel secret-pattern grep
+        entry: python -m sentinel.secrets_patterns
+        language: system
+        pass_filenames: true
+        types: [text]
+        exclude: ^tests/cassettes/|\.secrets\.baseline$
