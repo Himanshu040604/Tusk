@@ -183,6 +183,33 @@ def verify_row(
     return hmac.compare_digest(computed, expected_hmac)
 
 
+def regenerate_root_key() -> bytes:
+    """Wipe and regenerate the root key on disk; reset in-memory derivations.
+
+    Called by :meth:`sentinel.net.cache.DiskCache.rotate_key` — never
+    call this without first purging any HMAC-dependent stores (cache
+    entries, DB row signatures) that were signed with the OLD key, or
+    they will all fail verification after rotation.
+
+    Returns:
+        The new 32-byte root key (mainly for test introspection).
+
+    Raises:
+        OSError: If the data dir / key file cannot be written — caller
+            must not assume rotation succeeded.
+    """
+    global _root_key_cached, _cache_sub_key, _db_sub_key
+    data_dir = _data_dir()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    key_path = data_dir / _ROOT_KEY_FILENAME
+    new_key = secrets.token_bytes(_ROOT_KEY_SIZE)
+    _write_key(key_path, new_key)
+    _root_key_cached = new_key
+    _cache_sub_key = None
+    _db_sub_key = None
+    return new_key
+
+
 def _reset_cache() -> None:
     """Test-only: clear memoized root key + derived sub-keys.
 
@@ -198,6 +225,7 @@ def _reset_cache() -> None:
 __all__ = [
     "derive_cache_key",
     "derive_db_row_key",
+    "regenerate_root_key",
     "sign_row",
     "verify_row",
 ]

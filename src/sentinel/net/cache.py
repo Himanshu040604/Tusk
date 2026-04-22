@@ -352,3 +352,107 @@ class DiskCache:
         except OSError as exc:
             self._log.warning("cache_invalidate_failed",
                               path=str(path), error=str(exc))
+
+    # ------------------------------------------------------------------ admin
+
+    def _iter_files(self):
+        """Yield Path objects for every entry file (skip tmp / hidden)."""
+        if self._mem is not None:
+            return []
+        if not self._cache_dir.is_dir():
+            return []
+        return (
+            p for p in self._cache_dir.iterdir()
+            if p.is_file() and p.suffix == ".json" and not p.name.startswith(".")
+        )
+
+    def stats(self) -> dict[str, int]:
+        """Return ``{count, total_bytes}`` across all entries.
+
+        Cheap — uses ``stat()`` only; no JSON parse.  Safe to call from
+        hot paths (e.g., telemetry span attributes).
+        """
+        count = 0
+        total = 0
+        if self._mem is not None:
+            return {"count": len(self._mem),
+                    "total_bytes": sum(len(v) for v in self._mem.values())}
+        for p in self._iter_files():
+            try:
+                total += p.stat().st_size
+                count += 1
+            except OSError:
+                continue
+        return {"count": count, "total_bytes": total}
+
+    def ls(self) -> list[dict]:
+        """Metadata-only listing — one dict per entry.
+
+        Does NOT load body_b64 (keeps the listing cheap for large
+        caches).  Fields: url, source, fetched_at, ttl_seconds, etag,
+        size_bytes.
+        """
+        out: list[dict] = []
+        if self._mem is not None:
+            for _, raw in self._mem.items():
+                try:
+                    doc = json.loads(raw.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    continue
+                out.append({
+                    "url": doc.get("url"), "source": doc.get("source"),
+                    "fetched_at": doc.get("fetched_at"),
+                    "ttl_seconds": doc.get("ttl_seconds"),
+                    "etag": doc.get("etag"), "size_bytes": len(raw),
+                })
+            return out
+        for p in self._iter_files():
+            try:
+                raw = p.read_bytes()
+                doc = json.loads(raw.decode("utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            out.append({
+                "url": doc.get("url"), "source": doc.get("source"),
+                "fetched_at": doc.get("fetched_at"),
+                "ttl_seconds": doc.get("ttl_seconds"),
+                "etag": doc.get("etag"), "size_bytes": len(raw),
+            })
+        return out
+
+    def purge(self) -> int:
+        """Delete every entry; return the number removed."""
+        if self._mem is not None:
+            n = len(self._mem)
+            self._mem.clear()
+            return n
+        n = 0
+        for p in list(self._iter_files()):
+            try:
+                p.unlink()
+                n += 1
+            except OSError as exc:
+                self._log.warning("cache_purge_failed",
+                                  path=str(p), error=str(exc))
+        return n
+
+    def rotate_key(self) -> None:
+        """Wipe the cache AND regenerate the root cache key.
+
+        Invalidates every stored entry (would fail HMAC under the new
+        key anyway) then regenerates ``$SENTINEL_DATA_DIR/cache.key``.
+        All future entries are signed with the new key.
+        """
+        self.purge()
+        from ..hmac_keys import regenerate_root_key
+
+        regenerate_root_key()
+        self._key = None  # force re-derive on next put/get
+
+
+__all__ = [
+    "CacheEntry",
+    "DiskCache",
+    "canonical_url",
+    "url_key",
+]
