@@ -14,14 +14,42 @@ from pathlib import Path
 from typing import Optional, Tuple, Union
 
 from .constants import (
+    DEFAULT_DB_PATH,
+    DEFAULT_INVENTORY_PATH,
+)
+from .exit_codes import (
     EXIT_SUCCESS,
     EXIT_ISSUES_FOUND,
     EXIT_INVALID_ARGS,
     EXIT_IO_ERROR,
-    DEFAULT_DB_PATH,
-    DEFAULT_INVENTORY_PATH,
+    EXIT_CRITICAL_FINDING,
 )
 from .formatters import TextFormatter, JsonFormatter, MarkdownFormatter
+
+
+def _finding_severity(f: object) -> str:
+    """Return the severity string for a finding (dataclass or dict).
+
+    Handles both attribute-style (``f.severity``) and dict-style
+    (``f["severity"]``) access.  Enum values are unwrapped via ``.value``.
+    """
+    sev = f.get("severity", "") if isinstance(f, dict) else getattr(f, "severity", "")
+    sev = getattr(sev, "value", sev)
+    return str(sev or "").upper()
+
+
+def _verdict_to_exit_code(findings: list) -> int:
+    """Map a finding list to the 5-level exit code scheme (Section 7.4).
+
+    Returns EXIT_CRITICAL_FINDING (4) if any finding has severity
+    'CRITICAL' or 'HIGH'; EXIT_ISSUES_FOUND (1) if any lower-severity
+    findings exist; EXIT_SUCCESS (0) otherwise.
+    """
+    if not findings:
+        return EXIT_SUCCESS
+    if any(_finding_severity(f) in {"CRITICAL", "HIGH"} for f in findings):
+        return EXIT_CRITICAL_FINDING
+    return EXIT_ISSUES_FOUND
 
 
 def export_services_json(
@@ -610,10 +638,7 @@ def cmd_analyze(args: argparse.Namespace) -> int:
     output = formatter.format_risk_findings(findings)
     _write_output(args, output)
 
-    has_critical = any(
-        f.severity.value in ("CRITICAL", "HIGH") for f in findings
-    )
-    return EXIT_ISSUES_FOUND if has_critical else EXIT_SUCCESS
+    return _verdict_to_exit_code(findings)
 
 
 def cmd_rewrite(args: argparse.Namespace) -> int:
@@ -674,7 +699,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         Exit code.
     """
     from .parser import PolicyParser, PolicyParserError
-    from .self_check import Pipeline, PipelineConfig, CheckVerdict
+    from .self_check import Pipeline, PipelineConfig
 
     try:
         content, fmt = read_policy_input(args.policy_file, args.input_format)
@@ -739,9 +764,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     output = formatter.format_pipeline_result(result)
     _write_output(args, output)
 
-    if result.final_verdict == CheckVerdict.PASS:
-        return EXIT_SUCCESS
-    return EXIT_ISSUES_FOUND
+    findings = list(result.risk_findings) + list(
+        getattr(result.self_check_result, "findings", [])
+    )
+    return _verdict_to_exit_code(findings)
 
 
 def cmd_refresh(args: argparse.Namespace) -> int:
