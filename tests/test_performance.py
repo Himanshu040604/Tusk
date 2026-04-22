@@ -24,7 +24,8 @@ from src.sentinel.rewriter import PolicyRewriter, RewriteConfig
 # Constants
 # ---------------------------------------------------------------------------
 
-MAX_ALLOWED_SECONDS = 60
+MAX_ALLOWED_SECONDS = 1.0  # Phase 2 Task 9 tightening (H24) — was 60.
+# Phase 6 further tightens to 0.3 as the steady-state budget.
 ACCESS_LEVELS = ["Read", "Write", "List"]
 
 
