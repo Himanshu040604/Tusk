@@ -82,20 +82,32 @@ def _current_revision(db_path: Path) -> str | None:
     None means either (a) the DB file is empty/missing, or (b) the DB has
     data tables but no ``alembic_version`` — triggering the safe-stamp
     branch in ``_upgrade_single_db``.
+
+    Uses a SQLAlchemy engine (not raw ``sqlite3.Connection``) because
+    Alembic's ``MigrationContext.configure`` requires a SQLAlchemy
+    ``Connection`` with a ``.dialect`` attribute.  Passing a raw sqlite3
+    connection raises ``AttributeError: 'sqlite3.Connection' object has
+    no attribute 'dialect'`` at CLI startup.
     """
     if not db_path.exists():
         return None
-    # Read-only connection so we don't accidentally acquire a write lock.
-    uri = f"file:{db_path.resolve()}?mode=ro"
+    # Lazy import — SQLAlchemy is already a transitive dep via alembic.
+    from sqlalchemy import create_engine
+
+    # Read-only URI so we don't accidentally acquire a write lock.
+    url = f"sqlite:///file:{db_path.resolve()}?mode=ro&uri=true"
     try:
-        conn = sqlite3.connect(uri, uri=True)
-    except sqlite3.Error:
+        engine = create_engine(url)
+    except Exception:
         return None
     try:
-        ctx = MigrationContext.configure(conn)
-        return ctx.get_current_revision()
+        with engine.connect() as conn:
+            ctx = MigrationContext.configure(conn)
+            return ctx.get_current_revision()
+    except Exception:
+        return None
     finally:
-        conn.close()
+        engine.dispose()
 
 
 def _db_has_tables(db_path: Path) -> bool:
