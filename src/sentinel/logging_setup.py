@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Structlog configuration.
 
 Processor chain (§ 11.1) applied in order:
@@ -20,6 +18,8 @@ Import-time discipline (H23):
   class ``__init__``.  Exit gate: ``grep -rn 'get_logger()' src/`` finds
   zero import-time matches.
 """
+
+from __future__ import annotations
 
 import logging
 import os
