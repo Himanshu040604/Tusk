@@ -25,6 +25,7 @@ an async variant can be added without breaking callers.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Optional
+from urllib.parse import urljoin
 
 import httpx
 import structlog
@@ -73,11 +74,13 @@ class SentinelHTTPClient:
         net = settings.network
         # Note: httpx's default verify=True matches our policy when
         # insecure=False.  We set it explicitly for clarity.
+        # Redirects are handled manually in _fetch_live so every hop
+        # can re-run the preflight (H9); httpx-level max_redirects is
+        # moot with follow_redirects=False.
         self._client = httpx.Client(
             verify=not self._insecure,
             timeout=httpx.Timeout(net.timeout_seconds),
             follow_redirects=False,  # we validate each hop ourselves (H9)
-            max_redirects=net.max_redirects,
         )
 
     def close(self) -> None:
@@ -208,42 +211,110 @@ class SentinelHTTPClient:
         etag: str | None,
         span,  # OTel span; typed as Any to avoid SDK dep
     ) -> httpx.Response:
-        """Execute a retrying GET; cache the result on success."""
-        last_response: httpx.Response | None = None
+        """Execute a retrying GET with manual redirect chasing.
 
-        def _retry_after_hint() -> float | None:
-            return parse_retry_after(
-                last_response.headers.get("Retry-After") if last_response else None
-            )
+        Every redirect hop re-runs :meth:`_preflight` (allow-list + SSRF
+        guard) and :meth:`_warn_if_insecure` so the H9 control surface
+        is enforced across the entire redirect chain.  The retry budget
+        (tenacity) applies per-hop; the redirect loop sits outside it.
+
+        Cache semantics: the cache is keyed by the ORIGINAL caller-
+        visible ``url``, not the final redirected URL.  Redirects are
+        a transport detail, not a caching key.
+        """
+        current_url = url
+        max_hops = self._settings.network.max_redirects
+        redirect_count = 0
 
         self._log.info("http_request", url=url, source=source)
-        for attempt in self._retry.retrying(source, retry_after_hook=_retry_after_hint):
-            with attempt:
-                try:
-                    resp, _sent = self._one_attempt(url, source, headers, etag)
-                    last_response = resp
-                except httpx.HTTPStatusError as hse:
-                    last_response = hse.response
-                    raise
 
-        assert last_response is not None  # tenacity guarantees or reraises
-        resp = last_response
+        while True:
+            last_response: httpx.Response | None = None
 
-        # Mark the miss and cache it (skip 304 — treat as revalidation).
-        cache_status = "MISS"
-        resp.headers["X-Sentinel-Cache"] = cache_status
-        span.set_attribute("sentinel.cache_status", cache_status)
-        span.set_attribute("http.status_code", resp.status_code)
-        if 200 <= resp.status_code < 300:
-            self._cache.put(
-                url=url, source=source,
-                body=resp.content,
-                headers=dict(resp.headers),
-                etag=resp.headers.get("ETag"),
-            )
-        self._log.info("http_response", url=url, source=source,
-                       status=resp.status_code, cache=cache_status)
-        return resp
+            def _retry_after_hint() -> float | None:
+                return parse_retry_after(
+                    last_response.headers.get("Retry-After") if last_response else None
+                )
+
+            for attempt in self._retry.retrying(source, retry_after_hook=_retry_after_hint):
+                with attempt:
+                    try:
+                        resp, _sent = self._one_attempt(current_url, source, headers, etag)
+                        last_response = resp
+                    except httpx.HTTPStatusError as hse:
+                        last_response = hse.response
+                        raise
+
+            if last_response is None:
+                # tenacity with reraise=True should never exit without a
+                # result; belt-and-braces for ``python -O`` (asserts off).
+                raise RuntimeError(
+                    "tenacity exited without a result — should not happen with reraise=True"
+                )
+            resp = last_response
+
+            # 2xx or 304 -> terminal, cache + return.
+            if (200 <= resp.status_code < 300) or resp.status_code == 304:
+                cache_status = "MISS"
+                resp.headers["X-Sentinel-Cache"] = cache_status
+                span.set_attribute("sentinel.cache_status", cache_status)
+                span.set_attribute("http.status_code", resp.status_code)
+                if 200 <= resp.status_code < 300:
+                    # Cache keyed on ORIGINAL url, not current_url.
+                    self._cache.put(
+                        url=url, source=source,
+                        body=resp.content,
+                        headers=dict(resp.headers),
+                        etag=resp.headers.get("ETag"),
+                    )
+                self._log.info(
+                    "http_response", url=url, source=source,
+                    status=resp.status_code, cache=cache_status,
+                    redirect_hops=redirect_count,
+                )
+                return resp
+
+            # 3xx (non-304) -> redirect chase with H9 re-validation.
+            if 300 <= resp.status_code < 400:
+                if redirect_count >= max_hops:
+                    raise httpx.TooManyRedirects(
+                        f"Exceeded {max_hops} redirect hops starting from {url}",
+                        request=resp.request,
+                    )
+                location = resp.headers.get("Location")
+                if not location:
+                    # RFC: 3xx without Location is legal; surface raw.
+                    span.set_attribute("http.status_code", resp.status_code)
+                    self._log.warning(
+                        "http_redirect_without_location",
+                        url=current_url, status=resp.status_code,
+                    )
+                    return resp
+
+                next_url = urljoin(current_url, location)
+
+                # H9 ENFORCEMENT: revalidate every redirect hop.
+                self._preflight(next_url)
+                self._warn_if_insecure(next_url)
+
+                self._log.info(
+                    "http_redirect_followed",
+                    from_url=current_url,
+                    to_url=next_url,
+                    status=resp.status_code,
+                    hop=redirect_count + 1,
+                )
+                current_url = next_url
+                redirect_count += 1
+                # Reset ETag on redirect — new URL is a different cache entry.
+                etag = None
+                continue
+
+            # 4xx/5xx: _one_attempt either raised NonRetryableHTTPError
+            # or the retry policy exhausted.  If control reaches here,
+            # return raw (defensive — should be unreachable).
+            span.set_attribute("http.status_code", resp.status_code)
+            return resp
 
 
 __all__ = [
