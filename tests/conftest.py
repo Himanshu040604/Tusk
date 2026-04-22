@@ -131,15 +131,23 @@ def make_test_db(tmp_path: Path, *, seed: bool = True) -> Path:
     Returns:
         Absolute path to a migrated (+ optionally seeded) SQLite DB.
     """
-    from sentinel.database import Database
     from sentinel.migrations import check_and_upgrade_all_dbs
     from sentinel.seed_data import seed_all_baseline
 
     path = tmp_path / "test.db"
-    # create_schema builds the legacy tables (services/actions/...); the
-    # migration then adds Phase 2 tables on top.  safe_stamp_branch in
-    # migrations.py handles the pre-Alembic-with-tables case.
-    Database(path).create_schema()
+    # IMPORTANT: do NOT call Database(path).create_schema() here.  That would
+    # create Phase-1 tables first, which flips _db_has_tables() to True and
+    # forces migrations.py into the safe-stamp branch (Branch 2) — stamping
+    # HEAD without running any upgrade().  Phase 2 tables
+    # (dangerous_actions, companion_rules, action_resource_map, arn_templates,
+    # verb_prefixes, managed_policies) would never be created, causing
+    # seed_all_baseline to crash with "no such table: dangerous_actions".
+    #
+    # Instead, leave the path empty.  check_and_upgrade_all_dbs falls into
+    # Branch 3 (empty/behind-head), runs command.upgrade(cfg, "head") which
+    # executes every IAM migration in order and builds the full schema
+    # (Phase 1 + Phase 2 tables together).  Alembic's env.py handles creating
+    # the SQLite file on first connection, so we don't need to touch() it.
     check_and_upgrade_all_dbs(path, None)
     if seed:
         seed_all_baseline(path)
