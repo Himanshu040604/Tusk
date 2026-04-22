@@ -96,6 +96,181 @@ _BASELINE_PERMISSIONS_MGMT_PATTERNS: tuple[tuple[str, str], ...] = (
     (r"^[a-z0-9\-]+:SetDefaultPolicyVersion$", "Policy version modification"),
 )
 
+# Companion permission rules (22 entries).  Format:
+#   primary_action -> (companion_actions, reason, severity_string)
+# Migrated from constants.py in Task 8 — this is the shipped-baseline
+# source written into the `companion_rules` DB table with source='shipped'.
+_BASELINE_COMPANION_RULES: dict[str, tuple[list[str], str, str]] = {
+    "lambda:InvokeFunction": (
+        ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+        "Lambda functions require CloudWatch Logs permissions to write execution logs",
+        "MEDIUM",
+    ),
+    "lambda:CreateFunction": (
+        [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents",
+            "ec2:CreateNetworkInterface",
+            "ec2:DescribeNetworkInterfaces",
+            "ec2:DeleteNetworkInterface",
+        ],
+        "Lambda functions require CloudWatch Logs permissions to write execution logs. "
+        "Lambda functions in VPC require EC2 network interface permissions.",
+        "HIGH",
+    ),
+    "s3:GetObject": (
+        ["kms:Decrypt"],
+        "Reading KMS-encrypted S3 objects requires kms:Decrypt permission",
+        "MEDIUM",
+    ),
+    "s3:PutObject": (
+        ["kms:GenerateDataKey", "kms:Decrypt"],
+        "Writing KMS-encrypted S3 objects requires KMS key generation",
+        "MEDIUM",
+    ),
+    "sqs:ReceiveMessage": (
+        ["sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"],
+        "SQS consumers need permissions for complete message processing lifecycle",
+        "MEDIUM",
+    ),
+    "dynamodb:GetRecords": (
+        ["dynamodb:GetShardIterator", "dynamodb:DescribeStream", "dynamodb:ListStreams"],
+        "DynamoDB Streams processing requires stream discovery and iteration",
+        "MEDIUM",
+    ),
+    "ec2:TerminateInstances": (
+        ["ec2:DeleteVolume", "ec2:DetachVolume"],
+        "Instance termination may require volume cleanup permissions",
+        "LOW",
+    ),
+    "ecs:RunTask": (
+        ["iam:PassRole", "logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+        "ECS tasks require IAM PassRole for task/execution roles and CloudWatch Logs for logging",
+        "HIGH",
+    ),
+    "glue:StartJobRun": (
+        ["iam:PassRole", "logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+        "Glue jobs require IAM PassRole for the job role and CloudWatch Logs for output",
+        "HIGH",
+    ),
+    "states:StartExecution": (
+        ["iam:PassRole"],
+        "Step Functions executions require IAM PassRole for the state machine role",
+        "MEDIUM",
+    ),
+    "cloudformation:CreateStack": (
+        ["iam:PassRole", "cloudformation:DescribeStacks"],
+        "CloudFormation stack creation requires IAM PassRole for the stack role "
+        "and DescribeStacks to monitor progress",
+        "HIGH",
+    ),
+    "cloudformation:UpdateStack": (
+        ["iam:PassRole", "cloudformation:DescribeStacks"],
+        "CloudFormation stack updates require IAM PassRole and DescribeStacks",
+        "HIGH",
+    ),
+    "sns:Publish": (
+        ["kms:GenerateDataKey", "kms:Decrypt"],
+        "Publishing to KMS-encrypted SNS topics requires KMS permissions",
+        "MEDIUM",
+    ),
+    "firehose:PutRecord": (
+        ["firehose:PutRecordBatch"],
+        "Firehose producers typically need both PutRecord and PutRecordBatch",
+        "LOW",
+    ),
+    "rds:CreateDBSnapshot": (
+        ["rds:DescribeDBInstances"],
+        "Creating DB snapshots requires DescribeDBInstances to identify the target",
+        "LOW",
+    ),
+    "secretsmanager:GetSecretValue": (
+        ["kms:Decrypt"],
+        "Retrieving KMS-encrypted secrets requires kms:Decrypt",
+        "MEDIUM",
+    ),
+    "ssm:GetParameter": (
+        ["kms:Decrypt"],
+        "Retrieving encrypted SSM parameters requires kms:Decrypt",
+        "MEDIUM",
+    ),
+    "ssm:GetParameters": (
+        ["kms:Decrypt"],
+        "Retrieving encrypted SSM parameters requires kms:Decrypt",
+        "MEDIUM",
+    ),
+    "events:PutRule": (
+        ["iam:PassRole", "events:PutTargets"],
+        "EventBridge rules require IAM PassRole for target invocation and PutTargets",
+        "MEDIUM",
+    ),
+    "batch:SubmitJob": (
+        ["iam:PassRole", "logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+        "AWS Batch jobs require IAM PassRole for job role and CloudWatch Logs",
+        "HIGH",
+    ),
+    "emr:RunJobFlow": (
+        ["iam:PassRole", "ec2:AuthorizeSecurityGroupIngress"],
+        "EMR clusters require IAM PassRole for service/instance roles and EC2 security group access",
+        "HIGH",
+    ),
+    "athena:StartQueryExecution": (
+        ["s3:GetBucketLocation", "s3:GetObject", "s3:ListBucket", "s3:PutObject"],
+        "Athena queries require S3 permissions for reading data and writing results",
+        "MEDIUM",
+    ),
+}
+
+# Action -> resource-type mapping (27 entries).  Migrated from
+# inventory.ACTION_RESOURCE_MAP in Task 8.  Written into the
+# `action_resource_map` DB table with source='shipped'.
+_BASELINE_ACTION_RESOURCE_MAP: dict[str, str] = {
+    "s3:GetObject": "object",
+    "s3:PutObject": "object",
+    "s3:DeleteObject": "object",
+    "s3:ListBucket": "bucket",
+    "s3:GetBucketPolicy": "bucket",
+    "s3:PutBucketPolicy": "bucket",
+    "ec2:RunInstances": "instance",
+    "ec2:TerminateInstances": "instance",
+    "ec2:DescribeInstances": "instance",
+    "lambda:InvokeFunction": "function",
+    "lambda:CreateFunction": "function",
+    "lambda:UpdateFunctionCode": "function",
+    "dynamodb:GetItem": "table",
+    "dynamodb:PutItem": "table",
+    "dynamodb:DeleteItem": "table",
+    "dynamodb:Query": "table",
+    "dynamodb:Scan": "table",
+    "sqs:SendMessage": "queue",
+    "sqs:ReceiveMessage": "queue",
+    "sqs:DeleteMessage": "queue",
+    "sns:Publish": "topic",
+    "sns:Subscribe": "topic",
+    "kms:Decrypt": "key",
+    "kms:Encrypt": "key",
+    "kms:GenerateDataKey": "key",
+    "rds:DescribeDBInstances": "db",
+    "secretsmanager:GetSecretValue": "secret",
+}
+
+# Service-prefix -> ARN template (10 entries).  Migrated from
+# inventory.ARN_TEMPLATES in Task 8.  Templates use named placeholders:
+# {region}, {account_id}, {resource_type}, {resource_name}, {resource_id}.
+_BASELINE_ARN_TEMPLATES: dict[str, str] = {
+    "s3": "arn:aws:s3:::{resource_name}",
+    "ec2": "arn:aws:ec2:{region}:{account_id}:{resource_type}/{resource_id}",
+    "lambda": "arn:aws:lambda:{region}:{account_id}:function:{resource_name}",
+    "dynamodb": "arn:aws:dynamodb:{region}:{account_id}:table/{resource_name}",
+    "sqs": "arn:aws:sqs:{region}:{account_id}:{resource_name}",
+    "sns": "arn:aws:sns:{region}:{account_id}:{resource_name}",
+    "kms": "arn:aws:kms:{region}:{account_id}:key/{resource_id}",
+    "iam": "arn:aws:iam::{account_id}:{resource_type}/{resource_name}",
+    "rds": "arn:aws:rds:{region}:{account_id}:db:{resource_name}",
+    "secretsmanager": "arn:aws:secretsmanager:{region}:{account_id}:secret:{resource_name}",
+}
+
 
 def _now_iso() -> str:
     """Return a CURRENT_TIMESTAMP-comparable ISO-8601 UTC string."""
@@ -187,12 +362,10 @@ def seed_dangerous_actions(conn: sqlite3.Connection) -> int:
 
 
 def seed_companion_rules(conn: sqlite3.Connection) -> int:
-    """Truncate-and-reload ``companion_rules`` from COMPANION_PERMISSION_RULES."""
-    from .constants import COMPANION_PERMISSION_RULES
-
+    """Truncate-and-reload ``companion_rules`` from the shipped baseline."""
     now = _now_iso()
     rows: list[tuple] = []
-    for primary, (companions, reason, severity) in COMPANION_PERMISSION_RULES.items():
+    for primary, (companions, reason, severity) in _BASELINE_COMPANION_RULES.items():
         for companion in companions:
             data = {
                 "reason": reason,
@@ -220,26 +393,11 @@ def seed_companion_rules(conn: sqlite3.Connection) -> int:
 
 
 def seed_action_resource_map(conn: sqlite3.Connection) -> int:
-    """Seed ``action_resource_map`` from ResourceInventory.ACTION_RESOURCE_MAP.
+    """Seed ``action_resource_map`` from the shipped baseline dict.
 
-    NOT HMAC-signed (Theme G1 — simple membership lookup).  Reads from
-    the shipped baseline constant (migrated from inventory.py); Task 8
-    deletes the source dict in the same release and future seed sources
-    move to AWS Service Auth scraped data.
+    NOT HMAC-signed (Theme G1 — simple membership lookup).
     """
-    # Lazy import avoids circular dependency at module-load time
-    # (inventory imports constants, constants is self-contained).
-    from .inventory import ResourceInventory
-
-    mapping = getattr(ResourceInventory, "ACTION_RESOURCE_MAP", {})
-    rows: list[tuple] = []
-    for action, resource_types in mapping.items():
-        if isinstance(resource_types, (list, tuple, set)):
-            for rt in resource_types:
-                rows.append((action, rt))
-        else:
-            rows.append((action, str(resource_types)))
-
+    rows = list(_BASELINE_ACTION_RESOURCE_MAP.items())
     conn.executemany(
         "INSERT OR IGNORE INTO action_resource_map (action_name, resource_type) "
         "VALUES (?, ?)",
@@ -249,25 +407,15 @@ def seed_action_resource_map(conn: sqlite3.Connection) -> int:
 
 
 def seed_arn_templates(conn: sqlite3.Connection) -> int:
-    """Seed ``arn_templates`` from ResourceInventory.ARN_TEMPLATES.
+    """Seed ``arn_templates`` from the shipped baseline dict.
 
-    NOT HMAC-signed.  ARN templates are keyed by service_prefix in the
-    shipped dict; the DB schema uses a (service_prefix, resource_type)
-    composite PK, so rows here have an empty resource_type — the
-    PolicyRewriter bulk-load prefers service-only templates as the
-    fallback when no (service, rt) row matches.
+    NOT HMAC-signed.  Templates are keyed by service_prefix only in the
+    shipped data; the DB schema's (service_prefix, resource_type)
+    composite PK uses an empty resource_type for these service-wide
+    templates — PolicyRewriter's bulk-load prefers the {svc}:{rt}
+    composite when present and falls back to the bare-service entry.
     """
-    from .inventory import ResourceInventory
-
-    templates = getattr(ResourceInventory, "ARN_TEMPLATES", {})
-    rows: list[tuple] = []
-    for key, template in templates.items():
-        if ":" in str(key):
-            svc, rt = str(key).split(":", 1)
-        else:
-            svc, rt = str(key), ""
-        rows.append((svc, rt, str(template)))
-
+    rows = [(svc, "", template) for svc, template in _BASELINE_ARN_TEMPLATES.items()]
     conn.executemany(
         "INSERT OR IGNORE INTO arn_templates "
         "(service_prefix, resource_type, arn_template) VALUES (?, ?, ?)",

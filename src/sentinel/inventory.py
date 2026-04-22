@@ -48,56 +48,13 @@ class ResourceInventory:
     Manages storage and querying of AWS resource ARNs for policy validation.
     """
 
-    # [PHASE2-TRANSITIONAL] delete in Task 8 — lives in action_resource_map
-    # table (migration 0006).  Kept as fallback when the DB is pre-Alembic
-    # or seed_data hasn't run yet.  Bulk-loaded instance members:
-    #   self._action_resource_map: dict[str, str]  (set in __init__)
-    #   self._arn_templates      : dict[str, str]
-    # Mapping of common IAM actions to their target resource types.
-    ACTION_RESOURCE_MAP: Dict[str, str] = {
-        's3:GetObject': 'object',
-        's3:PutObject': 'object',
-        's3:DeleteObject': 'object',
-        's3:ListBucket': 'bucket',
-        's3:GetBucketPolicy': 'bucket',
-        's3:PutBucketPolicy': 'bucket',
-        'ec2:RunInstances': 'instance',
-        'ec2:TerminateInstances': 'instance',
-        'ec2:DescribeInstances': 'instance',
-        'lambda:InvokeFunction': 'function',
-        'lambda:CreateFunction': 'function',
-        'lambda:UpdateFunctionCode': 'function',
-        'dynamodb:GetItem': 'table',
-        'dynamodb:PutItem': 'table',
-        'dynamodb:DeleteItem': 'table',
-        'dynamodb:Query': 'table',
-        'dynamodb:Scan': 'table',
-        'sqs:SendMessage': 'queue',
-        'sqs:ReceiveMessage': 'queue',
-        'sqs:DeleteMessage': 'queue',
-        'sns:Publish': 'topic',
-        'sns:Subscribe': 'topic',
-        'kms:Decrypt': 'key',
-        'kms:Encrypt': 'key',
-        'kms:GenerateDataKey': 'key',
-        'rds:DescribeDBInstances': 'db',
-        'secretsmanager:GetSecretValue': 'secret',
-    }
-
-    # [PHASE2-TRANSITIONAL] delete in Task 8 — lives in arn_templates table
-    # (migration 0007).
-    ARN_TEMPLATES: Dict[str, str] = {
-        's3': 'arn:aws:s3:::{resource_name}',
-        'ec2': 'arn:aws:ec2:{region}:{account_id}:{resource_type}/{resource_id}',
-        'lambda': 'arn:aws:lambda:{region}:{account_id}:function:{resource_name}',
-        'dynamodb': 'arn:aws:dynamodb:{region}:{account_id}:table/{resource_name}',
-        'sqs': 'arn:aws:sqs:{region}:{account_id}:{resource_name}',
-        'sns': 'arn:aws:sns:{region}:{account_id}:{resource_name}',
-        'kms': 'arn:aws:kms:{region}:{account_id}:key/{resource_id}',
-        'iam': 'arn:aws:iam::{account_id}:{resource_type}/{resource_name}',
-        'rds': 'arn:aws:rds:{region}:{account_id}:db:{resource_name}',
-        'secretsmanager': 'arn:aws:secretsmanager:{region}:{account_id}:secret:{resource_name}',
-    }
+    # Task 8: ACTION_RESOURCE_MAP and ARN_TEMPLATES moved out of this
+    # class.  Data now lives in the ``action_resource_map`` (migration
+    # 0006) and ``arn_templates`` (migration 0007) DB tables on the IAM
+    # DB, seeded from ``sentinel.seed_data._BASELINE_*`` tuples.  The
+    # PolicyRewriter bulk-loads both dicts once at __init__; the
+    # inventory-side helpers below still fall back to generic patterns
+    # when no DB-backed template is available.
 
     def __init__(self, db_path: Path, read_only: bool = False):
         """Initialize resource inventory connection.
@@ -489,25 +446,27 @@ class ResourceInventory:
     def get_arns_for_action(self, action: str) -> List[str]:
         """Find appropriate resource ARNs for a given IAM action.
 
-        Parses the service prefix from the action name and maps common
-        actions to resource types using ACTION_RESOURCE_MAP.
+        Parses the service prefix from the action name.  Task 8: the
+        action -> resource-type lookup was removed from this class and
+        now lives on :class:`sentinel.rewriter.PolicyRewriter` where it
+        is bulk-loaded from the IAM DB.  Without that side-channel we
+        cannot narrow to a specific resource_type, so we resolve across
+        all resources for the service — the caller typically already
+        knows the resource type via its own bulk-loaded map and passes
+        it to :meth:`resolve_wildcard_resource` directly.
 
         Args:
-            action: IAM action name (e.g., 's3:GetObject')
+            action: IAM action name (e.g., 's3:GetObject').
 
         Returns:
-            List of matching resource ARN strings
+            List of matching resource ARN strings.
         """
         parts = action.split(':', 1)
         if len(parts) != 2:
             return []
 
         service_prefix = parts[0]
-
-        # Look up resource type from action map
-        resource_type = self.ACTION_RESOURCE_MAP.get(action)
-
-        return self.resolve_wildcard_resource(service_prefix, resource_type)
+        return self.resolve_wildcard_resource(service_prefix, None)
 
     def has_resources_for_service(self, service_prefix: str) -> bool:
         """Check if inventory has any resources for a given service.
@@ -538,32 +497,25 @@ class ResourceInventory:
     ) -> str:
         """Generate a clearly-marked placeholder ARN.
 
-        Uses ARN_TEMPLATES for service-specific ARN formats. Falls back
-        to a generic format for unknown services.
+        Task 8: the service-specific template dict was removed from
+        this class.  PolicyRewriter bulk-loads ``arn_templates`` from
+        the IAM DB and calls :meth:`generate_placeholder_arn` only as
+        a last-resort fallback when its own template resolution misses.
+        This implementation returns the generic
+        ``arn:aws:<svc>:<region>:<account>:<type>/<placeholder>`` shape
+        — sufficient for unit tests and pre-Alembic callers; the
+        rewriter-side template already handles every shipped service.
 
         Args:
-            service_prefix: AWS service prefix
-            resource_type: Resource type (e.g., 'bucket', 'instance')
-            account_id: AWS account ID (defaults to placeholder)
-            region: AWS region (defaults to us-east-1)
+            service_prefix: AWS service prefix.
+            resource_type: Resource type (e.g., 'bucket', 'instance').
+            account_id: AWS account ID (defaults to placeholder).
+            region: AWS region (defaults to us-east-1).
 
         Returns:
-            Placeholder ARN string with PLACEHOLDER markers
+            Placeholder ARN string with ``PLACEHOLDER`` markers.
         """
         placeholder_name = f"PLACEHOLDER-{resource_type}-name"
-        placeholder_id = f"PLACEHOLDER-{resource_type}-id"
-
-        template = self.ARN_TEMPLATES.get(service_prefix)
-        if template:
-            return template.format(
-                region=region,
-                account_id=account_id,
-                resource_type=resource_type,
-                resource_name=placeholder_name,
-                resource_id=placeholder_id,
-            )
-
-        # Generic fallback for unknown services
         return (
             f"arn:aws:{service_prefix}:{region}:{account_id}:"
             f"{resource_type}/{placeholder_name}"

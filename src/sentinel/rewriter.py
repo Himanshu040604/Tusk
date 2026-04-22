@@ -708,19 +708,13 @@ class PolicyRewriter:
         Returns:
             Inferred resource type string
         """
-        # Task 7: prefer bulk-loaded action->resource-type map.  Falls back
-        # to the legacy inventory-side dict only while the [PHASE2-TRANSITIONAL]
-        # constant still exists in inventory.py (Task 8 deletes it); after
-        # Task 8 the inventory branch is pure dead code and gets removed.
+        # Task 7/8: single source of truth is the bulk-loaded
+        # action_resource_map (from the IAM DB).  The former
+        # inventory.ACTION_RESOURCE_MAP fallback was deleted in Task 8.
         if self._action_resource_map:
             for action in actions:
                 if action in self._action_resource_map:
                     return self._action_resource_map[action]
-        elif self.inventory is not None:
-            action_map = getattr(self.inventory, "ACTION_RESOURCE_MAP", {})
-            for action in actions:
-                if action in action_map:
-                    return action_map[action]
 
         # Default resource types by service
         defaults: Dict[str, str] = {

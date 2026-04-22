@@ -1,16 +1,28 @@
-"""Shared constants for IAM Policy Sentinel.
+"""Shared lookups for IAM Policy Sentinel (Phase 2 Task 8 reshape).
 
-Single source of truth for values used across parser, analyzer, rewriter,
-inventory, database, and self_check modules.  This module has zero imports
-from other sentinel modules to prevent circular dependencies.
+This module is now a thin config-facade.  Before Task 8 it carried a
+dozen value-bearing literals (action lists, service sets, keyword
+tuples, companion rule tables).  Those lived in config (``defaults.toml``
+tables ``[intent.keywords.*]``, ``[intent.verb_prefixes]``, ``[security]``,
+``[service_name_mappings]``) and the DB (``companion_rules``,
+``action_resource_map``, ``arn_templates``) as well — two sources of
+truth.
+
+Task 8 deletes the literals here and replaces each exported name with a
+module-level ``__getattr__`` accessor that reads live ``Settings`` at
+call time.  The public import surface (``from .constants import X``)
+stays unchanged so callers don't churn, but the underlying values now
+resolve from TOML.
 """
+
+from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Optional, Set, Tuple
 
 # ---------------------------------------------------------------------------
-# CLI exit codes
+# CLI exit codes (pure constants — not "AWS data")
 # ---------------------------------------------------------------------------
 
 EXIT_SUCCESS: int = 0
@@ -19,96 +31,116 @@ EXIT_INVALID_ARGS: int = 2
 EXIT_IO_ERROR: int = 3
 
 # ---------------------------------------------------------------------------
-# Default file paths
+# Default file paths (pure constants)
 # ---------------------------------------------------------------------------
 
 DEFAULT_DB_PATH: str = "data/iam_actions.db"
 DEFAULT_INVENTORY_PATH: str = "data/resource_inventory.db"
 
 # ---------------------------------------------------------------------------
-# Schema & default placeholders
+# Schema & default placeholders (pure constants)
 # ---------------------------------------------------------------------------
 
 SCHEMA_VERSION: str = "1.0"
 DEFAULT_ACCOUNT_ID: str = "123456789012"
 DEFAULT_REGION: str = "us-east-1"
 
-# ---------------------------------------------------------------------------
-# Action classification prefixes
-# ---------------------------------------------------------------------------
-
-READ_PREFIXES: Tuple[str, ...] = (
-    'Get', 'Describe', 'List', 'Head', 'Batch',
-)
-
-WRITE_PREFIXES: Tuple[str, ...] = (
-    'Put', 'Create', 'Update', 'Delete', 'Remove',
-    'Terminate', 'Run', 'Start', 'Stop', 'Send',
-    'Publish', 'Invoke', 'Execute',
-)
-
-ADMIN_PREFIXES: Tuple[str, ...] = (
-    'Attach', 'Detach', 'SetDefault', 'UpdateAssumeRole',
-)
 
 # ---------------------------------------------------------------------------
-# Intent keywords
+# Dynamic lookups — resolved from Settings each access.  The module-level
+# __getattr__ below preserves the ``from .constants import X`` surface.
 # ---------------------------------------------------------------------------
 
-READ_INTENT_KEYWORDS: Tuple[str, ...] = (
-    'read-only', 'read only', 'readonly', 'view', 'get',
-)
 
-WRITE_INTENT_KEYWORDS: Tuple[str, ...] = (
-    'write', 'modify', 'update', 'create', 'manage',
-)
+def _settings() -> Any:
+    # Local import avoids circular dependency at module-load time.
+    from .config import get_settings
 
-# ---------------------------------------------------------------------------
-# Service categorization
-# ---------------------------------------------------------------------------
+    return get_settings()
 
-SECURITY_CRITICAL_SERVICES: Set[str] = {
-    'iam', 'sts', 'organizations', 'kms',
+
+def _verb_prefix(bucket: str) -> Tuple[str, ...]:
+    """Return one of the ``[intent.verb_prefixes]`` TOML lists as a tuple."""
+    vp = _settings().intent.verb_prefixes
+    return tuple(getattr(vp, bucket, ()) or ())
+
+
+def _intent_keyword_bucket_values(bucket: str) -> Tuple[str, ...]:
+    """Flatten one ``[intent.keywords.<bucket>]`` values list to a tuple."""
+    kw = _settings().intent.keywords.get(bucket)
+    if kw is None:
+        return ()
+    return tuple(kw.values)
+
+
+def _read_intent_keywords() -> Tuple[str, ...]:
+    """Union of the ``read``, ``read_write`` and ``list`` keyword buckets.
+
+    Matches the legacy ``READ_INTENT_KEYWORDS`` semantics: any synonym that
+    implied a read-only or read-write intent.
+    """
+    seen: list[str] = []
+    for bucket in ("read", "read_write", "list"):
+        for val in _intent_keyword_bucket_values(bucket):
+            if val not in seen:
+                seen.append(val)
+    return tuple(seen)
+
+
+def _write_intent_keywords() -> Tuple[str, ...]:
+    """Union of the ``write``, ``read_write`` and ``admin`` buckets."""
+    seen: list[str] = []
+    for bucket in ("write", "read_write", "admin", "deploy"):
+        for val in _intent_keyword_bucket_values(bucket):
+            if val not in seen:
+                seen.append(val)
+    return tuple(seen)
+
+
+_DYNAMIC_ATTRS = {
+    "READ_PREFIXES": lambda: _verb_prefix("read"),
+    "WRITE_PREFIXES": lambda: _verb_prefix("write"),
+    "ADMIN_PREFIXES": lambda: _verb_prefix("admin"),
+    "READ_INTENT_KEYWORDS": _read_intent_keywords,
+    "WRITE_INTENT_KEYWORDS": _write_intent_keywords,
+    "SECURITY_CRITICAL_SERVICES": lambda: set(
+        _settings().security.critical_services
+    ),
+    "REGION_LESS_GLOBAL_SERVICES": lambda: set(
+        _settings().security.region_less_global_services
+    ),
+    "SERVICE_NAME_MAPPINGS": lambda: dict(_settings().service_name_mappings),
 }
 
-REGION_LESS_GLOBAL_SERVICES: Set[str] = {
-    'iam', 'sts', 'organizations', 'cloudfront', 'route53',
-}
 
-# ---------------------------------------------------------------------------
-# Service name mappings  (keyword -> service prefix)
-#
-# Merged from analyzer.py (22 entries) and rewriter.py (9 entries).
-# ---------------------------------------------------------------------------
+def __getattr__(name: str) -> Any:
+    """Resolve the deprecated value-bearing names from live Settings.
 
-SERVICE_NAME_MAPPINGS: Dict[str, str] = {
-    's3': 's3',
-    'bucket': 's3',
-    'object storage': 's3',
-    'ec2': 'ec2',
-    'instance': 'ec2',
-    'compute': 'ec2',
-    'lambda': 'lambda',
-    'function': 'lambda',
-    'dynamodb': 'dynamodb',
-    'dynamo': 'dynamodb',
-    'table': 'dynamodb',
-    'rds': 'rds',
-    'database': 'rds',
-    'iam': 'iam',
-    'role': 'iam',
-    'user': 'iam',
-    'sqs': 'sqs',
-    'queue': 'sqs',
-    'sns': 'sns',
-    'topic': 'sns',
-    'kms': 'kms',
-    'key': 'kms',
-    'secrets': 'secretsmanager',
-    'secret': 'secretsmanager',
-    'cloudwatch': 'logs',
-    'logs': 'logs',
-}
+    Raises :class:`AttributeError` for anything that wasn't on the Phase 1
+    public surface, so typos still fail loudly.
+    """
+    fn = _DYNAMIC_ATTRS.get(name)
+    if fn is None:
+        raise AttributeError(f"module 'sentinel.constants' has no attribute {name!r}")
+    return fn()
+
+
+def __dir__() -> list[str]:
+    return sorted(
+        list(_DYNAMIC_ATTRS.keys())
+        + [
+            "EXIT_SUCCESS",
+            "EXIT_ISSUES_FOUND",
+            "EXIT_INVALID_ARGS",
+            "EXIT_IO_ERROR",
+            "DEFAULT_DB_PATH",
+            "DEFAULT_INVENTORY_PATH",
+            "SCHEMA_VERSION",
+            "DEFAULT_ACCOUNT_ID",
+            "DEFAULT_REGION",
+            "load_known_services",
+        ]
+    )
 
 # Path to JSON data file (project root / data / known_services.json)
 _JSON_PATH: Path = (
@@ -136,160 +168,3 @@ def load_known_services(json_path: Optional[Path] = None) -> Set[str]:
     except (FileNotFoundError, json.JSONDecodeError, OSError, KeyError, TypeError):
         return set()
 
-
-# ---------------------------------------------------------------------------
-# Companion permission rules  (expanded from 7 -> 22)
-#
-# Format: action -> (companion_actions, reason, severity_string)
-# Plain tuples so this module has zero sentinel imports.
-# analyzer.py converts to CompanionPermission objects at class-definition time.
-# ---------------------------------------------------------------------------
-
-COMPANION_PERMISSION_RULES: Dict[str, Tuple[List[str], str, str]] = {
-    # -- Original 7 rules (preserved exactly) --
-
-    'lambda:InvokeFunction': (
-        [
-            'logs:CreateLogGroup',
-            'logs:CreateLogStream',
-            'logs:PutLogEvents',
-        ],
-        'Lambda functions require CloudWatch Logs permissions to write execution logs',
-        'MEDIUM',
-    ),
-    'lambda:CreateFunction': (
-        [
-            'logs:CreateLogGroup',
-            'logs:CreateLogStream',
-            'logs:PutLogEvents',
-            'ec2:CreateNetworkInterface',
-            'ec2:DescribeNetworkInterfaces',
-            'ec2:DeleteNetworkInterface',
-        ],
-        'Lambda functions require CloudWatch Logs permissions to write execution logs. '
-        'Lambda functions in VPC require EC2 network interface permissions.',
-        'HIGH',
-    ),
-    's3:GetObject': (
-        ['kms:Decrypt'],
-        'Reading KMS-encrypted S3 objects requires kms:Decrypt permission',
-        'MEDIUM',
-    ),
-    's3:PutObject': (
-        ['kms:GenerateDataKey', 'kms:Decrypt'],
-        'Writing KMS-encrypted S3 objects requires KMS key generation',
-        'MEDIUM',
-    ),
-    'sqs:ReceiveMessage': (
-        [
-            'sqs:DeleteMessage',
-            'sqs:GetQueueAttributes',
-            'sqs:ChangeMessageVisibility',
-        ],
-        'SQS consumers need permissions for complete message processing lifecycle',
-        'MEDIUM',
-    ),
-    'dynamodb:GetRecords': (
-        [
-            'dynamodb:GetShardIterator',
-            'dynamodb:DescribeStream',
-            'dynamodb:ListStreams',
-        ],
-        'DynamoDB Streams processing requires stream discovery and iteration',
-        'MEDIUM',
-    ),
-    'ec2:TerminateInstances': (
-        ['ec2:DeleteVolume', 'ec2:DetachVolume'],
-        'Instance termination may require volume cleanup permissions',
-        'LOW',
-    ),
-
-    # -- 15 new rules --
-
-    'ecs:RunTask': (
-        [
-            'iam:PassRole',
-            'logs:CreateLogGroup',
-            'logs:CreateLogStream',
-            'logs:PutLogEvents',
-        ],
-        'ECS tasks require IAM PassRole for task/execution roles and CloudWatch Logs for logging',
-        'HIGH',
-    ),
-    'glue:StartJobRun': (
-        [
-            'iam:PassRole',
-            'logs:CreateLogGroup',
-            'logs:CreateLogStream',
-            'logs:PutLogEvents',
-        ],
-        'Glue jobs require IAM PassRole for the job role and CloudWatch Logs for output',
-        'HIGH',
-    ),
-    'states:StartExecution': (
-        ['iam:PassRole'],
-        'Step Functions executions require IAM PassRole for the state machine role',
-        'MEDIUM',
-    ),
-    'cloudformation:CreateStack': (
-        ['iam:PassRole', 'cloudformation:DescribeStacks'],
-        'CloudFormation stack creation requires IAM PassRole for the stack role '
-        'and DescribeStacks to monitor progress',
-        'HIGH',
-    ),
-    'cloudformation:UpdateStack': (
-        ['iam:PassRole', 'cloudformation:DescribeStacks'],
-        'CloudFormation stack updates require IAM PassRole and DescribeStacks',
-        'HIGH',
-    ),
-    'sns:Publish': (
-        ['kms:GenerateDataKey', 'kms:Decrypt'],
-        'Publishing to KMS-encrypted SNS topics requires KMS permissions',
-        'MEDIUM',
-    ),
-    'firehose:PutRecord': (
-        ['firehose:PutRecordBatch'],
-        'Firehose producers typically need both PutRecord and PutRecordBatch',
-        'LOW',
-    ),
-    'rds:CreateDBSnapshot': (
-        ['rds:DescribeDBInstances'],
-        'Creating DB snapshots requires DescribeDBInstances to identify the target',
-        'LOW',
-    ),
-    'secretsmanager:GetSecretValue': (
-        ['kms:Decrypt'],
-        'Retrieving KMS-encrypted secrets requires kms:Decrypt',
-        'MEDIUM',
-    ),
-    'ssm:GetParameter': (
-        ['kms:Decrypt'],
-        'Retrieving encrypted SSM parameters requires kms:Decrypt',
-        'MEDIUM',
-    ),
-    'ssm:GetParameters': (
-        ['kms:Decrypt'],
-        'Retrieving encrypted SSM parameters requires kms:Decrypt',
-        'MEDIUM',
-    ),
-    'events:PutRule': (
-        ['iam:PassRole', 'events:PutTargets'],
-        'EventBridge rules require IAM PassRole for target invocation and PutTargets',
-        'MEDIUM',
-    ),
-    'batch:SubmitJob': (
-        ['iam:PassRole', 'logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents'],
-        'AWS Batch jobs require IAM PassRole for job role and CloudWatch Logs',
-        'HIGH',
-    ),
-    'emr:RunJobFlow': (
-        ['iam:PassRole', 'ec2:AuthorizeSecurityGroupIngress'],
-        'EMR clusters require IAM PassRole for service/instance roles and EC2 security group access',
-        'HIGH',
-    ),
-    'athena:StartQueryExecution': (
-        ['s3:GetBucketLocation', 's3:GetObject', 's3:ListBucket', 's3:PutObject'],
-        'Athena queries require S3 permissions for reading data and writing results',
-        'MEDIUM',
-    ),
-}
