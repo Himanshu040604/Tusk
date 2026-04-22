@@ -77,3 +77,74 @@ def block_private_ipv4(addr: str) -> None:
         or ip.is_reserved
     ):
         raise SSRFBlockedError(f"IPv4 {addr} is in a blocked range")
+
+
+# H13 — tunneling-protocol prefixes that embed IPv4 (NAT64, 6to4, Teredo).
+# These networks may map to RFC1918 destinations when the embedded v4 is
+# extracted.  We reject by prefix AND extract+recurse through IPv4 check.
+_NAT64_WELL_KNOWN: Final = ipaddress.IPv6Network("64:ff9b::/96")
+_NAT64_LOCAL: Final = ipaddress.IPv6Network("64:ff9b:1::/48")
+_TEREDO: Final = ipaddress.IPv6Network("2001::/32")
+_6TO4: Final = ipaddress.IPv6Network("2002::/16")
+_IPV4_MAPPED: Final = ipaddress.IPv6Network("::ffff:0:0/96")
+
+
+def _extract_embedded_v4(ip: ipaddress.IPv6Address) -> ipaddress.IPv4Address | None:
+    """Extract the embedded IPv4 address from tunnel / mapped IPv6 addresses.
+
+    Returns None if no embedded v4 is present.  Handles:
+
+    * IPv4-mapped (``::ffff:a.b.c.d``)
+    * NAT64 well-known + local-use (last 32 bits)
+    * Teredo (``IPv6Address.teredo[1]`` — second element is client IPv4)
+    * 6to4 (middle 32 bits after ``2002:``)
+    """
+    if ip in _IPV4_MAPPED:
+        return ip.ipv4_mapped
+    if ip in _NAT64_WELL_KNOWN or ip in _NAT64_LOCAL:
+        # Last 32 bits encode IPv4.
+        return ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF)
+    if ip in _TEREDO and ip.teredo is not None:
+        return ip.teredo[1]
+    if ip in _6TO4 and ip.sixtofour is not None:
+        return ip.sixtofour
+    return None
+
+
+def block_private_ipv6(addr: str) -> None:
+    """Reject ULA / link-local / loopback / multicast + tunnel prefixes.
+
+    For addresses in NAT64 / 6to4 / Teredo / IPv4-mapped ranges, the
+    embedded IPv4 is extracted and run through the IPv4 block check —
+    a Teredo-wrapped ``169.254.169.254`` must not escape.
+
+    Raises:
+        SSRFBlockedError: On any blocked address.
+    """
+    ip = ipaddress.IPv6Address(_strip_zone(addr))
+    if (
+        ip.is_private
+        or ip.is_loopback
+        or ip.is_link_local
+        or ip.is_multicast
+        or ip.is_unspecified
+        or ip.is_reserved
+        or ip.is_site_local  # deprecated but still flagged defensively
+    ):
+        raise SSRFBlockedError(f"IPv6 {addr} is in a blocked range")
+
+    embedded = _extract_embedded_v4(ip)
+    if embedded is not None:
+        # Recurse through v4 guard — an attacker can't tunnel 127.0.0.1 via
+        # ``::ffff:127.0.0.1`` or ``64:ff9b::7f00:1``.
+        try:
+            block_private_ipv4(str(embedded))
+        except SSRFBlockedError as exc:
+            raise SSRFBlockedError(
+                f"IPv6 {addr} embeds blocked IPv4 {embedded}: {exc}"
+            ) from exc
+        # Non-embedded-blocked but still a tunnel — reject as surface:
+        raise SSRFBlockedError(
+            f"IPv6 {addr} uses a tunneling prefix ({embedded}) — rejected "
+            f"to avoid DNS-rebinding / escape paths"
+        )
