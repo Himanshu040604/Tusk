@@ -820,15 +820,23 @@ class Pipeline:
         self,
         database: Optional[Database] = None,
         inventory: Optional[ResourceInventory] = None,
+        config: Optional[PipelineConfig] = None,
     ):
         """Initialize pipeline.
 
         Args:
             database: Optional Database instance.
             inventory: Optional ResourceInventory instance.
+            config: Optional default :class:`PipelineConfig` (H2 DI slot).
+                When provided, :meth:`run` uses this instance unless the
+                caller passes a ``config`` argument of its own.  Library
+                users get a clean injection point without monkey-patching;
+                CLI callers keep their existing "pass per-run config"
+                pattern and see zero behaviour change.
         """
         self.database = database
         self.inventory = inventory
+        self.config = config
         self._companion_detector = CompanionPermissionDetector(database)
 
     def run(
@@ -854,7 +862,9 @@ class Pipeline:
             PipelineResult with all step outputs.
         """
         if config is None:
-            config = PipelineConfig()
+            # H2 DI slot: prefer the instance-level default over a fresh
+            # PipelineConfig() when the caller didn't pass one explicitly.
+            config = self.config if self.config is not None else PipelineConfig()
 
         # Step 1: VALIDATE
         parser = PolicyParser(self.database)
