@@ -6,7 +6,6 @@ condition key injection, statement reorganization, and JSON serialization.
 
 import json
 import pytest
-import tempfile
 from pathlib import Path
 
 from src.sentinel.parser import Policy, Statement
@@ -19,6 +18,8 @@ from src.sentinel.rewriter import (
 from src.sentinel.database import Database, Service, Action
 from src.sentinel.inventory import ResourceInventory, Resource
 
+from tests.conftest import make_test_db
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -26,10 +27,14 @@ from src.sentinel.inventory import ResourceInventory, Resource
 
 @pytest.fixture
 def tmp_db(tmp_path):
-    """Create a temporary IAM actions database with sample data."""
-    db_path = tmp_path / "test_iam.db"
+    """Create a migrated + seeded IAM actions DB with sample actions.
+
+    Task 0 migration: make_test_db supplies the Phase 2 tables
+    (action_resource_map / arn_templates / dangerous_actions /
+    companion_rules) so PolicyRewriter's Task 7 bulk-load finds rows.
+    """
+    db_path = make_test_db(tmp_path)
     db = Database(db_path)
-    db.create_schema()
 
     # Insert services
     for svc in [

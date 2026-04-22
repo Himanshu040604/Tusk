@@ -23,6 +23,8 @@ from src.sentinel.self_check import (
     PipelineResult,
 )
 
+from tests.conftest import make_test_db
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -30,10 +32,15 @@ from src.sentinel.self_check import (
 
 @pytest.fixture
 def tmp_db(tmp_path):
-    """Create a temporary IAM actions database with sample data."""
-    db_path = tmp_path / "test_iam.db"
+    """Create a migrated + seeded IAM actions DB with sample actions.
+
+    Task 0 migration: Pipeline constructs RiskAnalyzer +
+    CompanionPermissionDetector + PolicyRewriter, each of which
+    bulk-loads from the Phase 2 tables — make_test_db seeds those
+    so the bulk-load finds rows post-Task-8.
+    """
+    db_path = make_test_db(tmp_path)
     db = Database(db_path)
-    db.create_schema()
 
     for svc in [
         Service(service_prefix='s3', service_name='Amazon S3'),
