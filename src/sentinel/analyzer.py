@@ -365,7 +365,7 @@ class RiskAnalyzer:
     and other security issues in IAM policies.
     """
 
-    def __init__(self, database: Optional[Database] = None):
+    def __init__(self, database: Optional["Database"] = None):
         """Initialize risk analyzer with bulk-loaded classification tables.
 
         Task 6 bulk-load pattern: reads ``dangerous_actions`` from the DB
@@ -374,19 +374,35 @@ class RiskAnalyzer:
         regex tuples for O(1) / O(n_patterns) hot-path lookups.  No per-
         action SQL — matches § 12 Phase 2 Task 6 "no N+1" mandate.
 
-        Task 8: class-level fallback constants are gone.  When
-        ``database`` is None the analyzer initialises with empty
-        classification sets; downstream risk checks simply find no
-        matches until Task 8b flips the None path to a hard-fail.
+        Task 8b D3 HARD-FAIL: ``database`` must be non-None.  Without a
+        DB we have no classification source (Task 8 deleted the
+        class-level fallbacks) and silently returning empty sets would
+        mask every risk finding — a worse security posture than just
+        failing loudly.  The CLI maps :class:`DatabaseError` from this
+        constructor to exit code 3 (EXIT_IO_ERROR) with the remediation
+        hint "no IAM DB found; run `sentinel refresh --source shipped`".
 
         Args:
-            database: Optional Database instance for action validation
-                and classification-row bulk-load.
+            database: Database instance for action validation and
+                classification-row bulk-load.  Accepting ``None`` is
+                kept in the signature only so existing callsites that
+                passed ``None`` raise at construction time rather than
+                at argument-bind time — the error message is clearer.
 
         Raises:
-            DatabaseError: If a loaded row has a mismatched HMAC signature
-                (on-disk tampering — Task 6a K_db verification).
+            DatabaseError: If ``database`` is None, OR if any loaded
+                row has a mismatched HMAC signature (on-disk tampering
+                — Task 6a K_db verification).
         """
+        if database is None:
+            from .database import DatabaseError
+
+            raise DatabaseError(
+                "RiskAnalyzer requires a non-None Database (Task 8b D3 "
+                "HARD-FAIL).  Construct via `Database(iam_db_path)` — or "
+                "run `sentinel refresh --source shipped` to create a "
+                "baseline IAM DB if none exists yet."
+            )
         self.database = database
 
         # Instance-level bulk-loaded classification.  Immutable after
@@ -396,10 +412,9 @@ class RiskAnalyzer:
         self._destruction_patterns: tuple[tuple["re.Pattern[str]", str], ...] = ()
         self._perms_mgmt_patterns: tuple[tuple["re.Pattern[str]", str], ...] = ()
 
-        if database is not None:
-            # Propagate HMAC/DatabaseError failures — do NOT silently
-            # swallow, that would defeat the tamper defense.
-            self._bulk_load_classifications(database)
+        # Propagate HMAC/DatabaseError failures — do NOT silently
+        # swallow, that would defeat the tamper defense.
+        self._bulk_load_classifications(database)
 
     def _bulk_load_classifications(self, database: Database) -> bool:
         """Load + HMAC-verify rows from ``dangerous_actions``.
@@ -842,30 +857,39 @@ class CompanionPermissionDetector:
     # fallback-reconstruction block deleted.  Rules live exclusively in
     # the `companion_rules` DB table (migration 0004 + seed_all_baseline).
 
-    def __init__(self, database: Optional[Database] = None):
+    def __init__(self, database: Optional["Database"] = None):
         """Initialize companion permission detector.
 
         Task 6 bulk-load: reads ``companion_rules`` once at construction
         time, HMAC-verifies each row (Task 6a K_db), and builds the
         instance-level lookup dict.  Hot path is O(1) dict access.
 
+        Task 8b D3 HARD-FAIL: ``database`` must be non-None.  The
+        ``companion_rules`` table is the sole ruleset source after Task
+        8 deleted the ``COMPANION_PERMISSION_RULES`` constant; a None DB
+        would leave the detector silently incapable of finding any
+        missing companions.
+
         Args:
-            database: Optional Database instance.  If None the detector
-                starts with an empty ruleset (Task 8b will hard-fail).
+            database: Database instance.  ``None`` raises
+                :class:`DatabaseError` with the same remediation hint
+                as :class:`RiskAnalyzer`.
 
         Raises:
-            DatabaseError: On HMAC row signature mismatch.
+            DatabaseError: If ``database`` is None or on HMAC row
+                signature mismatch.
         """
+        if database is None:
+            from .database import DatabaseError
+
+            raise DatabaseError(
+                "CompanionPermissionDetector requires a non-None Database "
+                "(Task 8b D3 HARD-FAIL).  Run `sentinel refresh --source "
+                "shipped` if no baseline IAM DB exists yet."
+            )
         self.database = database
         self._companion_rules: dict[str, CompanionPermission] = {}
-
-        # Task 8: COMPANION_PERMISSION_RULES fallback deleted — rules
-        # now live exclusively in the `companion_rules` DB table
-        # (migration 0004 + seed_all_baseline).  When ``database`` is
-        # None the detector starts with an empty ruleset; Task 8b flips
-        # this path to a hard-fail.
-        if database is not None:
-            self._bulk_load_companion_rules(database)
+        self._bulk_load_companion_rules(database)
 
     def _bulk_load_companion_rules(self, database: Database) -> bool:
         """Load + HMAC-verify rows from ``companion_rules``.

@@ -668,7 +668,15 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         if stmt.not_actions:
             all_actions.extend(stmt.not_actions)
 
-    risk_analyzer = RiskAnalyzer(db)
+    try:
+        risk_analyzer = RiskAnalyzer(db)
+    except Exception as e:  # noqa: BLE001 — maps DatabaseError + subtypes.
+        from .database import DatabaseError
+
+        if isinstance(e, DatabaseError):
+            print(f"Error: {e}", file=sys.stderr)
+            return EXIT_IO_ERROR
+        raise
     findings = risk_analyzer.analyze_actions(all_actions)
 
     formatter = _get_formatter(args)
@@ -716,7 +724,15 @@ def cmd_rewrite(args: argparse.Namespace) -> int:
         condition_profile=getattr(args, 'condition_profile', 'moderate'),
     )
 
-    rewriter = PolicyRewriter(db, inv)
+    try:
+        rewriter = PolicyRewriter(db, inv)
+    except Exception as e:  # noqa: BLE001 — maps DatabaseError + subtypes.
+        from .database import DatabaseError
+
+        if isinstance(e, DatabaseError):
+            print(f"Error: {e}", file=sys.stderr)
+            return EXIT_IO_ERROR
+        raise
     result = rewriter.rewrite_policy(policy, config)
 
     formatter = _get_formatter(args)
@@ -789,7 +805,15 @@ def cmd_run(args: argparse.Namespace) -> int:
         allow_wildcard_resources=getattr(args, 'allow_wildcard_resources', False),
     )
 
-    pipeline = Pipeline(db, inv)
+    try:
+        pipeline = Pipeline(db, inv)
+    except Exception as e:  # noqa: BLE001 — maps DatabaseError + subtypes.
+        from .database import DatabaseError
+
+        if isinstance(e, DatabaseError):
+            print(f"Error: {e}", file=sys.stderr)
+            return EXIT_IO_ERROR
+        raise
 
     try:
         result = pipeline.run(policy_json, config)
