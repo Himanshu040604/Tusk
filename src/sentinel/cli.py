@@ -334,18 +334,40 @@ def build_parser() -> argparse.ArgumentParser:
     p_refresh = subparsers.add_parser(
         "refresh",
         parents=[parent],
-        help="Refresh IAM actions database from local data files",
+        help="Refresh IAM actions database from local data files or live sources",
     )
-    p_refresh.add_argument(
+    # M3: --source and --all are mutually exclusive (Amendment 4).
+    # One of them must be supplied, but argparse enforces that via
+    # required=True on the group.
+    refresh_group = p_refresh.add_mutually_exclusive_group(required=True)
+    refresh_group.add_argument(
         "--source",
-        required=True,
-        choices=["policy-sentry", "aws-docs"],
-        help="Data source format",
+        choices=[
+            "policy-sentry", "aws-docs",
+            "managed-policies", "cloudsplaining",
+        ],
+        help="Data source to refresh",
+    )
+    refresh_group.add_argument(
+        "--all",
+        action="store_true",
+        help="Refresh all known sources in sequence",
     )
     p_refresh.add_argument(
         "--data-path",
-        required=True,
-        help="Path to data file or directory",
+        default=None,
+        help=(
+            "Path to data file or directory (required for offline refresh; "
+            "ignored with --live)"
+        ),
+    )
+    p_refresh.add_argument(
+        "--live",
+        action="store_true",
+        help=(
+            "Fetch live from network via the hardened HTTP client "
+            "(default: read-only from existing DB / local data)"
+        ),
     )
     p_refresh.add_argument(
         "--dry-run",
