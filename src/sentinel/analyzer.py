@@ -118,68 +118,59 @@ class IntentMapper:
 
     Translates natural language intent descriptions into specific
     access levels and action sets for policy generation.
+
+    Task 8 / M1: keyword -> access-level map is now loaded at
+    __init__ time from the ``[intent.keywords.*]`` TOML tables via
+    :func:`sentinel.config.get_settings`.  No class-level constant —
+    changing a bucket's synonyms or level set is a pure config edit
+    (reload with ``SENTINEL_CONFIG_RELOAD=1``) rather than a code
+    redeploy.
     """
-
-    # Intent keyword mappings
-    INTENT_KEYWORDS = {
-        # Read-only patterns
-        "read-only": {AccessLevel.LIST, AccessLevel.READ},
-        "read": {AccessLevel.LIST, AccessLevel.READ},
-        "get": {AccessLevel.LIST, AccessLevel.READ},
-        "describe": {AccessLevel.LIST, AccessLevel.READ},
-        "view": {AccessLevel.LIST, AccessLevel.READ},
-        "fetch": {AccessLevel.LIST, AccessLevel.READ},
-        "retrieve": {AccessLevel.LIST, AccessLevel.READ},
-
-        # Read-write patterns
-        "read-write": {AccessLevel.LIST, AccessLevel.READ, AccessLevel.WRITE},
-        "modify": {AccessLevel.LIST, AccessLevel.READ, AccessLevel.WRITE},
-        "update": {AccessLevel.LIST, AccessLevel.READ, AccessLevel.WRITE},
-        "manage": {AccessLevel.LIST, AccessLevel.READ, AccessLevel.WRITE},
-
-        # Write-only patterns
-        "write-only": {AccessLevel.WRITE},
-        "write": {AccessLevel.WRITE},
-        "create": {AccessLevel.WRITE},
-        "put": {AccessLevel.WRITE},
-        "upload": {AccessLevel.WRITE},
-        "insert": {AccessLevel.WRITE},
-
-        # List-only patterns
-        "list-only": {AccessLevel.LIST},
-        "list": {AccessLevel.LIST},
-        "enumerate": {AccessLevel.LIST},
-
-        # Admin/Full access patterns
-        "admin": {AccessLevel.LIST, AccessLevel.READ, AccessLevel.WRITE,
-                  AccessLevel.PERMISSIONS_MANAGEMENT, AccessLevel.TAGGING},
-        "full": {AccessLevel.LIST, AccessLevel.READ, AccessLevel.WRITE,
-                 AccessLevel.PERMISSIONS_MANAGEMENT, AccessLevel.TAGGING},
-        "full-access": {AccessLevel.LIST, AccessLevel.READ, AccessLevel.WRITE,
-                        AccessLevel.PERMISSIONS_MANAGEMENT, AccessLevel.TAGGING},
-
-        # Deployment patterns
-        "deploy": {AccessLevel.WRITE, AccessLevel.TAGGING},
-        "ci/cd": {AccessLevel.WRITE, AccessLevel.TAGGING},
-        "deployment": {AccessLevel.WRITE, AccessLevel.TAGGING},
-
-        # Tagging patterns
-        "tag": {AccessLevel.TAGGING},
-        "tagging": {AccessLevel.TAGGING},
-
-        # Permissions management patterns
-        "permissions": {AccessLevel.PERMISSIONS_MANAGEMENT},
-        "policy": {AccessLevel.PERMISSIONS_MANAGEMENT},
-        "policy-management": {AccessLevel.PERMISSIONS_MANAGEMENT},
-    }
 
     def __init__(self, database: Optional[Database] = None):
         """Initialize intent mapper.
 
         Args:
-            database: Optional Database instance for querying actions
+            database: Optional Database instance for querying actions.
         """
         self.database = database
+        self._intent_keywords: Dict[str, Set[AccessLevel]] = (
+            self._load_intent_keywords()
+        )
+
+    @staticmethod
+    def _load_intent_keywords() -> Dict[str, Set[AccessLevel]]:
+        """Flatten the 8-bucket TOML schema into a keyword -> AccessLevel set.
+
+        Each bucket in ``Settings.intent.keywords`` declares a list of
+        synonym ``values`` and a list of ``levels`` (AccessLevel enum
+        member names).  Flattened shape matches the old class-level
+        dict so downstream callers stay unchanged.
+        """
+        from .config import get_settings
+
+        settings = get_settings()
+        out: Dict[str, Set[AccessLevel]] = {}
+        for bucket in settings.intent.keywords.values():
+            levels: Set[AccessLevel] = set()
+            for lvl_name in bucket.levels:
+                try:
+                    levels.add(AccessLevel[lvl_name])
+                except KeyError:
+                    # Unknown level name in TOML — skip quietly;
+                    # config validation catches this at load time.
+                    continue
+            for keyword in bucket.values:
+                if keyword in out:
+                    out[keyword].update(levels)
+                else:
+                    out[keyword] = set(levels)
+        return out
+
+    @property
+    def INTENT_KEYWORDS(self) -> Dict[str, Set[AccessLevel]]:
+        """Backwards-compat shim — callers inside this class still read this."""
+        return self._intent_keywords
 
     def map_intent(self, intent: str, service_filter: Optional[List[str]] = None) -> IntentMapping:
         """Map developer intent to access levels and actions.
