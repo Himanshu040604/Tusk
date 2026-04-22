@@ -132,29 +132,33 @@ class TestResolveWildcardResource:
 # ---------------------------------------------------------------------------
 
 class TestGetArnsForAction:
-    """Tests for get_arns_for_action method."""
+    """Tests for get_arns_for_action method.
 
-    def test_s3_get_object_returns_objects(self, inventory):
-        """s3:GetObject maps to object resource type."""
+    Task 8: the action -> resource-type refinement dict moved to
+    :class:`PolicyRewriter` (DB-backed bulk load).  The inventory-side
+    fallback now resolves *all* resources for the service prefix — the
+    rewriter narrows by resource_type via ``resolve_wildcard_resource``
+    directly when it needs to.
+    """
+
+    def test_s3_action_returns_all_s3_resources(self, inventory):
+        """Any s3:* action resolves to every s3 resource (fallback)."""
         arns = inventory.get_arns_for_action('s3:GetObject')
-        assert len(arns) == 1
-        assert 'arn:aws:s3:::my-app-data/*' in arns
-
-    def test_s3_list_bucket_returns_buckets(self, inventory):
-        """s3:ListBucket maps to bucket resource type."""
-        arns = inventory.get_arns_for_action('s3:ListBucket')
-        assert len(arns) == 2
+        assert len(arns) == 3
         assert 'arn:aws:s3:::my-app-data' in arns
         assert 'arn:aws:s3:::my-app-logs' in arns
+        assert 'arn:aws:s3:::my-app-data/*' in arns
 
-    def test_ec2_describe_returns_instances(self, inventory):
-        """ec2:DescribeInstances maps to instance resource type."""
+    def test_s3_list_bucket_fallback_returns_all(self, inventory):
+        arns = inventory.get_arns_for_action('s3:ListBucket')
+        assert len(arns) == 3
+
+    def test_ec2_action_returns_ec2_resources(self, inventory):
         arns = inventory.get_arns_for_action('ec2:DescribeInstances')
         assert len(arns) == 1
         assert 'i-abc123' in arns[0]
 
-    def test_lambda_invoke_returns_functions(self, inventory):
-        """lambda:InvokeFunction maps to function resource type."""
+    def test_lambda_action_returns_lambda_resources(self, inventory):
         arns = inventory.get_arns_for_action('lambda:InvokeFunction')
         assert len(arns) == 1
         assert 'processor' in arns[0]
@@ -162,7 +166,6 @@ class TestGetArnsForAction:
     def test_unknown_action_returns_all_service(self, inventory):
         """Unknown action returns all resources for the service."""
         arns = inventory.get_arns_for_action('s3:UnknownAction')
-        # Falls back to all s3 resources
         assert len(arns) == 3
 
     def test_invalid_action_format(self, inventory):
@@ -205,16 +208,22 @@ class TestHasResourcesForService:
 # ---------------------------------------------------------------------------
 
 class TestGeneratePlaceholderArn:
-    """Tests for generate_placeholder_arn method."""
+    """Tests for generate_placeholder_arn fallback method.
 
-    def test_s3_placeholder(self, inventory):
-        """S3 placeholder ARN has no region or account."""
+    Task 8: service-specific ARN templates moved to the ``arn_templates``
+    DB table (consumed by :class:`PolicyRewriter`).  The inventory-side
+    fallback emits a generic ``arn:aws:<svc>:<region>:<account>:<type>/...``
+    shape — the tests below assert that generic contract only.  Service-
+    specific assertions (e.g. S3 omitting region/account) are covered by
+    rewriter tests that exercise the DB-backed path.
+    """
+
+    def test_placeholder_is_generic_arn_shape(self, inventory):
         arn = inventory.generate_placeholder_arn('s3', 'bucket')
-        assert arn.startswith('arn:aws:s3:::')
+        assert arn.startswith('arn:aws:s3:')
         assert 'PLACEHOLDER' in arn
 
-    def test_ec2_placeholder(self, inventory):
-        """EC2 placeholder ARN has region and account."""
+    def test_ec2_placeholder_uses_region_and_account(self, inventory):
         arn = inventory.generate_placeholder_arn(
             'ec2', 'instance', '999888777666', 'eu-west-1'
         )
@@ -222,32 +231,22 @@ class TestGeneratePlaceholderArn:
         assert '999888777666' in arn
         assert 'PLACEHOLDER' in arn
 
-    def test_lambda_placeholder(self, inventory):
-        """Lambda placeholder ARN has function format."""
+    def test_lambda_placeholder_embeds_type(self, inventory):
         arn = inventory.generate_placeholder_arn('lambda', 'function')
-        assert 'function:' in arn
-        assert 'PLACEHOLDER' in arn
-
-    def test_iam_placeholder_global(self, inventory):
-        """IAM placeholder ARN has no region (global service)."""
-        arn = inventory.generate_placeholder_arn('iam', 'role')
-        assert 'arn:aws:iam::' in arn
+        assert 'function' in arn
         assert 'PLACEHOLDER' in arn
 
     def test_unknown_service_placeholder(self, inventory):
-        """Unknown service gets generic placeholder format."""
         arn = inventory.generate_placeholder_arn('newservice', 'widget')
         assert 'arn:aws:newservice:' in arn
         assert 'PLACEHOLDER' in arn
 
     def test_default_account_and_region(self, inventory):
-        """Default account and region used if not specified."""
         arn = inventory.generate_placeholder_arn('ec2', 'instance')
         assert '123456789012' in arn
         assert 'us-east-1' in arn
 
     def test_custom_account_and_region(self, inventory):
-        """Custom account and region used when specified."""
         arn = inventory.generate_placeholder_arn(
             'dynamodb', 'table', '111222333444', 'ap-southeast-1'
         )
@@ -346,65 +345,9 @@ class TestBulkInsertResources:
 # Test ACTION_RESOURCE_MAP
 # ---------------------------------------------------------------------------
 
-class TestActionResourceMap:
-    """Tests for ACTION_RESOURCE_MAP class variable."""
-
-    def test_map_exists(self):
-        """ACTION_RESOURCE_MAP is defined."""
-        assert hasattr(ResourceInventory, 'ACTION_RESOURCE_MAP')
-        assert len(ResourceInventory.ACTION_RESOURCE_MAP) > 0
-
-    def test_s3_mappings(self):
-        """S3 actions mapped correctly."""
-        m = ResourceInventory.ACTION_RESOURCE_MAP
-        assert m['s3:GetObject'] == 'object'
-        assert m['s3:ListBucket'] == 'bucket'
-        assert m['s3:PutBucketPolicy'] == 'bucket'
-
-    def test_ec2_mappings(self):
-        """EC2 actions mapped correctly."""
-        m = ResourceInventory.ACTION_RESOURCE_MAP
-        assert m['ec2:RunInstances'] == 'instance'
-        assert m['ec2:DescribeInstances'] == 'instance'
-
-    def test_lambda_mappings(self):
-        """Lambda actions mapped correctly."""
-        m = ResourceInventory.ACTION_RESOURCE_MAP
-        assert m['lambda:InvokeFunction'] == 'function'
-        assert m['lambda:CreateFunction'] == 'function'
-
-    def test_dynamodb_mappings(self):
-        """DynamoDB actions mapped correctly."""
-        m = ResourceInventory.ACTION_RESOURCE_MAP
-        assert m['dynamodb:GetItem'] == 'table'
-        assert m['dynamodb:Query'] == 'table'
-
-
-# ---------------------------------------------------------------------------
-# Test ARN_TEMPLATES
-# ---------------------------------------------------------------------------
-
-class TestArnTemplates:
-    """Tests for ARN_TEMPLATES class variable."""
-
-    def test_templates_exist(self):
-        """ARN_TEMPLATES is defined."""
-        assert hasattr(ResourceInventory, 'ARN_TEMPLATES')
-        assert len(ResourceInventory.ARN_TEMPLATES) > 0
-
-    def test_s3_template_no_region(self):
-        """S3 ARN template has no region or account."""
-        template = ResourceInventory.ARN_TEMPLATES['s3']
-        assert '{region}' not in template
-        assert '{account_id}' not in template
-
-    def test_iam_template_global(self):
-        """IAM ARN template has no region (global service)."""
-        template = ResourceInventory.ARN_TEMPLATES['iam']
-        assert '{region}' not in template
-
-    def test_ec2_template_has_region(self):
-        """EC2 ARN template has region."""
-        template = ResourceInventory.ARN_TEMPLATES['ec2']
-        assert '{region}' in template
-        assert '{account_id}' in template
+# Tests for removed ACTION_RESOURCE_MAP / ARN_TEMPLATES class constants
+# deleted — those dicts migrated to the `action_resource_map` and
+# `arn_templates` DB tables in Phase 2 (see migrations 0006, 0007 and the
+# corresponding DB-backed API in Database.list_action_resource_map() /
+# Database.list_arn_templates()).  Behaviour is covered by Phase 2 DB
+# tests; the class-constant assertion pattern is defunct.

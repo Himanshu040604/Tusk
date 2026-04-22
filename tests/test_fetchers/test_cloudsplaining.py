@@ -1,70 +1,64 @@
 """Tests for :class:`fetchers.cloudsplaining.CloudSplainingFetcher`.
 
-The fetcher accepts a cloudsplaining report file and emits one
-:class:`FetchResult` per discovered policy.  We build a minimal
-synthetic report and iterate.
+The fetcher composes a ``GitHubFetcher`` to retrieve policy examples from
+``salesforce/cloudsplaining/examples/policies/`` and rewrites the origin
+badge to read ``cloudsplaining``.
 """
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
+from unittest.mock import MagicMock
 
-import pytest
+import httpx
 
-from fetchers.base import PolicyNotFoundError
 from fetchers.cloudsplaining import CloudSplainingFetcher
+from sentinel.config import Settings
 
 
-def _write_report(
-    tmp_path: Path,
-    policies: dict[str, dict],
-) -> Path:
-    """Write a minimal cloudsplaining report to ``tmp_path/report.json``."""
-    f = tmp_path / "report.json"
-    f.write_text(json.dumps({"policies": policies}))
-    return f
+def _resp(body: bytes = b"{}", cache: str = "MISS") -> httpx.Response:
+    return httpx.Response(
+        status_code=200,
+        content=body,
+        headers={"X-Sentinel-Cache": cache},
+        request=httpx.Request(
+            "GET",
+            "https://raw.githubusercontent.com/salesforce/cloudsplaining/main/examples/policies/p.json",
+        ),
+    )
 
 
 class TestCloudSplainingFetcher:
-    def test_extracts_single_policy(self, tmp_path: Path) -> None:
-        report = _write_report(
-            tmp_path,
-            {
-                "policy-a": {
-                    "PolicyDocument": {
-                        "Version": "2012-10-17",
-                        "Statement": [{"Effect": "Allow", "Action": "*"}],
-                    }
-                }
-            },
-        )
-        fetcher = CloudSplainingFetcher()
-        results = list(fetcher.fetch_many(str(report)))
-        assert len(results) == 1
-        assert results[0].origin.source_type == "cloudsplaining"
-        assert "policy-a" in results[0].origin.source_spec
+    def test_bare_filename_routes_to_examples_policies(self) -> None:
+        client = MagicMock()
+        client.get.return_value = _resp()
+        fetcher = CloudSplainingFetcher(client=client, settings=Settings())
+        fetcher.fetch("iam-privesc.json")
+        # Verify the underlying GitHub call targeted examples/policies/.
+        args, _kwargs = client.get.call_args
+        assert "examples/policies/iam-privesc.json" in args[0]
 
-    def test_extracts_multiple_policies(self, tmp_path: Path) -> None:
-        report = _write_report(
-            tmp_path,
-            {
-                "policy-a": {"PolicyDocument": {"Statement": []}},
-                "policy-b": {"PolicyDocument": {"Statement": []}},
-            },
-        )
-        fetcher = CloudSplainingFetcher()
-        results = list(fetcher.fetch_many(str(report)))
-        assert len(results) == 2
+    def test_origin_relabelled_to_cloudsplaining(self) -> None:
+        client = MagicMock()
+        client.get.return_value = _resp()
+        fetcher = CloudSplainingFetcher(client=client, settings=Settings())
+        result = fetcher.fetch("iam-privesc.json")
+        assert result.origin.source_type == "cloudsplaining"
+        assert result.origin.source_spec == "iam-privesc.json"
 
-    def test_missing_report_raises(self, tmp_path: Path) -> None:
-        fetcher = CloudSplainingFetcher()
-        with pytest.raises(PolicyNotFoundError):
-            list(fetcher.fetch_many(str(tmp_path / "missing.json")))
+    def test_prejoined_subpath_not_duplicated(self) -> None:
+        client = MagicMock()
+        client.get.return_value = _resp()
+        fetcher = CloudSplainingFetcher(client=client, settings=Settings())
+        fetcher.fetch("examples/policies/nested/p.json")
+        args, _kwargs = client.get.call_args
+        # Should not get "examples/policies/examples/policies/..."
+        assert args[0].count("examples/policies") == 1
 
-    def test_report_without_policies_empty(self, tmp_path: Path) -> None:
-        f = tmp_path / "empty.json"
-        f.write_text(json.dumps({"policies": {}}))
-        fetcher = CloudSplainingFetcher()
-        results = list(fetcher.fetch_many(str(f)))
-        assert results == []
+    def test_leading_slash_stripped(self) -> None:
+        client = MagicMock()
+        client.get.return_value = _resp()
+        fetcher = CloudSplainingFetcher(client=client, settings=Settings())
+        fetcher.fetch("/iam-privesc.json")
+        args, _kwargs = client.get.call_args
+        # URL shouldn't have a double slash after the branch.
+        assert "//iam-privesc.json" not in args[0]
