@@ -91,10 +91,41 @@ cat policy.json | python -m sentinel validate -
 | `sentinel analyze <policy>` | Analyze for security risks |
 | `sentinel rewrite <policy>` | Rewrite for least privilege |
 | `sentinel run <policy>` | Run the full four-step pipeline |
-| `sentinel refresh --source <src> --data-path <path>` | Refresh IAM actions database |
+| `sentinel fetch <source> <spec>` | Fetch a policy (url, github, aws-sample, aws-managed, cloudsplaining, clipboard, local, stdin, batch) |
+| `sentinel refresh --all [--live]` | Refresh every IAM actions + resource inventory source |
+| `sentinel config show [--format json\|human]` | Print resolved settings (credentials redacted) |
+| `sentinel config validate [--strict]` | Lint the TOML/env precedence chain |
+| `sentinel cache list/purge/rotate-key` | Inspect or manage the HMAC-signed HTTP cache |
+| `sentinel managed list/show <name>` | Browse AWS-managed policy snapshots |
 | `sentinel info` | Show database statistics |
 
 Use `-` as the policy path to read from stdin.
+
+### Live-fetch safety flags
+
+These flags are **CLI-only** — they HARD-FAIL if ever present in TOML
+or env (`SENTINEL_INSECURE` / `SENTINEL_ALLOW_DOMAIN` are banned) to
+prevent accidental persistence of security-sensitive state.
+
+| Flag | Purpose |
+|------|---------|
+| `--insecure` | Disable TLS certificate verification; emits loud `[WARN]` on every request |
+| `--allow-domain <host>` | Extend the network allow-list for one invocation |
+| `--skip-migrations` | Bypass Alembic auto-upgrade (also honors `SENTINEL_SKIP_MIGRATIONS=1` env for read-only filesystems) |
+
+### Configuration
+
+Settings layer in this precedence order (later wins):
+
+1. Shipped `defaults.toml`
+2. System TOML — `/etc/sentinel/config.toml` (or Windows `%ProgramData%\sentinel\config.toml`)
+3. User TOML — `~/.config/sentinel/config.toml` (or `%APPDATA%\sentinel\config.toml`)
+4. Project-local `./.sentinel.toml`
+5. `SENTINEL_*` environment variables (e.g. `SENTINEL_LOG_LEVEL=DEBUG`)
+6. CLI flags
+
+Secrets such as `SENTINEL_GITHUB_TOKEN` are wrapped in `pydantic.SecretStr`
+so `sentinel config show` renders them as `**********`.
 
 ### Flags
 
