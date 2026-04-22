@@ -906,6 +906,12 @@ def cmd_run(args: argparse.Namespace) -> int:
     from fetchers.local import LocalFileFetcher, StdinFetcher
     from fetchers.base import PolicyNotFoundError
 
+    # Phase 5 Task 9: batch fan-out.  When --batch is supplied, iterate
+    # BatchFetcher.iter_fetch and run the pipeline per file; honour
+    # --fail-fast.  Aggregates into a per-file JSON report when -o is set.
+    if getattr(args, "batch", None):
+        return _cmd_run_batch(args)
+
     # Detect format up front so we can decide whether YAML→JSON
     # conversion is needed after fetching.
     fmt = _detect_format(args.policy_file, args.input_format)
@@ -1006,6 +1012,91 @@ def cmd_run(args: argparse.Namespace) -> int:
         getattr(result.self_check_result, "findings", [])
     )
     return _verdict_to_exit_code(findings)
+
+
+def _cmd_run_batch(args: argparse.Namespace) -> int:
+    """Fan-out ``sentinel run --batch <dir>`` (Phase 5 Task 9).
+
+    Iterates :meth:`BatchFetcher.iter_fetch` and invokes the Pipeline
+    per file.  ``--fail-fast`` stops at the first non-success exit code;
+    otherwise every file is processed and the worst exit code is
+    returned.  A per-file JSON report is written to ``-o`` when set.
+    """
+    from fetchers.batch import BatchFetcher
+    from fetchers.base import PolicyNotFoundError
+    from .models import PolicyInput
+    from .self_check import Pipeline, PipelineConfig
+
+    db = resolve_database(args)
+    inv = resolve_inventory(args)
+    config = PipelineConfig(
+        intent=args.intent, account_id=args.account_id, region=args.region,
+        strict_mode=args.strict, max_self_check_retries=args.max_retries,
+        add_companions=not args.no_companions,
+        add_conditions=not args.no_conditions,
+        interactive=False,
+        policy_type=getattr(args, "policy_type", None),
+        condition_profile=getattr(args, "condition_profile", "moderate"),
+    )
+    try:
+        pipeline = Pipeline(db, inv)
+    except Exception as exc:  # noqa: BLE001
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_IO_ERROR
+
+    worst = EXIT_SUCCESS
+    tally = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+    entries: list[dict] = []
+    try:
+        results = list(BatchFetcher().iter_fetch(args.batch))
+    except PolicyNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_IO_ERROR
+
+    for fr in results:
+        policy_input = PolicyInput(body_bytes=fr.body, origin=fr.origin)
+        try:
+            result = pipeline.run(policy_input, config=config)
+        except Exception as exc:  # noqa: BLE001 — per-file resilience.
+            print(f"[WARN] {fr.origin.source_spec}: {exc}", file=sys.stderr)
+            entries.append({
+                "source": fr.origin.source_spec, "error": str(exc),
+                "exit_code": EXIT_IO_ERROR,
+            })
+            worst = max(worst, EXIT_IO_ERROR)
+            if getattr(args, "fail_fast", False):
+                break
+            continue
+        findings = list(result.risk_findings) + list(
+            getattr(result.self_check_result, "findings", [])
+        )
+        for f in findings:
+            sev = _finding_severity(f).lower()
+            if sev in tally:
+                tally[sev] += 1
+        rc = _verdict_to_exit_code(findings)
+        entries.append({
+            "source": fr.origin.source_spec,
+            "sha256": fr.origin.sha256,
+            "findings": len(findings), "exit_code": rc,
+        })
+        if rc != EXIT_SUCCESS:
+            worst = max(worst, rc)
+            if getattr(args, "fail_fast", False):
+                break
+
+    print(
+        f"Processed {len(entries)} policies: "
+        f"{tally['critical']} CRITICAL, {tally['high']} HIGH, "
+        f"{tally['medium']} MEDIUM, {tally['low']} LOW, "
+        f"{tally['info']} INFO"
+    )
+    out = getattr(args, "output", None)
+    if out:
+        payload = {"summary": tally, "entries": entries}
+        Path(out).write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        print(f"Batch report written to {out}")
+    return worst
 
 
 _LEGACY_SOURCES = frozenset({"policy-sentry", "aws-docs"})
