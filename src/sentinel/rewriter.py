@@ -124,16 +124,98 @@ class PolicyRewriter:
     WRITE_PREFIXES = _WRITE_PREFIXES
     ADMIN_PREFIXES = _ADMIN_PREFIXES
 
-    def __init__(self, database: Optional[Database] = None, inventory: Optional[ResourceInventory] = None):
-        """Initialize policy rewriter.
+    def __init__(
+        self,
+        database: Optional[Database] = None,
+        inventory: Optional[ResourceInventory] = None,
+    ):
+        """Initialize policy rewriter with bulk-loaded lookup tables.
+
+        Task 7: action->resource-type and service->ARN-template lookups
+        are bulk-loaded from the IAM DB at construction time (the
+        ``action_resource_map`` and ``arn_templates`` tables — populated
+        by migrations 0006/0007 and ``seed_all_baseline``).  The cached
+        dicts replace the module-level ``ACTION_RESOURCE_MAP`` /
+        ``ARN_TEMPLATES`` constants that Task 8 deletes from
+        ``inventory.py``.
+
+        When ``database`` is None or the tables are empty the instance
+        dicts stay empty and callers fall back to their built-in
+        defaults (``_infer_resource_type`` per-service defaults,
+        ``generate_placeholder_arn`` generic fallback).  Task 8b flips
+        ``database=None`` to a hard-fail.
 
         Args:
-            database: Optional Database instance for action lookups
-            inventory: Optional ResourceInventory for ARN resolution
+            database: Optional Database instance for action lookups +
+                bulk-load source for action_resource_map / arn_templates.
+            inventory: Optional ResourceInventory for ARN resolution.
         """
         self.database = database
         self.inventory = inventory
         self.companion_detector = CompanionPermissionDetector(database)
+
+        # Task 7 bulk-load — cached dicts read once at __init__ time.
+        self._action_resource_map: Dict[str, str] = {}
+        self._arn_templates: Dict[str, str] = {}
+        if database is not None:
+            self._bulk_load_action_resource_map(database)
+            self._bulk_load_arn_templates(database)
+
+    def _bulk_load_action_resource_map(self, database: Database) -> None:
+        """Populate ``self._action_resource_map`` from the IAM DB.
+
+        Reads ``action_resource_map`` (migration 0006).  First row per
+        action wins — shipped baseline only emits one row per action so
+        this is deterministic.  Missing table / empty rowset leaves the
+        instance dict empty; callers hit their per-service default path.
+        """
+        try:
+            with database.get_connection() as conn:
+                probe = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name='action_resource_map'"
+                ).fetchone()
+                if not probe:
+                    return
+                rows = conn.execute(
+                    "SELECT action_name, resource_type FROM action_resource_map"
+                ).fetchall()
+        except Exception:
+            return
+        # dict constructor collapses duplicates; first-wins via reversed().
+        self._action_resource_map = {
+            action_name: resource_type
+            for action_name, resource_type in reversed(rows)
+        }
+
+    def _bulk_load_arn_templates(self, database: Database) -> None:
+        """Populate ``self._arn_templates`` from the IAM DB.
+
+        Reads ``arn_templates`` (migration 0007) keyed by service_prefix
+        alone — matches the shape of the old ``ARN_TEMPLATES`` dict in
+        ``inventory.py`` where keys were bare service prefixes.  Future
+        (service, resource_type) composite rows remain addressable via
+        ``"{svc}:{rt}"`` lookup keys.
+        """
+        try:
+            with database.get_connection() as conn:
+                probe = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name='arn_templates'"
+                ).fetchone()
+                if not probe:
+                    return
+                rows = conn.execute(
+                    "SELECT service_prefix, resource_type, arn_template "
+                    "FROM arn_templates"
+                ).fetchall()
+        except Exception:
+            return
+        out: Dict[str, str] = {}
+        for svc, rt, template in rows:
+            key = svc if not rt else f"{svc}:{rt}"
+            out[key] = template
+        self._arn_templates = out
 
     @staticmethod
     def detect_policy_type(policy: Policy) -> str:
@@ -583,12 +665,30 @@ class PolicyRewriter:
         account_id = config.account_id or DEFAULT_ACCOUNT_ID
         region = config.region or DEFAULT_REGION
 
+        # Task 7: prefer the bulk-loaded arn_templates lookup — resolves
+        # without touching the inventory DB.  Composite key (svc:rt) is
+        # tried first so future scoped templates override the base one.
+        placeholder_name = f"PLACEHOLDER-{resource_type}-name"
+        placeholder_id = f"PLACEHOLDER-{resource_type}-id"
+        template = (
+            self._arn_templates.get(f"{service_prefix}:{resource_type}")
+            or self._arn_templates.get(service_prefix)
+        )
+        if template:
+            return template.format(
+                region=region,
+                account_id=account_id,
+                resource_type=resource_type,
+                resource_name=placeholder_name,
+                resource_id=placeholder_id,
+            )
+
         if self.inventory:
             return self.inventory.generate_placeholder_arn(
                 service_prefix, resource_type, account_id, region
             )
 
-        # Fallback without inventory
+        # Fallback without inventory or a template match.
         return (
             f"arn:aws:{service_prefix}:{region}:{account_id}:"
             f"{resource_type}/{config.placeholder_format}-{resource_type}-name"
@@ -608,8 +708,16 @@ class PolicyRewriter:
         Returns:
             Inferred resource type string
         """
-        if self.inventory:
-            action_map = self.inventory.ACTION_RESOURCE_MAP
+        # Task 7: prefer bulk-loaded action->resource-type map.  Falls back
+        # to the legacy inventory-side dict only while the [PHASE2-TRANSITIONAL]
+        # constant still exists in inventory.py (Task 8 deletes it); after
+        # Task 8 the inventory branch is pure dead code and gets removed.
+        if self._action_resource_map:
+            for action in actions:
+                if action in self._action_resource_map:
+                    return self._action_resource_map[action]
+        elif self.inventory is not None:
+            action_map = getattr(self.inventory, "ACTION_RESOURCE_MAP", {})
             for action in actions:
                 if action in action_map:
                     return action_map[action]

@@ -156,13 +156,18 @@ def seed_companion_rules(conn: sqlite3.Connection) -> int:
 
 
 def seed_action_resource_map(conn: sqlite3.Connection) -> int:
-    """Seed ``action_resource_map`` from rewriter.ACTION_RESOURCE_MAP.
+    """Seed ``action_resource_map`` from ResourceInventory.ACTION_RESOURCE_MAP.
 
-    NOT HMAC-signed (Theme G1 — simple membership lookup).
+    NOT HMAC-signed (Theme G1 — simple membership lookup).  Reads from
+    the shipped baseline constant (migrated from inventory.py); Task 8
+    deletes the source dict in the same release and future seed sources
+    move to AWS Service Auth scraped data.
     """
-    from .rewriter import PolicyRewriter
+    # Lazy import avoids circular dependency at module-load time
+    # (inventory imports constants, constants is self-contained).
+    from .inventory import ResourceInventory
 
-    mapping = getattr(PolicyRewriter, "ACTION_RESOURCE_MAP", {})
+    mapping = getattr(ResourceInventory, "ACTION_RESOURCE_MAP", {})
     rows: list[tuple] = []
     for action, resource_types in mapping.items():
         if isinstance(resource_types, (list, tuple, set)):
@@ -180,14 +185,19 @@ def seed_action_resource_map(conn: sqlite3.Connection) -> int:
 
 
 def seed_arn_templates(conn: sqlite3.Connection) -> int:
-    """Seed ``arn_templates`` from rewriter.ARN_TEMPLATES.  NOT HMAC-signed."""
-    from .rewriter import PolicyRewriter
+    """Seed ``arn_templates`` from ResourceInventory.ARN_TEMPLATES.
 
-    templates = getattr(PolicyRewriter, "ARN_TEMPLATES", {})
+    NOT HMAC-signed.  ARN templates are keyed by service_prefix in the
+    shipped dict; the DB schema uses a (service_prefix, resource_type)
+    composite PK, so rows here have an empty resource_type — the
+    PolicyRewriter bulk-load prefers service-only templates as the
+    fallback when no (service, rt) row matches.
+    """
+    from .inventory import ResourceInventory
+
+    templates = getattr(ResourceInventory, "ARN_TEMPLATES", {})
     rows: list[tuple] = []
     for key, template in templates.items():
-        # Keys in ARN_TEMPLATES may be service_prefix, service:resource_type,
-        # or bare resource_type.  Normalize to (service_prefix, resource_type).
         if ":" in str(key):
             svc, rt = str(key).split(":", 1)
         else:
