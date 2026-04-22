@@ -217,3 +217,138 @@ class DiskCache:
     def ttl_for(self, source: str) -> int:
         """Return the TTL (seconds) for a source, defaulting to ``user_url``."""
         return self._ttl.get(source, self._ttl.get("user_url", 3600))
+
+    # ------------------------------------------------------------------ I/O
+
+    def _load_raw(self, url: str) -> bytes | None:
+        """Return the raw file (or in-memory) bytes for ``url`` or None."""
+        if self._mem is not None:
+            return self._mem.get(url_key(url))
+        path = self._entry_path(url)
+        if not path.is_file():
+            return None
+        try:
+            return path.read_bytes()
+        except OSError as exc:
+            self._log.warning("cache_read_failed", path=str(path), error=str(exc))
+            return None
+
+    def _store_raw(self, url: str, data: bytes) -> None:
+        """Atomic write: tmp in same dir, then rename to final name."""
+        if self._mem is not None:
+            self._mem[url_key(url)] = data
+            return
+        path = self._entry_path(url)
+        try:
+            # Write to a named temp file in the same directory so rename
+            # is atomic on POSIX (and near-atomic on Windows).
+            fd, tmp_name = tempfile.mkstemp(
+                prefix=".sentinel-cache-", suffix=".json.tmp",
+                dir=str(self._cache_dir),
+            )
+            try:
+                with os.fdopen(fd, "wb") as f:
+                    f.write(data)
+                os.replace(tmp_name, path)
+            except OSError:
+                # Clean up tmp on failure.
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
+                raise
+        except OSError as exc:
+            self._log.warning("cache_write_failed", path=str(path), error=str(exc))
+
+    def get(self, url: str, source: str) -> CacheEntry | None:
+        """Return the cached entry if present, fresh, and HMAC-valid.
+
+        Side effects: invalidates entries whose HMAC fails verification
+        (single ``cache_hmac_mismatch`` log event) and entries past their
+        TTL (silent eviction).  Returns None in all non-hit cases.
+        """
+        raw = self._load_raw(url)
+        if raw is None:
+            return None
+        try:
+            doc = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            self._log.warning("cache_corrupt", url=url, error=str(exc))
+            self.invalidate(url)
+            return None
+
+        try:
+            body = base64.b64decode(doc["body_b64"].encode("ascii"))
+            headers = doc.get("headers") or {}
+            etag = doc.get("etag")
+            fetched_at = float(doc["fetched_at"])
+            ttl = int(doc["ttl_seconds"])
+            sig = doc["hmac_sha256"]
+            stored_source = doc.get("source", source)
+        except (KeyError, ValueError, TypeError) as exc:
+            self._log.warning("cache_schema_mismatch", url=url, error=str(exc))
+            self.invalidate(url)
+            return None
+
+        expected = _sign(self._derived_key(), url_key(url), stored_source,
+                         body, etag, fetched_at)
+        if not hmac.compare_digest(expected, sig):
+            self._log.warning("cache_hmac_mismatch", url=url, source=stored_source)
+            self.invalidate(url)
+            return None
+
+        entry = CacheEntry(
+            url=canonical_url(url), source=stored_source, body=body,
+            headers=headers, etag=etag, fetched_at=fetched_at,
+            ttl_seconds=ttl,
+        )
+        if not entry.is_fresh():
+            # TTL expired — silently evict, force refetch.
+            self.invalidate(url)
+            return None
+        return entry
+
+    def put(
+        self,
+        url: str,
+        source: str,
+        body: bytes,
+        headers: dict[str, str] | None = None,
+        etag: str | None = None,
+        ttl_seconds: int | None = None,
+    ) -> None:
+        """Write a new cache entry.  Atomic rename-on-POSIX.
+
+        ``ttl_seconds=None`` uses the per-source default from
+        ``ttl_seconds_by_source`` (or ``user_url`` as the fallback).
+        """
+        fetched_at = time.time()
+        ttl = ttl_seconds if ttl_seconds is not None else self.ttl_for(source)
+        sig = _sign(self._derived_key(), url_key(url), source, body,
+                    etag, fetched_at)
+        doc = {
+            "version": _ENTRY_VERSION,
+            "url": canonical_url(url),
+            "source": source,
+            "body_b64": base64.b64encode(body).decode("ascii"),
+            "headers": dict(headers or {}),
+            "etag": etag,
+            "fetched_at": fetched_at,
+            "ttl_seconds": ttl,
+            "hmac_sha256": sig,
+        }
+        self._store_raw(url, json.dumps(doc, separators=(",", ":")).encode("utf-8"))
+
+    def invalidate(self, url: str) -> None:
+        """Delete one entry; silent if already absent."""
+        if self._mem is not None:
+            self._mem.pop(url_key(url), None)
+            return
+        path = self._entry_path(url)
+        try:
+            path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            self._log.warning("cache_invalidate_failed",
+                              path=str(path), error=str(exc))
