@@ -12,7 +12,7 @@
 #   0 6 * * *  /opt/sentinel/scripts/sentinel-cron.sh
 #
 # Env vars:
-#   SENTINEL_LOG       — log file path        (default: /var/log/sentinel.log)
+#   SENTINEL_LOG       — log file path        (default: /var/log/sentinel-cron.log)
 #   SENTINEL_HOME      — working directory    (default: /opt/sentinel)
 #   SENTINEL_PYTHON    — uv/python invocation (default: uv run sentinel)
 #   SENTINEL_LOCKFILE  — concurrency lock     (default: /var/lock/sentinel.lock)
@@ -22,7 +22,7 @@
 # -----------------------------------------------------------------------------
 set -euo pipefail
 
-SENTINEL_LOG="${SENTINEL_LOG:-/var/log/sentinel.log}"
+SENTINEL_LOG="${SENTINEL_LOG:-/var/log/sentinel-cron.log}"
 SENTINEL_HOME="${SENTINEL_HOME:-/opt/sentinel}"
 SENTINEL_PYTHON="${SENTINEL_PYTHON:-uv run sentinel}"
 SENTINEL_LOCKFILE="${SENTINEL_LOCKFILE:-/var/lock/sentinel.lock}"
