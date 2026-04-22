@@ -95,7 +95,6 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "READ_PREFIXES": ("sentinel.constants", "READ_PREFIXES"),
     "WRITE_PREFIXES": ("sentinel.constants", "WRITE_PREFIXES"),
     "ADMIN_PREFIXES": ("sentinel.constants", "ADMIN_PREFIXES"),
-    "KNOWN_SERVICES": ("sentinel.constants", "KNOWN_SERVICES"),
     "SECURITY_CRITICAL_SERVICES": (
         "sentinel.constants",
         "SECURITY_CRITICAL_SERVICES",

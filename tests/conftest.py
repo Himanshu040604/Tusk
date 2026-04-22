@@ -163,6 +163,37 @@ def signed_db_row(*_args, **_kwargs) -> dict:  # type: ignore[no-untyped-def]
     )
 
 
+# ---------------------------------------------------------------------------
+# Task 5 — L6 cache-isolation autouse fixture
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clear_known_services_cache() -> Iterator[None]:
+    """Clear ``parser._known_services.cache`` after every test.
+
+    The ``@functools.cache`` on ``parser._known_services()`` reads
+    ``Settings`` once at first call and caches the frozenset across the
+    process lifetime (L6 lazy-loader pattern).  When a test monkey-patches
+    ``get_settings()`` or mutates ``Settings.intent.known_services``, the
+    cached frozenset must be invalidated — otherwise the NEXT test sees the
+    previous test's stale Settings snapshot.  Function-scope `yield`-then-
+    `cache_clear()` is exactly the right shape: teardown runs post-test,
+    so the next test starts with a cold cache.
+
+    This fixture MUST ship in the same commit as the lazy-loader replacement
+    in ``parser.py`` — see ``prod_imp.md`` § 12 Phase 1 Task 10 atomic
+    commit constraint.  Landing the loader alone causes silent test-isolation
+    rot under pytest-xdist.
+    """
+    yield
+    # Import inside the fixture so that collection-time errors here don't
+    # cascade into every unrelated test failure.
+    from sentinel.parser import _known_services
+
+    _known_services.cache_clear()
+
+
 __all__ = [
     "make_test_db",
     "signed_db_row",

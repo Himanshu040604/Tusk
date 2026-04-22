@@ -11,6 +11,7 @@ import re
 import sqlite3
 from dataclasses import dataclass
 from enum import Enum
+from functools import cache
 from typing import TYPE_CHECKING, List, Dict, Any, Optional, Set
 from pathlib import Path
 
@@ -19,11 +20,47 @@ try:
 except ImportError:
     yaml = None  # type: ignore[assignment]
 
-from .constants import KNOWN_SERVICES as _KNOWN_SERVICES
 from .database import DatabaseError as _DatabaseError
 
 if TYPE_CHECKING:
     from .database import Database
+
+
+@cache
+def _known_services() -> frozenset[str]:
+    """Return the frozen set of known AWS service prefixes (L6 lazy loader).
+
+    Reads ``Settings.intent.known_services`` on first call and caches the
+    frozenset across the process lifetime.  The ``@functools.cache`` keeps
+    hot-path membership tests O(1).  Tests that monkey-patch ``Settings``
+    MUST clear this cache — handled by the autouse ``_clear_known_services_cache``
+    fixture in ``tests/conftest.py``.
+
+    Design note (Phase 1.5 wiring): ``IntentSettings.known_services``
+    defaults to ``[]`` and is populated lazily from the JSON cache on first
+    use here — this matches the "Populated lazily at first use by
+    parser._known_services() (L6)" contract declared at the Settings field.
+
+    Returns:
+        Frozen set of lowercase AWS service prefixes (e.g. ``{"s3", "ec2"}``).
+        May be empty if neither Settings nor the JSON cache supply data —
+        callers treat empty as lenient mode.
+
+    Refs:
+        prod_imp.md § 12 Phase 1 Task 10, § 12 Phase 1.5 Task 5.
+    """
+    # Deferred Settings construction — import is lazy so that
+    # `import sentinel.parser` does not trigger TOML load at import time.
+    from .config import get_settings
+    from .constants import load_known_services
+
+    settings = get_settings()
+    if not settings.intent.known_services:
+        # First-call population from JSON cache (Phase 1 deferred wiring).
+        loaded = load_known_services()
+        if loaded:
+            settings.intent.known_services = sorted(loaded)
+    return frozenset(settings.intent.known_services)
 
 
 class ValidationTier(Enum):
@@ -144,8 +181,9 @@ class PolicyParser:
             except (sqlite3.Error, OSError, _DatabaseError):
                 pass  # DB failed, fall through to JSON cache
 
-        # Layer 2: JSON cache (fallback or supplement)
-        json_services = set(_KNOWN_SERVICES)
+        # Layer 2: JSON cache via lazy Settings-backed loader (fallback or
+        # supplement).  See _known_services() docstring for wiring details.
+        json_services = set(_known_services())
         if json_services:
             if self._services_source == "database":
                 # Merge JSON into DB set (DB is truth, JSON supplements)

@@ -14,7 +14,7 @@ from src.sentinel.parser import PolicyParser, ValidationTier
 from src.sentinel.database import Database, Service, Action
 from src.sentinel.inventory import ResourceInventory, Resource
 from src.sentinel.self_check import Pipeline, PipelineConfig, PipelineResult, CheckVerdict
-from src.sentinel.constants import KNOWN_SERVICES
+from src.sentinel.parser import _known_services
 
 
 # -----------------------------------------------------------------------
@@ -64,7 +64,7 @@ class TestLayer3Merge:
         parser = PolicyParser(db_with_new_service)
 
         # bedrock-agent is NOT in the JSON cache
-        assert "bedrock-agent" not in KNOWN_SERVICES
+        assert "bedrock-agent" not in _known_services()
         # But it IS in parser.known_services after DB merge
         assert "bedrock-agent" in parser.known_services
 
@@ -77,7 +77,7 @@ class TestLayer3Merge:
 
     def test_known_services_superset_of_json_cache(self, db_with_new_service):
         parser = PolicyParser(db_with_new_service)
-        assert parser.known_services >= KNOWN_SERVICES
+        assert parser.known_services >= _known_services()
 
 
 class TestNewServiceValidation:
