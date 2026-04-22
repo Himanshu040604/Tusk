@@ -720,9 +720,15 @@ class TestIntegration:
         # Should detect missing CloudWatch Logs permissions
         assert len(missing) > 0
 
-    def test_hitl_with_risk_findings(self):
-        """Test HITL system with risk findings (non-interactive)."""
-        analyzer = RiskAnalyzer()
+    def test_hitl_with_risk_findings(self, database):
+        """Test HITL system with risk findings (non-interactive).
+
+        Task 8b migration: no-arg ``RiskAnalyzer()`` now HARD-FAILS via
+        ``DatabaseError`` (D3).  Thread the seeded ``database`` fixture
+        through so construction succeeds and HITL flow can exercise
+        Tier 2 flagging against a real (seeded) classification DB.
+        """
+        analyzer = RiskAnalyzer(database)
         hitl = HITLSystem(interactive=False)
 
         # Analyze unknown action
