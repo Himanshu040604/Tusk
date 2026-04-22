@@ -375,7 +375,11 @@ class RiskAnalyzer:
     and other security issues in IAM policies.
     """
 
-    # Privilege escalation actions
+    # [PHASE2-TRANSITIONAL] delete in Task 8.
+    # Legacy class-level fallback used only when the database lacks
+    # `dangerous_actions` rows (fresh-install bootstrap).  Bulk-loaded
+    # classification lives on the instance (self._privilege_escalation,
+    # self._exfil_patterns, etc.) — see RiskAnalyzer.__init__.
     PRIVILEGE_ESCALATION_ACTIONS = {
         'iam:PassRole',
         'iam:CreatePolicyVersion',
@@ -402,7 +406,7 @@ class RiskAnalyzer:
         'datapipeline:PutPipelineDefinition',
     }
 
-    # Data exfiltration patterns (anchored with ^ and $)
+    # [PHASE2-TRANSITIONAL] delete in Task 8.
     DATA_EXFILTRATION_PATTERNS = [
         (r'^s3:GetObject[A-Za-z]*$', 'S3 object read access'),
         (r'^secretsmanager:GetSecretValue$', 'Secrets Manager access'),
@@ -414,7 +418,7 @@ class RiskAnalyzer:
         (r'^kms:Decrypt$', 'KMS decryption'),
     ]
 
-    # Infrastructure destruction patterns
+    # [PHASE2-TRANSITIONAL] delete in Task 8.
     DESTRUCTION_PATTERNS = [
         (r'^[a-z0-9\-]+:Delete[A-Z][A-Za-z]*$', 'Deletion capability'),
         (r'^[a-z0-9\-]+:Terminate[A-Z][A-Za-z]*$', 'Termination capability'),
@@ -426,7 +430,7 @@ class RiskAnalyzer:
         (r'^ec2:TerminateInstances$', 'EC2 instance termination'),
     ]
 
-    # Permissions management patterns (anchored, Attach requires start-of-action)
+    # [PHASE2-TRANSITIONAL] delete in Task 8.
     PERMISSIONS_MGMT_PATTERNS = [
         (r'^[a-z0-9\-]+:Put[A-Za-z]*Policy[A-Za-z]*$', 'Policy modification'),
         (r'^[a-z0-9\-]+:Attach[A-Za-z]*Policy[A-Za-z]*$', 'Policy attachment'),
@@ -436,12 +440,136 @@ class RiskAnalyzer:
     ]
 
     def __init__(self, database: Optional[Database] = None):
-        """Initialize risk analyzer.
+        """Initialize risk analyzer with bulk-loaded classification tables.
+
+        Task 6 bulk-load pattern: reads ``dangerous_actions`` from the DB
+        once at construction time, verifies the HMAC signature on each
+        row (Task 6a), and builds instance-level frozensets / pre-compiled
+        regex tuples for O(1) / O(n_patterns) hot-path lookups.  No per-
+        action SQL — matches § 12 Phase 2 Task 6 "no N+1" mandate.
+
+        Falls back to the class-level ``PRIVILEGE_ESCALATION_ACTIONS`` /
+        pattern constants (marked ``# [PHASE2-TRANSITIONAL]``) when:
+        a) ``database`` is ``None`` (Task 8b will make this a hard-fail),
+        b) ``dangerous_actions`` table is absent (pre-migration DB), OR
+        c) no rows present (fresh install before ``seed_all_baseline``).
 
         Args:
             database: Optional Database instance for action validation
+                and classification-row bulk-load.
+
+        Raises:
+            DatabaseError: If a loaded row has a mismatched HMAC signature
+                (on-disk tampering — Task 6a K_db verification).
         """
         self.database = database
+
+        # Instance-level bulk-loaded classification.  Immutable after
+        # __init__; hot-path methods read self._priv_escalation etc.
+        self._priv_escalation: frozenset[str] = frozenset()
+        self._exfil_patterns: tuple[tuple["re.Pattern[str]", str], ...] = ()
+        self._destruction_patterns: tuple[tuple["re.Pattern[str]", str], ...] = ()
+        self._perms_mgmt_patterns: tuple[tuple["re.Pattern[str]", str], ...] = ()
+
+        loaded = False
+        if database is not None:
+            try:
+                loaded = self._bulk_load_classifications(database)
+            except Exception:
+                # Propagate HMAC/DatabaseError failures — do NOT silently
+                # fall through, that would defeat the tamper defense.
+                raise
+
+        if not loaded:
+            # Fallback to class constants — Theme G3: pre-compile once here,
+            # never inside the hot path.
+            self._priv_escalation = frozenset(self.PRIVILEGE_ESCALATION_ACTIONS)
+            self._exfil_patterns = tuple(
+                (re.compile(p), d) for p, d in self.DATA_EXFILTRATION_PATTERNS
+            )
+            self._destruction_patterns = tuple(
+                (re.compile(p), d) for p, d in self.DESTRUCTION_PATTERNS
+            )
+            self._perms_mgmt_patterns = tuple(
+                (re.compile(p), d) for p, d in self.PERMISSIONS_MGMT_PATTERNS
+            )
+
+    def _bulk_load_classifications(self, database: Database) -> bool:
+        """Load + HMAC-verify rows from ``dangerous_actions``.
+
+        Returns:
+            True if the table exists and at least one row was loaded.
+            False if the table is absent or empty (caller falls back to
+            class-level constants).
+
+        Raises:
+            DatabaseError: On HMAC signature mismatch — includes the
+                offending row's primary key for forensic replay.
+        """
+        from .hmac_keys import verify_row
+
+        try:
+            with database.get_connection() as conn:
+                # Probe for table existence first (pre-migration DBs).
+                probe = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name='dangerous_actions'"
+                ).fetchone()
+                if not probe:
+                    return False
+                rows = conn.execute(
+                    "SELECT action_name, category, severity, description, "
+                    "source, refreshed_at, row_hmac FROM dangerous_actions"
+                ).fetchall()
+        except Exception:
+            return False
+
+        if not rows:
+            return False
+
+        priv: set[str] = set()
+        exfil: list[tuple["re.Pattern[str]", str]] = []
+        destruction: list[tuple["re.Pattern[str]", str]] = []
+        perms_mgmt: list[tuple["re.Pattern[str]", str]] = []
+
+        for (action_name, category, severity, description,
+             source, refreshed_at, row_hmac) in rows:
+            # Task 6a: HMAC verify each row before trusting its content.
+            payload = {
+                "severity": severity,
+                "description": description,
+                "source": source,
+                "refreshed_at": refreshed_at,
+            }
+            ok = verify_row(
+                "dangerous_actions",
+                (action_name, category),
+                payload,
+                row_hmac,
+            )
+            if not ok:
+                from .database import DatabaseError
+
+                raise DatabaseError(
+                    f"HMAC verification failed for dangerous_actions row "
+                    f"({action_name!r}, {category!r}).  On-disk tampering "
+                    f"suspected — wipe and rerun `sentinel refresh --source shipped`."
+                )
+
+            if category == "privilege_escalation":
+                priv.add(action_name)
+            elif category == "exfiltration":
+                exfil.append((re.compile(action_name), description))
+            elif category == "destruction":
+                destruction.append((re.compile(action_name), description))
+            elif category == "permissions_mgmt":
+                perms_mgmt.append((re.compile(action_name), description))
+
+        self._priv_escalation = frozenset(priv)
+        self._exfil_patterns = tuple(exfil)
+        self._destruction_patterns = tuple(destruction)
+        self._perms_mgmt_patterns = tuple(perms_mgmt)
+        return True
 
     def analyze_actions(self, actions: List[str]) -> List[RiskFinding]:
         """Analyze list of actions for security risks.
@@ -545,7 +673,7 @@ class RiskAnalyzer:
         """
         findings = []
 
-        if action in self.PRIVILEGE_ESCALATION_ACTIONS:
+        if action in self._priv_escalation:
             findings.append(RiskFinding(
                 risk_type="PRIVILEGE_ESCALATION",
                 severity=RiskSeverity.HIGH,
@@ -568,8 +696,8 @@ class RiskAnalyzer:
         """
         findings = []
 
-        for pattern, description in self.DATA_EXFILTRATION_PATTERNS:
-            if re.match(pattern, action):
+        for compiled, description in self._exfil_patterns:
+            if compiled.match(action):
                 # Check if it's a wildcard on sensitive action
                 severity = RiskSeverity.MEDIUM
                 if '*' in action and ('Secret' in action or 's3:GetObject' in action):
@@ -598,8 +726,8 @@ class RiskAnalyzer:
         """
         findings = []
 
-        for pattern, description in self.DESTRUCTION_PATTERNS:
-            if re.match(pattern, action):
+        for compiled, description in self._destruction_patterns:
+            if compiled.match(action):
                 severity = RiskSeverity.MEDIUM
                 # Critical resources get higher severity
                 if any(svc in action for svc in ['rds:DeleteDB', 's3:DeleteBucket',
@@ -629,8 +757,8 @@ class RiskAnalyzer:
         """
         findings = []
 
-        for pattern, description in self.PERMISSIONS_MGMT_PATTERNS:
-            if re.match(pattern, action):
+        for compiled, description in self._perms_mgmt_patterns:
+            if compiled.match(action):
                 findings.append(RiskFinding(
                     risk_type="PERMISSIONS_MANAGEMENT",
                     severity=RiskSeverity.HIGH,
@@ -803,25 +931,114 @@ class CompanionPermissionDetector:
     to function correctly (e.g., Lambda needs CloudWatch Logs permissions).
     """
 
-    # Companion permission rules - built from shared constants
-    COMPANION_RULES = {
-        action: CompanionPermission(
-            primary_action=action,
-            companion_actions=companions,
-            reason=reason,
-            severity=RiskSeverity[severity_str],
-        )
-        for action, (companions, reason, severity_str)
-        in COMPANION_PERMISSION_RULES.items()
-    }
+    # COMPANION_RULES class-level dict comprehension removed in Task 6
+    # (atomic with Task 6a HMAC signing).  Rules now live on the instance
+    # as self._companion_rules, loaded from the `companion_rules` table
+    # at __init__ time.  Fallback to COMPANION_PERMISSION_RULES constant
+    # if the table is absent or empty (pre-migration / pre-seed install).
 
     def __init__(self, database: Optional[Database] = None):
         """Initialize companion permission detector.
 
+        Task 6 bulk-load: reads ``companion_rules`` once at construction
+        time, HMAC-verifies each row (Task 6a K_db), and builds the
+        instance-level lookup dict.  Hot path is O(1) dict access.
+
         Args:
-            database: Optional Database instance
+            database: Optional Database instance.  If None or unpopulated,
+                falls back to COMPANION_PERMISSION_RULES shipped constant.
+
+        Raises:
+            DatabaseError: On HMAC row signature mismatch.
         """
         self.database = database
+        self._companion_rules: dict[str, CompanionPermission] = {}
+
+        loaded = False
+        if database is not None:
+            try:
+                loaded = self._bulk_load_companion_rules(database)
+            except Exception:
+                raise
+
+        if not loaded:
+            # Fallback: rebuild what the deleted class dict provided.
+            self._companion_rules = {
+                action: CompanionPermission(
+                    primary_action=action,
+                    companion_actions=list(companions),
+                    reason=reason,
+                    severity=RiskSeverity[severity_str],
+                )
+                for action, (companions, reason, severity_str)
+                in COMPANION_PERMISSION_RULES.items()
+            }
+
+    def _bulk_load_companion_rules(self, database: Database) -> bool:
+        """Load + HMAC-verify rows from ``companion_rules``.
+
+        Multiple rows per primary_action are grouped into one
+        CompanionPermission.companion_actions list (matching the old
+        class-dict shape where each key mapped to a flat companion list).
+        """
+        from .hmac_keys import verify_row
+
+        try:
+            with database.get_connection() as conn:
+                probe = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name='companion_rules'"
+                ).fetchone()
+                if not probe:
+                    return False
+                rows = conn.execute(
+                    "SELECT primary_action, companion_action, reason, "
+                    "severity, source, refreshed_at, row_hmac "
+                    "FROM companion_rules ORDER BY primary_action, companion_action"
+                ).fetchall()
+        except Exception:
+            return False
+
+        if not rows:
+            return False
+
+        # Group by primary_action.  HMAC-verify each row as we go.
+        grouped: dict[str, dict] = {}
+        for (primary, companion, reason, severity, source,
+             refreshed_at, row_hmac) in rows:
+            payload = {
+                "reason": reason,
+                "severity": severity,
+                "source": source,
+                "refreshed_at": refreshed_at,
+            }
+            if not verify_row(
+                "companion_rules", (primary, companion), payload, row_hmac
+            ):
+                from .database import DatabaseError
+
+                raise DatabaseError(
+                    f"HMAC verification failed for companion_rules row "
+                    f"({primary!r}, {companion!r})."
+                )
+            if primary not in grouped:
+                grouped[primary] = {
+                    "companions": [],
+                    "reason": reason,
+                    "severity": severity,
+                }
+            grouped[primary]["companions"].append(companion)
+
+        self._companion_rules = {
+            primary: CompanionPermission(
+                primary_action=primary,
+                companion_actions=data["companions"],
+                reason=data["reason"],
+                severity=RiskSeverity[data["severity"]],
+            )
+            for primary, data in grouped.items()
+        }
+        return True
 
     def detect_missing_companions(
         self,
@@ -841,8 +1058,8 @@ class CompanionPermissionDetector:
         action_set = set(actions)
 
         for action in actions:
-            if action in self.COMPANION_RULES:
-                companion = self.COMPANION_RULES[action]
+            if action in self._companion_rules:
+                companion = self._companion_rules[action]
 
                 # Check if any companion actions are missing
                 missing_companions = [
@@ -869,7 +1086,7 @@ class CompanionPermissionDetector:
         Returns:
             CompanionPermission if companions exist, None otherwise
         """
-        return self.COMPANION_RULES.get(action)
+        return self._companion_rules.get(action)
 
 
 class HITLSystem:
