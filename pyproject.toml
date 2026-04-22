@@ -1,0 +1,149 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# -----------------------------------------------------------------------------
+# PEP 621 project metadata (H17).  `version` is dynamic — read from
+# src/sentinel/__init__.py::__version__ by hatchling.
+# -----------------------------------------------------------------------------
+[project]
+name = "sentinel"
+dynamic = ["version"]
+description = "Offline AWS IAM policy validation and least-privilege enforcement"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "IAM Policy Sentinel" }]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: System Administrators",
+  "Topic :: Security",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+# Runtime dependencies chosen in § 3 of prod_imp.md.  Phase 1 only wires in the
+# config + logging + telemetry substrate; fetchers / alembic / httpx land in
+# later phases but their deps are declared now so uv.lock is stable from day 1.
+dependencies = [
+  "pyyaml>=6.0",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.4",
+  "structlog>=24.1",
+  "opentelemetry-api>=1.24",
+  "tomli-w>=1.0",
+  "filelock>=3.20.3",
+  "httpx>=0.27",
+  "tenacity>=8.2",
+  "selectolax>=0.3.21",
+  "alembic>=1.13",
+  "pyperclip>=1.9",
+  "watchfiles>=0.22",
+]
+
+[project.optional-dependencies]
+# H18: duplicate the dev group so pip < 23.1 users (who don't understand
+# PEP 735 [dependency-groups]) can still `pip install -e .[dev]`.
+# A CI drift check (scripts/check_dev_deps_match.py, landed in Phase 6)
+# asserts this list stays in sync with [dependency-groups].dev below.
+dev = [
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+  "pytest-recording>=0.13",
+  "pytest-httpserver>=1.0",
+  "pytest-xdist>=3.5",
+  "pytest-benchmark>=4.0",
+  "mypy>=1.10",
+  "ruff>=0.5",
+  "detect-secrets>=1.5",
+  "pre-commit>=3.7",
+]
+
+[project.scripts]
+sentinel = "sentinel.cli:main"
+
+[project.urls]
+Repository = "https://github.com/IAM-Policy-Sentinel/klarna"
+Issues = "https://github.com/IAM-Policy-Sentinel/klarna/issues"
+
+# -----------------------------------------------------------------------------
+# Hatch configuration — src-layout, dynamic version, all three packages
+# listed from day 1 (H3) even though `src/fetchers/` is empty until Phase 4.
+# -----------------------------------------------------------------------------
+[tool.hatch.version]
+path = "src/sentinel/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sentinel", "src/refresh", "src/fetchers"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/",
+  "defaults.toml",
+  "README.md",
+  "CLAUDE.md",
+  "pyproject.toml",
+]
+
+# -----------------------------------------------------------------------------
+# PEP 735 dependency groups — uv-native.  Duplicated in
+# [project.optional-dependencies].dev above per H18.
+# -----------------------------------------------------------------------------
+[dependency-groups]
+dev = [
+  "pytest>=7.4",
+  "pytest-cov>=4.1",
+  "pytest-recording>=0.13",
+  "pytest-httpserver>=1.0",
+  "pytest-xdist>=3.5",
+  "pytest-benchmark>=4.0",
+  "mypy>=1.10",
+  "ruff>=0.5",
+  "detect-secrets>=1.5",
+  "pre-commit>=3.7",
+]
+
+# -----------------------------------------------------------------------------
+# Pytest configuration (§ 10.2)
+# -----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+  "live: hits real network; excluded by default",
+  "vcr: uses recorded HTTP cassettes",
+]
+addopts = "-ra --strict-markers -m 'not live'"
+
+# -----------------------------------------------------------------------------
+# Ruff — Amendment 6 Theme J style enforcement.
+# UP007:  rewrite Union[X, Y] / Optional[X]   -> X | Y / X | None  (PEP 604)
+# UP045:  rewrite Optional[X] in parameters   -> X | None
+# FA102:  require `from __future__ import annotations` when PEP 604 unions
+#         or other future-annotation syntax is used.
+# -----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["UP007", "UP045", "FA102"]
+
+[tool.ruff.lint.per-file-ignores]
+# Pydantic v2 model files: pydantic's Field(...)/model_rebuild() flow relies
+# on RUNTIME evaluation of annotations, and PEP 563 deferred-eval via
+# `from __future__ import annotations` breaks discriminated-union / computed-
+# field validators.  These files explicitly opt out of FA102.
+"src/sentinel/config.py" = ["FA102"]
+
+# -----------------------------------------------------------------------------
+# mypy — wired in Phase 1 for scaffolding; strict mode is a Phase 6 gate.
+# -----------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
