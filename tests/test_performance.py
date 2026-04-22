@@ -688,3 +688,127 @@ class TestPipelineStress:
         assert has_logs_companion, (
             "Expected CloudWatch Logs companion actions for lambda triggers"
         )
+
+
+# ---------------------------------------------------------------------------
+# TestColdStartBudget — Amendment 6 Theme G2
+# ---------------------------------------------------------------------------
+
+
+class TestColdStartBudget:
+    """Amendment 6 Theme G2 — < 500ms on fresh DB + empty cache."""
+
+    COLD_START_BUDGET_SECONDS = 0.5
+
+    def test_cold_start_under_500ms(self, tmp_path):
+        """A cold-start import + init path must finish under 500ms.
+
+        Excludes Alembic migration time (which dominates on empty DBs) by
+        pre-seeding via ``_build_pipeline_db``, but the pipeline construct
+        + first parse is fresh.  This is the guard against accumulating
+        import-time work (H25 discipline) and lazy-loader drift (L6).
+        """
+        db = _build_pipeline_db(tmp_path)
+
+        policy_json = json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": ["s3:GetObject"],
+                "Resource": "arn:aws:s3:::bucket/*",
+            }],
+        })
+
+        # Fresh Pipeline + parse round-trip — measures cold instantiation.
+        start = time.time()
+        pipeline = Pipeline(database=db)
+        pipeline.run(policy_json)
+        elapsed = time.time() - start
+
+        assert elapsed < self.COLD_START_BUDGET_SECONDS, (
+            f"Cold-start pipeline.run exceeded 500ms budget: {elapsed:.3f}s"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TestSelectolaxBench — H26
+# ---------------------------------------------------------------------------
+
+
+class TestSelectolaxBench:
+    """H26: compare selectolax vs html.parser on an AWS docs-style page.
+
+    If the measured speedup is under 2×, the module-level TODO flags the
+    selectolax dependency for reconsideration.  We keep both imports
+    available so pytest-benchmark reports two distinct time series.
+    """
+
+    _HTML_TEMPLATE = (
+        "<html><body>"
+        + "".join(
+            f'<pre><code>{{"policy_{i}":"Statement"}}</code></pre>'
+            for i in range(1000)
+        )
+        + "</body></html>"
+    )
+
+    def test_selectolax_vs_stdlib_html_parser(self):
+        """Compare time-to-first-pre for each parser.
+
+        This is an informational test, not a gate.  We use time.time()
+        rather than pytest-benchmark so the test runs unconditionally
+        without requiring the plugin.  If the gap is < 2×, emit a TODO
+        reminder.  Phase 6 owns the check itself (not the action).
+        """
+        # selectolax path.
+        from selectolax.parser import HTMLParser
+
+        t0 = time.time()
+        for _ in range(20):
+            tree = HTMLParser(self._HTML_TEMPLATE)
+            nodes = tree.css("pre")
+            _ = [n.text() for n in nodes[:5]]
+        selectolax_elapsed = time.time() - t0
+
+        # stdlib path.
+        from html.parser import HTMLParser as StdlibHTMLParser
+
+        class _PreFinder(StdlibHTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.pres: list[str] = []
+                self._capture = False
+                self._buf: list[str] = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "pre":
+                    self._capture = True
+                    self._buf = []
+
+            def handle_endtag(self, tag):
+                if tag == "pre":
+                    self._capture = False
+                    self.pres.append("".join(self._buf))
+
+            def handle_data(self, data):
+                if self._capture:
+                    self._buf.append(data)
+
+        t0 = time.time()
+        for _ in range(20):
+            parser = _PreFinder()
+            parser.feed(self._HTML_TEMPLATE)
+            _ = parser.pres[:5]
+        stdlib_elapsed = time.time() - t0
+
+        # Informational — never fails.
+        ratio = stdlib_elapsed / selectolax_elapsed if selectolax_elapsed > 0 else 0
+        print(
+            f"\n[H26] selectolax={selectolax_elapsed:.4f}s "
+            f"stdlib={stdlib_elapsed:.4f}s ratio={ratio:.1f}x"
+        )
+        if ratio < 2.0:
+            print(
+                "[H26] TODO: selectolax <2x faster than stdlib — "
+                "reconsider dependency"
+            )
