@@ -157,3 +157,15 @@ __all__ = [
     "redact_event_dict",
     "grep_sources",
 ]
+
+
+if __name__ == "__main__":
+    import sys
+
+    hits = grep_sources(sys.argv[1:])
+    for path, lineno, matched in hits:
+        print(
+            f"{path}:{lineno}: secret pattern matched: {matched!r}",
+            file=sys.stderr,
+        )
+    sys.exit(1 if hits else 0)
