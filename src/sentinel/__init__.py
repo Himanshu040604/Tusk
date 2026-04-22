@@ -79,6 +79,9 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "TextFormatter": ("sentinel.formatters", "TextFormatter"),
     "JsonFormatter": ("sentinel.formatters", "JsonFormatter"),
     "MarkdownFormatter": ("sentinel.formatters", "MarkdownFormatter"),
+    # Models (Phase 4 — M4/M5 policy provenance)
+    "PolicyInput": ("sentinel.models", "PolicyInput"),
+    "PolicyOrigin": ("sentinel.models", "PolicyOrigin"),
     # Self-Check
     "SelfCheckValidator": ("sentinel.self_check", "SelfCheckValidator"),
     "Pipeline": ("sentinel.self_check", "Pipeline"),
