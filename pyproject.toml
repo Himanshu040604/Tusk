@@ -59,6 +59,8 @@ dev = [
   "ruff>=0.5",
   "detect-secrets>=1.5",
   "pre-commit>=3.7",
+  "hypothesis>=6.100",
+  "types-PyYAML>=6.0",
 ]
 
 [project.scripts]
@@ -103,6 +105,8 @@ dev = [
   "ruff>=0.5",
   "detect-secrets>=1.5",
   "pre-commit>=3.7",
+  "hypothesis>=6.100",
+  "types-PyYAML>=6.0",
 ]
 
 # -----------------------------------------------------------------------------

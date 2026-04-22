@@ -1,4 +1,4 @@
-"""Tests for :class:`fetchers.cloudsplaining.CloudsplainingFetcher`.
+"""Tests for :class:`fetchers.cloudsplaining.CloudSplainingFetcher`.
 
 The fetcher accepts a cloudsplaining report file and emits one
 :class:`FetchResult` per discovered policy.  We build a minimal
@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from fetchers.base import PolicyNotFoundError
-from fetchers.cloudsplaining import CloudsplainingFetcher
+from fetchers.cloudsplaining import CloudSplainingFetcher
 
 
 def _write_report(
@@ -26,7 +26,7 @@ def _write_report(
     return f
 
 
-class TestCloudsplainingFetcher:
+class TestCloudSplainingFetcher:
     def test_extracts_single_policy(self, tmp_path: Path) -> None:
         report = _write_report(
             tmp_path,
@@ -39,7 +39,7 @@ class TestCloudsplainingFetcher:
                 }
             },
         )
-        fetcher = CloudsplainingFetcher()
+        fetcher = CloudSplainingFetcher()
         results = list(fetcher.fetch_many(str(report)))
         assert len(results) == 1
         assert results[0].origin.source_type == "cloudsplaining"
@@ -53,18 +53,18 @@ class TestCloudsplainingFetcher:
                 "policy-b": {"PolicyDocument": {"Statement": []}},
             },
         )
-        fetcher = CloudsplainingFetcher()
+        fetcher = CloudSplainingFetcher()
         results = list(fetcher.fetch_many(str(report)))
         assert len(results) == 2
 
     def test_missing_report_raises(self, tmp_path: Path) -> None:
-        fetcher = CloudsplainingFetcher()
+        fetcher = CloudSplainingFetcher()
         with pytest.raises(PolicyNotFoundError):
             list(fetcher.fetch_many(str(tmp_path / "missing.json")))
 
     def test_report_without_policies_empty(self, tmp_path: Path) -> None:
         f = tmp_path / "empty.json"
         f.write_text(json.dumps({"policies": {}}))
-        fetcher = CloudsplainingFetcher()
+        fetcher = CloudSplainingFetcher()
         results = list(fetcher.fetch_many(str(f)))
         assert results == []
