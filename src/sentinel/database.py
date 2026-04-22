@@ -161,6 +161,35 @@ class Database:
             if conn:
                 conn.close()
 
+    def is_empty(self, table: str) -> bool:
+        """Return True if ``table`` has zero rows (or does not exist).
+
+        Used by the CLI first-run seeder to decide whether to invoke
+        ``seed_all_baseline`` — subsequent runs short-circuit here
+        instead of reopening a second sqlite connection.  Treats a
+        missing table as "empty" so a pre-Alembic DB stamped at HEAD
+        without tables still triggers the seeder path (belt-and-braces;
+        migrations should have created the table before this fires).
+
+        Args:
+            table: Table name to probe.  Must be a static identifier
+                from the migrations catalogue — not user input.
+
+        Returns:
+            True if the table has no rows or does not exist.
+        """
+        with self.get_connection() as conn:
+            probe = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table,),
+            ).fetchone()
+            if not probe:
+                return True
+            row = conn.execute(
+                f"SELECT 1 FROM {table} LIMIT 1"
+            ).fetchone()
+            return row is None
+
     def create_schema(self) -> None:
         """Create database schema with all tables and indexes.
 

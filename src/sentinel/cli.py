@@ -1130,6 +1130,24 @@ def main() -> None:
             print(f"[ERROR] Migration failed: {e}", file=sys.stderr)
             sys.exit(EXIT_IO_ERROR)
 
+        # § 12 Phase 2 Task 4 / Step 1: seed baseline classification rows
+        # on first run.  Idempotent — empty-table probe skips the call on
+        # every subsequent invocation.  Runs ONLY for the IAM DB; inventory
+        # DB has no shipped-baseline rows.
+        try:
+            from .database import Database as _SeedDB
+            from .seed_data import seed_all_baseline
+
+            _probe_db = _SeedDB(iam_db)
+            if _probe_db.is_empty("dangerous_actions"):
+                counts = seed_all_baseline(iam_db)
+                print(
+                    f"[INFO] Seeded baseline classification rows: {counts}",
+                    file=sys.stderr,
+                )
+        except Exception as e:  # noqa: BLE001 — seed is best-effort on first run.
+            print(f"[WARN] Baseline seed skipped: {e}", file=sys.stderr)
+
     handlers = {
         "validate": cmd_validate,
         "analyze": cmd_analyze,
