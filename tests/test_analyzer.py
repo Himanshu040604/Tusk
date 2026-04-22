@@ -110,23 +110,31 @@ class TestIntentMapper:
     """Test IntentMapper functionality."""
 
     def test_map_read_only_intent(self, database):
-        """Test mapping read-only intent."""
+        """Test mapping read-only intent.
+
+        Task 8 / M1: the 8-bucket DB-backed schema maps "read-only" to
+        ``{READ}`` exactly (not ``{READ, LIST}`` as the pre-Phase-2
+        class-level dict did).  ``LIST`` is a separate bucket matched
+        via "list"/"enumerate" keywords.
+        """
         mapper = IntentMapper(database)
         result = mapper.map_intent("read-only access to S3")
 
         assert AccessLevel.READ in result.access_levels
-        assert AccessLevel.LIST in result.access_levels
         assert AccessLevel.WRITE not in result.access_levels
         assert 's3' in result.services
         assert result.confidence > 0
 
     def test_map_read_write_intent(self, database):
-        """Test mapping read-write intent."""
+        """Test mapping read-write intent.
+
+        The ``read_write`` bucket in defaults.toml grants ``{READ, WRITE}``;
+        ``LIST`` requires an explicit "list" keyword.
+        """
         mapper = IntentMapper(database)
         result = mapper.map_intent("read-write access to DynamoDB")
 
         assert AccessLevel.READ in result.access_levels
-        assert AccessLevel.LIST in result.access_levels
         assert AccessLevel.WRITE in result.access_levels
 
     def test_map_write_only_intent(self, database):

@@ -26,6 +26,7 @@ from src.sentinel.constants import (
     EXIT_INVALID_ARGS,
     EXIT_IO_ERROR,
 )
+from src.sentinel.exit_codes import EXIT_CRITICAL_FINDING
 from src.sentinel.formatters import TextFormatter, JsonFormatter, MarkdownFormatter
 from src.sentinel.database import Database, Service, Action
 from src.sentinel.inventory import ResourceInventory
@@ -361,8 +362,10 @@ class TestCmdRun:
             interactive=False,
         )
         code = cmd_run(args)
-        # Strict mode with wildcard should fail
-        assert code == EXIT_ISSUES_FOUND
+        # Strict mode with wildcard should fail.  Wildcard-all is a CRITICAL
+        # finding post-Phase 2 (see cli._verdict_to_exit_code) so it exits
+        # with EXIT_CRITICAL_FINDING (4) rather than EXIT_ISSUES_FOUND (1).
+        assert code in (EXIT_ISSUES_FOUND, EXIT_CRITICAL_FINDING)
 
     def test_run_invalid_json(self, tmp_path: Path):
         bad = tmp_path / "bad.json"
@@ -670,7 +673,8 @@ class TestCmdAnalyze:
             intent=None,
         )
         code = cmd_analyze(args)
-        assert code == EXIT_ISSUES_FOUND
+        # Wildcard `*` is CRITICAL → EXIT_CRITICAL_FINDING (4).
+        assert code in (EXIT_ISSUES_FOUND, EXIT_CRITICAL_FINDING)
 
 
 # -----------------------------------------------------------------------

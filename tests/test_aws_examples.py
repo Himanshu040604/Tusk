@@ -359,10 +359,16 @@ class TestBenchmarkRunner:
             policy_type="identity",
             local_path=policy_file,
         )
-        runner = BenchmarkRunner()
+        # Pipeline(None) now HARD-FAILs (D3 fail-closed); seed a baseline
+        # DB via make_test_db so the runner has a RiskAnalyzer-ready DB.
+        from tests.conftest import make_test_db
+        from src.sentinel.database import Database
+
+        db_path = make_test_db(tmp_path)
+        runner = BenchmarkRunner(database=Database(db_path))
         entry = runner._run_single(np)
 
-        assert entry.success is True
+        assert entry.success is True, f"benchmark entry failed: {entry.error!r}"
         assert entry.verdict is not None
         total = entry.tier1_count + entry.tier2_count + entry.tier3_count
         assert total > 0

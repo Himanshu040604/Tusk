@@ -22,12 +22,27 @@ from sentinel.migrations import _make_config, check_and_upgrade_all_dbs
 # ---------------------------------------------------------------------------
 
 
+def _normalize_sql(sql: str | None) -> str:
+    """Collapse runs of whitespace so cosmetic indentation doesn't affect equality.
+
+    Alembic's ``op.execute`` and ``Database.create_schema`` both emit the
+    same DDL but with different indentation (Alembic strips the outer
+    triple-quote indent; ``create_schema`` keeps it).  The resulting
+    ``sqlite_master.sql`` column differs only in whitespace — which is
+    semantically irrelevant for schema drift detection.
+    """
+    if sql is None:
+        return ""
+    return " ".join(sql.split())
+
+
 def _sqlite_master_snapshot(db_path: Path) -> list[tuple]:
     """Return a sorted snapshot of ``sqlite_master`` as comparable tuples.
 
     Excludes ``alembic_version`` bookkeeping (the row itself changes on
     upgrade/downgrade) and any internal SQLite tables whose content is
-    platform-dependent.
+    platform-dependent.  The ``sql`` column is whitespace-normalised so
+    the comparison is semantic, not cosmetic.
     """
     conn = sqlite3.connect(db_path)
     try:
@@ -38,7 +53,10 @@ def _sqlite_master_snapshot(db_path: Path) -> list[tuple]:
             "  AND name != 'alembic_version' "
             "ORDER BY type, name"
         )
-        return sorted(cur.fetchall())
+        rows = [
+            (t, n, tn, _normalize_sql(s)) for (t, n, tn, s) in cur.fetchall()
+        ]
+        return sorted(rows)
     finally:
         conn.close()
 

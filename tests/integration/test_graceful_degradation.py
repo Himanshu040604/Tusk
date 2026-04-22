@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from src.sentinel.parser import PolicyParser, PolicyParserError, ValidationTier
-from src.sentinel.database import Database, Service, Action
+from src.sentinel.database import Database, DatabaseError, Service, Action
 from src.sentinel.inventory import ResourceInventory, Resource
 from src.sentinel.self_check import (
     Pipeline,
@@ -198,15 +198,18 @@ def _make_policy_json(**overrides):
 class TestMissingDatabase:
     """Tests that the pipeline works without a database."""
 
-    def test_pipeline_runs_without_database(self):
-        """Pipeline(database=None) still produces a result."""
-        pipeline = Pipeline(database=None)
-        policy_json = _make_policy_json(actions=["s3:GetObject"])
-        result = pipeline.run(policy_json)
+    def test_pipeline_without_database_hard_fails(self):
+        """Pipeline(database=None) raises DatabaseError (Task 8b D3).
 
-        assert isinstance(result, PipelineResult)
-        assert result.original_policy is not None
-        assert result.rewritten_policy is not None
+        Phase 2 Task 8b flipped RiskAnalyzer / CompanionPermissionDetector
+        to HARD-FAIL on a None database per the fail-closed safety
+        contract — the old "graceful degradation to wildcards" path was
+        removed because it silently produced wrong-but-plausible results.
+        The error fires at Pipeline construction time (via the analyzers'
+        eager instantiation), not at .run() time.
+        """
+        with pytest.raises(DatabaseError, match="requires a non-None Database"):
+            Pipeline(database=None)
 
     def test_no_db_actions_classified_tier2(self):
         """Without DB, actions get TIER_2_UNKNOWN (not TIER_1_VALID)."""
@@ -223,25 +226,10 @@ class TestMissingDatabase:
                 f"Action '{vr.action}' should not be TIER_1_VALID without a database"
             )
 
-    def test_no_db_pipeline_completes_all_steps(self):
-        """All 9 PipelineResult fields are populated without a database."""
-        pipeline = Pipeline(database=None)
-        policy_json = _make_policy_json(
-            actions=["s3:GetObject", "lambda:InvokeFunction"]
-        )
-        result = pipeline.run(policy_json)
-
-        assert result.original_policy is not None
-        assert result.rewritten_policy is not None
-        assert isinstance(result.validation_results, list)
-        assert isinstance(result.risk_findings, list)
-        assert result.rewrite_result is not None
-        assert result.self_check_result is not None
-        assert isinstance(result.iterations, int)
-        assert result.iterations >= 1
-        assert isinstance(result.final_verdict, CheckVerdict)
-        assert isinstance(result.pipeline_summary, str)
-        assert len(result.pipeline_summary) > 0
+    def test_no_db_pipeline_hard_fails_at_construction(self):
+        """Pipeline(database=None) fails closed at construction (Task 8b D3)."""
+        with pytest.raises(DatabaseError, match="requires a non-None Database"):
+            Pipeline(database=None)
 
 
 # -----------------------------------------------------------------------
