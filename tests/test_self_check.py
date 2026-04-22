@@ -11,7 +11,7 @@ from pathlib import Path
 from src.sentinel.parser import Policy, Statement, ValidationResult, ValidationTier
 from src.sentinel.rewriter import RewriteResult, RewriteConfig, RewriteChange
 from src.sentinel.analyzer import CompanionPermission, RiskSeverity
-from src.sentinel.database import Database, Service, Action
+from src.sentinel.database import Database, DatabaseError, Service, Action
 from src.sentinel.inventory import ResourceInventory, Resource
 from src.sentinel.self_check import (
     SelfCheckValidator,
@@ -340,11 +340,17 @@ class TestPipelineConfigDataclass:
 class TestSelfCheckValidatorInit:
     """Tests for SelfCheckValidator initialization."""
 
-    def test_init_no_args(self):
-        """Validator can be initialized without dependencies."""
-        validator = SelfCheckValidator()
-        assert validator.database is None
-        assert validator.inventory is None
+    def test_init_no_args_hard_fails(self):
+        """SelfCheckValidator() with no DB HARD-FAILS under Task 8b D3.
+
+        Task 8b removed the class-constant fallback path.  SelfCheckValidator
+        constructs RiskAnalyzer(database) and CompanionPermissionDetector
+        (database) in its __init__; both raise DatabaseError when database
+        is None.  This test documents the contract so the deleted fallback
+        behavior cannot silently regress.
+        """
+        with pytest.raises(DatabaseError):
+            SelfCheckValidator()
 
     def test_init_with_database(self, tmp_db):
         """Validator accepts a Database instance."""
@@ -470,9 +476,9 @@ class TestActionValidation:
 class TestArnFormatValidation:
     """Tests for _check_arn_formats check."""
 
-    def test_valid_arn_passes(self):
+    def test_valid_arn_passes(self, tmp_db):
         """Valid ARN produces no findings."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -488,9 +494,9 @@ class TestArnFormatValidation:
         findings = validator._check_arn_formats(policy)
         assert len(findings) == 0
 
-    def test_wildcard_resource_flagged_error_by_default(self):
+    def test_wildcard_resource_flagged_error_by_default(self, tmp_db):
         """Wildcard resource flagged as ERROR by default (fail-closed)."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -506,9 +512,9 @@ class TestArnFormatValidation:
         assert len(errors) >= 1
         assert errors[0].check_type == "REMAINING_WILDCARD"
 
-    def test_placeholder_arn_flagged_info(self):
+    def test_placeholder_arn_flagged_info(self, tmp_db):
         """Placeholder ARN flagged as INFO (not error)."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -528,9 +534,9 @@ class TestArnFormatValidation:
         assert len(info_findings) >= 1
         assert info_findings[0].check_type == "PLACEHOLDER_ARN"
 
-    def test_malformed_arn_flagged_error(self):
+    def test_malformed_arn_flagged_error(self, tmp_db):
         """Malformed ARN flagged as ERROR."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -546,9 +552,9 @@ class TestArnFormatValidation:
         assert len(errors) >= 1
         assert errors[0].check_type == "ARN_FORMAT"
 
-    def test_multiple_resources_all_checked(self):
+    def test_multiple_resources_all_checked(self, tmp_db):
         """Multiple resources are all individually checked."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -769,9 +775,9 @@ class TestFunctionalCompleteness:
 class TestOverlyBroadPermissions:
     """Tests for _check_overly_broad_permissions check."""
 
-    def test_no_wildcards_passes_clean(self):
+    def test_no_wildcards_passes_clean(self, tmp_db):
         """Policy without wildcards produces no findings."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -785,9 +791,9 @@ class TestOverlyBroadPermissions:
         findings = validator._check_overly_broad_permissions(policy)
         assert len(findings) == 0
 
-    def test_full_wildcard_action_detected_as_error(self):
+    def test_full_wildcard_action_detected_as_error(self, tmp_db):
         """Full wildcard action flagged as ERROR by default (fail-closed)."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -806,9 +812,9 @@ class TestOverlyBroadPermissions:
         ]
         assert len(errors) >= 1
 
-    def test_service_wildcard_detected(self):
+    def test_service_wildcard_detected(self, tmp_db):
         """Service wildcard action flagged as WARNING."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -827,9 +833,9 @@ class TestOverlyBroadPermissions:
         ]
         assert len(svc_wildcards) >= 1
 
-    def test_partial_wildcard_detected_as_info(self):
+    def test_partial_wildcard_detected_as_info(self, tmp_db):
         """Partial wildcard action flagged as INFO."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -856,9 +862,9 @@ class TestOverlyBroadPermissions:
 class TestTier2Exclusion:
     """Tests for _check_tier2_exclusion check."""
 
-    def test_no_tier2_in_policy_passes(self):
+    def test_no_tier2_in_policy_passes(self, tmp_db):
         """No Tier 2 actions in rewritten policy produces no findings."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -881,9 +887,9 @@ class TestTier2Exclusion:
         )
         assert len(findings) == 0
 
-    def test_tier2_action_in_policy_flagged(self):
+    def test_tier2_action_in_policy_flagged(self, tmp_db):
         """Tier 2 action found in rewritten policy flagged as ERROR."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -915,9 +921,9 @@ class TestTier2Exclusion:
         assert len(tier2_errors) >= 1
         assert tier2_errors[0].severity == CheckSeverity.ERROR
 
-    def test_mixed_tier_actions_handled(self):
+    def test_mixed_tier_actions_handled(self, tmp_db):
         """Only Tier 2 actions in the rewritten policy are flagged."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version='2012-10-17',
             statements=[
@@ -946,9 +952,9 @@ class TestTier2Exclusion:
         # s3:NewAction is Tier 2 but NOT in the rewritten policy
         assert len(findings) == 0
 
-    def test_empty_policy_passes(self):
+    def test_empty_policy_passes(self, tmp_db):
         """Empty rewritten policy produces no Tier 2 findings."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(version='2012-10-17', statements=[])
         validation_results = [
             ValidationResult(
@@ -970,27 +976,27 @@ class TestTier2Exclusion:
 class TestAssumptionValidation:
     """Tests for _check_assumptions check."""
 
-    def test_assumptions_present_passes(self):
+    def test_assumptions_present_passes(self, tmp_db):
         """Non-empty assumptions list produces no findings."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         result = _make_rewrite_result(
             assumptions=["No database available."]
         )
         findings = validator._check_assumptions(result)
         assert len(findings) == 0
 
-    def test_no_assumptions_flagged(self):
+    def test_no_assumptions_flagged(self, tmp_db):
         """Empty assumptions list flagged as WARNING."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         result = _make_rewrite_result(assumptions=[])
         findings = validator._check_assumptions(result)
         warnings = [f for f in findings if f.severity == CheckSeverity.WARNING]
         assert len(warnings) >= 1
         assert warnings[0].check_type == "MISSING_ASSUMPTIONS"
 
-    def test_empty_assumption_string_flagged(self):
+    def test_empty_assumption_string_flagged(self, tmp_db):
         """Empty string in assumptions list flagged."""
-        validator = SelfCheckValidator()
+        validator = SelfCheckValidator(database=tmp_db)
         result = _make_rewrite_result(
             assumptions=["Valid assumption", "", "  "]
         )
