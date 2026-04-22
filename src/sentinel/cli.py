@@ -490,6 +490,45 @@ def _write_output(args: argparse.Namespace, content: str) -> None:
         print(content)
 
 
+def _resolve_db_path_for_migration(args: argparse.Namespace) -> Path:
+    """Return an absolute path to the IAM DB for migration purposes.
+
+    Unlike ``resolve_database`` which only returns a handle if the DB
+    exists, this always returns a path (migrations may need to create the
+    DB or stamp an empty file).
+    """
+    explicit = getattr(args, "database", None)
+    if explicit:
+        return Path(explicit).resolve()
+    pkg_dir = Path(__file__).resolve().parent.parent.parent
+    pkg_path = pkg_dir / DEFAULT_DB_PATH
+    if pkg_path.exists():
+        return pkg_path.resolve()
+    return (Path.cwd() / DEFAULT_DB_PATH).resolve()
+
+
+def _resolve_inventory_path_for_migration(
+    args: argparse.Namespace,
+) -> Path | None:
+    """Return an absolute path to the inventory DB, or None if no inventory.
+
+    Migrations only process the inventory DB when the file already exists
+    on disk — inventory is opt-in per M18.  Explicit ``--inventory`` flag
+    always returns a path (may not exist yet).
+    """
+    explicit = getattr(args, "inventory", None)
+    if explicit:
+        return Path(explicit).resolve()
+    pkg_dir = Path(__file__).resolve().parent.parent.parent
+    pkg_path = pkg_dir / DEFAULT_INVENTORY_PATH
+    if pkg_path.exists():
+        return pkg_path.resolve()
+    cwd_path = Path.cwd() / DEFAULT_INVENTORY_PATH
+    if cwd_path.exists():
+        return cwd_path.resolve()
+    return None
+
+
 def resolve_database(args: argparse.Namespace) -> "Database | None":
     """Resolve and open the IAM actions database.
 
@@ -1067,6 +1106,29 @@ def main() -> None:
     if args.command is None:
         parser.print_help()
         sys.exit(EXIT_INVALID_ARGS)
+
+    # Alembic auto-upgrade (§ 6.3).  Skip for commands that don't touch the
+    # DB (`config path` — opt-in skip list).  Runs AFTER argparse, BEFORE
+    # subcommand dispatch so every DB-touching handler sees a migrated
+    # schema.  Honors --skip-migrations and SENTINEL_SKIP_MIGRATIONS=1.
+    _MIGRATION_SKIP_COMMANDS = frozenset()  # reserved for `config path` etc.
+    if args.command not in _MIGRATION_SKIP_COMMANDS:
+        try:
+            from .migrations import check_and_upgrade_all_dbs
+
+            iam_db = _resolve_db_path_for_migration(args)
+            inv_db = _resolve_inventory_path_for_migration(args)
+            check_and_upgrade_all_dbs(
+                iam_db,
+                inv_db,
+                skip=getattr(args, "skip_migrations", False),
+            )
+        except OSError as e:
+            print(f"[ERROR] Migration I/O error: {e}", file=sys.stderr)
+            sys.exit(EXIT_IO_ERROR)
+        except Exception as e:  # noqa: BLE001 — migrations either work or abort.
+            print(f"[ERROR] Migration failed: {e}", file=sys.stderr)
+            sys.exit(EXIT_IO_ERROR)
 
     handlers = {
         "validate": cmd_validate,
