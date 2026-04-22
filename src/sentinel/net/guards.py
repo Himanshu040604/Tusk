@@ -148,3 +148,86 @@ def block_private_ipv6(addr: str) -> None:
             f"IPv6 {addr} uses a tunneling prefix ({embedded}) — rejected "
             f"to avoid DNS-rebinding / escape paths"
         )
+
+
+def _validate_literal_or_hostname(host: str) -> list[str]:
+    """Return a list of resolved literal IP strings for ``host``.
+
+    If ``host`` is already a literal IP, returns ``[host]`` after guarding.
+    Otherwise, performs ``socket.getaddrinfo`` (DNS resolve-once per H9/H2)
+    and returns every A/AAAA answer after guarding each one.
+
+    Raises:
+        SSRFBlockedError: If ANY resolved address lands in a blocked range,
+            or DNS resolution fails, or the host is empty.
+    """
+    if not host:
+        raise SSRFBlockedError("URL has no hostname")
+
+    # Literal-IP branch (H9): no DNS call; check bytes directly.
+    try:
+        literal = ipaddress.ip_address(_strip_zone(host))
+    except ValueError:
+        literal = None
+    if literal is not None:
+        if isinstance(literal, ipaddress.IPv4Address):
+            block_private_ipv4(str(literal))
+        else:
+            block_private_ipv6(str(literal))
+        return [str(literal)]
+
+    # Hostname branch: resolve once, validate every answer.
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, socket.herror, UnicodeError) as exc:
+        raise SSRFBlockedError(f"DNS resolution for {host!r} failed: {exc}") from exc
+
+    resolved: list[str] = []
+    for family, _type, _proto, _canon, sockaddr in infos:
+        addr_str = sockaddr[0]
+        if family == socket.AF_INET:
+            block_private_ipv4(addr_str)
+        elif family == socket.AF_INET6:
+            block_private_ipv6(addr_str)
+        else:
+            raise SSRFBlockedError(
+                f"unexpected address family {family} for {host!r}"
+            )
+        resolved.append(addr_str)
+
+    if not resolved:
+        raise SSRFBlockedError(f"no A/AAAA records for {host!r}")
+    return resolved
+
+
+def resolve_and_validate(url: str) -> str:
+    """Full SSRF guard chain: scheme -> parse -> resolve -> per-IP check.
+
+    This is the entry point for every outbound request in
+    :mod:`sentinel.net.client`.  Called both for the initial URL and for
+    every redirect target.  Resolution results are NOT cached here — the
+    caller is responsible for pinning IPs across the single request
+    lifetime if true resolve-once-then-connect-by-IP is required (see
+    § 8.2 DNS rebinding defense).
+
+    Returns:
+        The input URL unchanged — canonicalisation happens upstream.
+
+    Raises:
+        SSRFBlockedError: On scheme, DNS, or IP-range violation.
+    """
+    validate_scheme(url)
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    _validate_literal_or_hostname(host)
+    return url
+
+
+__all__ = [
+    "ALLOWED_SCHEMES",
+    "SSRFBlockedError",
+    "block_private_ipv4",
+    "block_private_ipv6",
+    "resolve_and_validate",
+    "validate_scheme",
+]
