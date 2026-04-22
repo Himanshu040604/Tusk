@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from fetchers.base import ClipboardUnavailable, PolicyNotFoundError
+from fetchers.base import ClipboardUnavailable
 from fetchers.clipboard import ClipboardFetcher
 
 
@@ -25,23 +25,33 @@ class TestClipboardFetcher:
         assert result.origin.source_type == "clipboard"
         assert result.cache_status == "N/A"
 
-    def test_empty_clipboard_raises(
+    def test_empty_clipboard_raises_clipboard_unavailable(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """An empty clipboard raises ClipboardUnavailable (not PolicyNotFoundError)."""
         import pyperclip
 
         monkeypatch.setattr(pyperclip, "paste", lambda: "")
-        with pytest.raises(PolicyNotFoundError):
+        # Force the WSL fallback to also return empty.
+        monkeypatch.setattr(
+            "fetchers.clipboard._is_wsl", lambda: False
+        )
+        with pytest.raises(ClipboardUnavailable, match="empty"):
             ClipboardFetcher().fetch("")
 
-    def test_pyperclip_exception_maps_to_clipboard_unavailable(
+    def test_pyperclip_exception_with_no_wsl_raises_unavailable(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """When pyperclip raises AND WSL fallback is unavailable, we raise ClipboardUnavailable."""
         import pyperclip
 
         def boom() -> str:
             raise pyperclip.PyperclipException("no backend")
 
         monkeypatch.setattr(pyperclip, "paste", boom)
-        with pytest.raises(ClipboardUnavailable):
+        # Disable the WSL fallback path so we can observe the "no backend" mapping.
+        monkeypatch.setattr(
+            "fetchers.clipboard._is_wsl", lambda: False
+        )
+        with pytest.raises(ClipboardUnavailable, match="backend unavailable"):
             ClipboardFetcher().fetch("")
