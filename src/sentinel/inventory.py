@@ -48,6 +48,11 @@ class ResourceInventory:
     Manages storage and querying of AWS resource ARNs for policy validation.
     """
 
+    # [PHASE2-TRANSITIONAL] delete in Task 8 — lives in action_resource_map
+    # table (migration 0006).  Kept as fallback when the DB is pre-Alembic
+    # or seed_data hasn't run yet.  Bulk-loaded instance members:
+    #   self._action_resource_map: dict[str, str]  (set in __init__)
+    #   self._arn_templates      : dict[str, str]
     # Mapping of common IAM actions to their target resource types.
     ACTION_RESOURCE_MAP: Dict[str, str] = {
         's3:GetObject': 'object',
@@ -79,7 +84,8 @@ class ResourceInventory:
         'secretsmanager:GetSecretValue': 'secret',
     }
 
-    # ARN templates per service for generating placeholder ARNs.
+    # [PHASE2-TRANSITIONAL] delete in Task 8 — lives in arn_templates table
+    # (migration 0007).
     ARN_TEMPLATES: Dict[str, str] = {
         's3': 'arn:aws:s3:::{resource_name}',
         'ec2': 'arn:aws:ec2:{region}:{account_id}:{resource_type}/{resource_id}',
