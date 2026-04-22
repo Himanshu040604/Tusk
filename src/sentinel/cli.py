@@ -399,6 +399,133 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output JSON file path (default: data/known_services.json)",
     )
 
+    # cache (Phase 5 Task 6)
+    p_cache = subparsers.add_parser(
+        "cache",
+        parents=[parent],
+        help="Inspect and manage the on-disk HTTP response cache",
+    )
+    cache_sub = p_cache.add_subparsers(dest="cache_cmd", required=True)
+    cache_sub.add_parser("stats", parents=[parent],
+                         help="Show cache count + total size")
+    cache_sub.add_parser("ls", parents=[parent],
+                         help="List cached entries (metadata only)")
+    cache_sub.add_parser("purge", parents=[parent],
+                         help="Delete every cached entry")
+    p_rotate = cache_sub.add_parser(
+        "rotate-key", parents=[parent],
+        help="Regenerate the cache HMAC key (purges all entries)",
+    )
+    p_rotate.add_argument(
+        "--yes", action="store_true",
+        help="Skip the confirmation prompt",
+    )
+
+    # managed (Phase 5 Task 7)
+    p_managed = subparsers.add_parser(
+        "managed",
+        parents=[parent],
+        help="Access AWS managed policies stored in the local DB",
+    )
+    managed_sub = p_managed.add_subparsers(dest="managed_cmd", required=True)
+    managed_sub.add_parser("list", parents=[parent],
+                           help="List managed policy names")
+    p_m_show = managed_sub.add_parser(
+        "show", parents=[parent],
+        help="Print the policy_document for a managed policy",
+    )
+    p_m_show.add_argument("name", help="Managed policy name")
+    p_m_analyze = managed_sub.add_parser(
+        "analyze", parents=[parent],
+        help="Fetch + run the full pipeline on a managed policy",
+    )
+    p_m_analyze.add_argument("name", help="Managed policy name")
+
+    # config (Phase 5 Task 8)
+    p_config = subparsers.add_parser(
+        "config",
+        parents=[parent],
+        help="Inspect and scaffold Sentinel configuration",
+    )
+    config_sub = p_config.add_subparsers(dest="config_cmd", required=True)
+    config_sub.add_parser("show", parents=[parent],
+                          help="Dump resolved settings (secrets redacted)")
+    config_sub.add_parser("path", parents=[parent],
+                          help="Print resolved config file path")
+    config_sub.add_parser("init", parents=[parent],
+                          help="Scaffold a starter config.toml")
+
+    # fetch (Phase 5 Task 1)
+    p_net_fetch = subparsers.add_parser(
+        "fetch",
+        parents=[parent],
+        help="Fetch a policy from a remote source and run the full pipeline",
+    )
+    source_group = p_net_fetch.add_mutually_exclusive_group(required=True)
+    source_group.add_argument("--url", help="HTTPS URL to fetch")
+    source_group.add_argument("--github", help="GitHub spec (owner/repo/path)")
+    source_group.add_argument("--aws-sample",
+                              help="AWS documentation sample policy name")
+    source_group.add_argument("--aws-managed",
+                              help="AWS managed policy name (DB-backed)")
+    source_group.add_argument("--cloudsplaining",
+                              help="Cloudsplaining example filename")
+    source_group.add_argument("--from-clipboard", action="store_true",
+                              help="Read policy JSON from clipboard")
+    p_net_fetch.add_argument(
+        "--alert-on-new", action="store_true",
+        help="Hash-compare vs. last fetch; emit WARN on diff",
+    )
+    p_net_fetch.add_argument("--intent", default=None)
+    p_net_fetch.add_argument("--account-id", default=None)
+    p_net_fetch.add_argument("--region", default=None)
+
+    # watch (Phase 5 Task 2 — M6)
+    p_watch = subparsers.add_parser(
+        "watch", parents=[parent],
+        help="Re-validate policy files on change via watchfiles",
+    )
+    p_watch.add_argument("path", help="File or directory to watch")
+
+    # wizard (Phase 5 Task 3)
+    subparsers.add_parser(
+        "wizard", parents=[parent],
+        help="Interactive intent-to-policy builder",
+    )
+
+    # compare (Phase 5 Task 4)
+    p_compare = subparsers.add_parser(
+        "compare", parents=[parent],
+        help="Diff two policies' risk profiles",
+    )
+    p_compare.add_argument("policy_a")
+    p_compare.add_argument("policy_b")
+
+    # search (Phase 5 Task 5)
+    p_search = subparsers.add_parser(
+        "search", parents=[parent],
+        help="Search GitHub for public IAM policies",
+    )
+    p_search.add_argument("query")
+    p_search.add_argument(
+        "--on-github", action="store_true", default=True,
+        help="Run on GitHub (currently the only backend)",
+    )
+    p_search.add_argument(
+        "--limit", type=int, default=20,
+        help="Max results to return (default: 20)",
+    )
+
+    # run --batch (Phase 5 Task 9) — extend p_run with batch flags
+    p_run.add_argument(
+        "--batch", default=None, metavar="DIR",
+        help="Run the pipeline over every policy under DIR",
+    )
+    p_run.add_argument(
+        "--fail-fast", action="store_true",
+        help="Stop on first failure in batch mode (default: continue)",
+    )
+
     # fetch-examples
     p_fetch = subparsers.add_parser(
         "fetch-examples",
