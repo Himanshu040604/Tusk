@@ -35,6 +35,7 @@ from .rewriter import (
     RewriteConfig,
     RewriteResult,
 )
+from .models import PolicyInput, PolicyOrigin
 
 if TYPE_CHECKING:
     from .database import Database
@@ -166,6 +167,10 @@ class PipelineResult:
     final_verdict: CheckVerdict
     pipeline_summary: str
     hitl_decisions: List[HITLDecision] = field(default_factory=list)
+    # M5 § 8.4 — provenance record of the input bytes.  Optional so
+    # legacy callers that passed raw strings still work (a synthetic
+    # stdin origin is attached via run_text()).
+    origin: Optional[PolicyOrigin] = None
 
 
 # ARN format: starts with arn: and has at least 5 colon-separated parts
@@ -841,10 +846,10 @@ class Pipeline:
 
     def run(
         self,
-        policy_json: str,
+        policy_input: "PolicyInput | str",
         config: Optional[PipelineConfig] = None,
     ) -> PipelineResult:
-        """Run the full pipeline on a policy JSON string.
+        """Run the full pipeline on a :class:`PolicyInput`.
 
         Steps:
         1. VALIDATE: Parse and classify all actions.
@@ -855,12 +860,30 @@ class Pipeline:
         re-run steps 3-4.
 
         Args:
-            policy_json: IAM policy JSON string.
+            policy_input: Either a :class:`PolicyInput` (M4 primary) OR a
+                raw JSON string (legacy path — routed through
+                :meth:`run_text` with a DeprecationWarning).
             config: Pipeline configuration (defaults applied if None).
 
         Returns:
-            PipelineResult with all step outputs.
+            PipelineResult with all step outputs and the PolicyOrigin.
         """
+        if isinstance(policy_input, str):
+            # M4 back-compat: detect the legacy string input and route
+            # through run_text(), which stamps a stdin PolicyOrigin.
+            # DeprecationWarning gives test-suite / library users a
+            # migration nudge without breaking them.
+            import warnings
+
+            warnings.warn(
+                "Pipeline.run(str) is deprecated; pass a PolicyInput "
+                "(see sentinel.models.PolicyInput) or call "
+                "Pipeline.run_text() for the legacy behaviour.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return self.run_text(policy_input, config=config)
+
         if config is None:
             # H2 DI slot: prefer the instance-level default over a fresh
             # PipelineConfig() when the caller didn't pass one explicitly.
@@ -868,7 +891,7 @@ class Pipeline:
 
         # Step 1: VALIDATE
         parser = PolicyParser(self.database)
-        policy = parser.parse_policy(policy_json)
+        policy = parser.parse_policy(policy_input.text)
         validation_results = parser.validate_policy(policy)
 
         # Step 2: ANALYZE
@@ -991,7 +1014,24 @@ class Pipeline:
             final_verdict=self_check_result.verdict,
             pipeline_summary=' '.join(summary_parts),
             hitl_decisions=hitl_decisions,
+            origin=policy_input.origin,
         )
+
+    def run_text(
+        self,
+        policy_text: str,
+        config: Optional[PipelineConfig] = None,
+    ) -> PipelineResult:
+        """Legacy string-in wrapper around :meth:`run`.
+
+        Builds a synthetic :class:`PolicyInput` with
+        ``source_type="stdin"`` and ``cache_status="N/A"`` so Origin-
+        badge renderers still produce something meaningful.  Callers
+        that want a proper origin should construct the
+        :class:`PolicyInput` themselves (e.g., via a fetcher).
+        """
+        policy_input = PolicyInput.from_stdin_text(policy_text)
+        return self.run(policy_input, config=config)
 
     def _apply_self_check_fixes(
         self,
