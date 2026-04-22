@@ -853,6 +853,10 @@ def cmd_run(args: argparse.Namespace) -> int:
     return _verdict_to_exit_code(findings)
 
 
+_LEGACY_SOURCES = frozenset({"policy-sentry", "aws-docs"})
+_NEW_SOURCES = frozenset({"managed-policies", "cloudsplaining"})
+
+
 def cmd_refresh(args: argparse.Namespace) -> int:
     """Execute the refresh subcommand.
 
@@ -868,6 +872,25 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     from .database import Database, DatabaseError
 
     db_path = getattr(args, "database", None) or DEFAULT_DB_PATH
+
+    # --all unfolds into a loop over every known source; recurse on a
+    # per-source namespace so each path uses the normal single-source
+    # dispatcher below.
+    if getattr(args, "all", False):
+        return _cmd_refresh_all(args)
+
+    source = args.source
+    if source in _NEW_SOURCES:
+        return _cmd_refresh_new_source(args, source, db_path)
+
+    # Legacy sources (policy-sentry, aws-docs) require --data-path.
+    if args.data_path is None:
+        print(
+            "Error: --data-path is required for source "
+            f"{source!r} (no --live path wired in Phase 4).",
+            file=sys.stderr,
+        )
+        return EXIT_INVALID_ARGS
     data_path = Path(args.data_path)
 
     if not data_path.exists():
@@ -954,6 +977,91 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         print(f"[WARN] Auto-export failed: {e}", file=sys.stderr)
 
     return EXIT_SUCCESS
+
+
+def _cmd_refresh_new_source(
+    args: argparse.Namespace, source: str, db_path: str,
+) -> int:
+    """Dispatch Phase 4 refresh sources (managed-policies, cloudsplaining).
+
+    Supports ``--live`` (fetch via SentinelHTTPClient) and offline
+    (``--data-path`` local JSON file/dir).  ``--dry-run`` treats the
+    work as a validation-only pass using an in-memory database.
+    """
+    from .database import Database, DatabaseError
+
+    try:
+        target_path = Path(":memory:") if args.dry_run else Path(db_path)
+        db = Database(target_path)
+        db.create_schema()
+    except DatabaseError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return EXIT_IO_ERROR
+
+    if args.live:
+        print(
+            f"[INFO] --live refresh for {source} is wired in Phase 4 at "
+            "the loader level; CLI-driven URL enumeration lands in Phase 5. "
+            "Provide --data-path for now.",
+            file=sys.stderr,
+        )
+        return EXIT_INVALID_ARGS
+
+    if args.data_path is None:
+        print(
+            f"Error: --data-path is required for source {source!r} "
+            "(offline mode).", file=sys.stderr,
+        )
+        return EXIT_INVALID_ARGS
+    data_path = Path(args.data_path)
+    if not data_path.exists():
+        print(f"Error: Data path not found: {data_path}", file=sys.stderr)
+        return EXIT_IO_ERROR
+
+    if source == "managed-policies":
+        from ..refresh.aws_managed_policies import ManagedPoliciesLoader
+
+        loader = ManagedPoliciesLoader(db)
+        stats = (
+            loader.load_from_directory(data_path)
+            if data_path.is_dir() else loader.load_from_file(data_path)
+        )
+        print(
+            f"Refresh complete: {stats.policies_added} added, "
+            f"{stats.policies_updated} updated."
+        )
+    else:  # cloudsplaining
+        from ..refresh.cloudsplaining import CloudSplainingLoader
+
+        loader = CloudSplainingLoader(db)
+        stats = (
+            loader.load_from_directory(data_path)
+            if data_path.is_dir() else loader.load_from_file(data_path)
+        )
+        print(
+            f"Refresh complete: {stats.actions_added} dangerous actions, "
+            f"{stats.combinations_added} combinations, "
+            f"{stats.skipped} skipped."
+        )
+    for err in stats.errors:
+        print(f"[WARN] {err}", file=sys.stderr)
+    return EXIT_SUCCESS
+
+
+def _cmd_refresh_all(args: argparse.Namespace) -> int:
+    """Run every known refresh source in sequence.
+
+    Phase 4 scope: dispatches the legacy two (policy-sentry, aws-docs)
+    only when ``--data-path`` points at a directory containing their
+    expected subtrees.  The new sources require separate data paths
+    and are skipped in ``--all`` mode with a WARN log.
+    """
+    print(
+        "[WARN] `refresh --all` is a Phase 5 orchestration feature; "
+        "Phase 4 ships single-source dispatch only.",
+        file=sys.stderr,
+    )
+    return EXIT_INVALID_ARGS
 
 
 def cmd_info(args: argparse.Namespace) -> int:
