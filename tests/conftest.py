@@ -106,31 +106,43 @@ def migrated_db_template(
 # ---------------------------------------------------------------------------
 
 
-def make_test_db(tmp_path: Path) -> Path:
-    """Create a fresh test database in ``tmp_path`` and return its path.
+def make_test_db(tmp_path: Path, *, seed: bool = True) -> Path:
+    """Create a fresh Phase-2-ready test DB in ``tmp_path`` and return its path.
 
-    Drop-in replacement for the existing idiom::
+    Phase 2 Task 0 evolution of the original helper.  Beyond
+    ``create_schema()`` it also:
 
-        db = Database(tmp_path / "test.db")
-        db.create_schema()
-
-    Centralizes the pattern so that Phase 2 Task 0 can migrate the 99 call
-    sites flagged by the D-investigation Agent 3 grep in one sweep.  Not a
-    pytest fixture — a plain helper so existing tests can adopt it with a
-    single ``from tests.conftest import make_test_db`` import change.
+    1. Runs ``check_and_upgrade_all_dbs(path)`` to stamp / upgrade to
+       Alembic HEAD so the Phase 2 tables (``dangerous_actions``,
+       ``companion_rules``, ``action_resource_map``, ``arn_templates``)
+       exist.  Without this, tests that rely on the bulk-load path hit
+       the "table missing" branch and silently fall through to the
+       class-constant fallback — which Task 8 deletes.
+    2. Calls ``seed_all_baseline(path)`` to populate shipped baseline
+       rows.  Required because after Task 8 the fallback path is gone
+       and ``RiskAnalyzer`` / ``CompanionPermissionDetector`` only
+       find content via the DB.
 
     Args:
-        tmp_path: per-test temp directory (typically the pytest ``tmp_path``
-            fixture).
+        tmp_path: per-test temp directory (pytest ``tmp_path`` fixture).
+        seed: If False, skip ``seed_all_baseline`` — for tests that
+            specifically exercise the empty-table bulk-load path.
 
     Returns:
-        Absolute path to a freshly-schema'd SQLite DB at
-        ``tmp_path / "test.db"``.
+        Absolute path to a migrated (+ optionally seeded) SQLite DB.
     """
     from sentinel.database import Database
+    from sentinel.migrations import check_and_upgrade_all_dbs
+    from sentinel.seed_data import seed_all_baseline
 
     path = tmp_path / "test.db"
+    # create_schema builds the legacy tables (services/actions/...); the
+    # migration then adds Phase 2 tables on top.  safe_stamp_branch in
+    # migrations.py handles the pre-Alembic-with-tables case.
     Database(path).create_schema()
+    check_and_upgrade_all_dbs(path, None)
+    if seed:
+        seed_all_baseline(path)
     return path
 
 

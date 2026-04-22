@@ -1,7 +1,6 @@
 """Unit tests for analyzer module."""
 
 import pytest
-import tempfile
 from pathlib import Path
 
 from src.sentinel.analyzer import (
@@ -19,24 +18,20 @@ from src.sentinel.analyzer import (
 )
 from src.sentinel.database import Database, Service, Action
 
-
-@pytest.fixture
-def temp_db():
-    """Create temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
-        db_path = Path(f.name)
-
-    yield db_path
-
-    if db_path.exists():
-        db_path.unlink()
+from tests.conftest import make_test_db
 
 
 @pytest.fixture
-def database(temp_db):
-    """Create and initialize database with sample data."""
-    db = Database(temp_db)
-    db.create_schema()
+def database(tmp_path):
+    """Create migrated + seeded database with sample actions.
+
+    Task 0 migration: uses ``make_test_db`` so the Phase 2
+    classification tables (``dangerous_actions`` / ``companion_rules``)
+    exist and are populated with shipped baseline rows — required
+    after Task 8 deletes the class-constant fallbacks.
+    """
+    db_path = make_test_db(tmp_path)
+    db = Database(db_path)
 
     # Add sample services
     db.insert_service(Service(
