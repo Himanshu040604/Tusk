@@ -437,6 +437,112 @@ class Database:
                 ON validation_errors(severity)
             """)
 
+            # ---- Alembic-head parity (0002..0008) ------------------------
+            # The live-fetch migration pipeline (Alembic) adds these tables
+            # post-0001.  For tests and demos using Database().create_schema()
+            # directly, mirror them here so test_alembic_drift passes.
+
+            # 0002: verb_prefixes
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS verb_prefixes (
+                    prefix TEXT PRIMARY KEY,
+                    access_category TEXT NOT NULL
+                        CHECK (access_category IN ('read','write','admin')),
+                    source TEXT NOT NULL
+                        CHECK (source IN ('policy_sentry','aws-docs','shipped','managed-policies','cloudsplaining')),
+                    refreshed_at TIMESTAMP NOT NULL
+                )
+            """)
+
+            # 0003: dangerous_actions + idx_dangerous_category
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS dangerous_actions (
+                    action_name TEXT NOT NULL,
+                    category TEXT NOT NULL
+                        CHECK (category IN ('privilege_escalation','exfiltration','destruction','permissions_mgmt')),
+                    severity TEXT NOT NULL
+                        CHECK (severity IN ('CRITICAL','HIGH','MEDIUM','LOW')),
+                    description TEXT NOT NULL,
+                    source TEXT NOT NULL
+                        CHECK (source IN ('policy_sentry','aws-docs','shipped','managed-policies','cloudsplaining')),
+                    refreshed_at TIMESTAMP NOT NULL,
+                    row_hmac TEXT NOT NULL,
+                    PRIMARY KEY (action_name, category)
+                )
+            """)
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dangerous_category "
+                "ON dangerous_actions(category, action_name)"
+            )
+
+            # 0004: companion_rules
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS companion_rules (
+                    primary_action TEXT NOT NULL,
+                    companion_action TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    severity TEXT NOT NULL
+                        CHECK (severity IN ('CRITICAL','HIGH','MEDIUM','LOW')),
+                    source TEXT NOT NULL
+                        CHECK (source IN ('policy_sentry','aws-docs','shipped','managed-policies','cloudsplaining')),
+                    refreshed_at TIMESTAMP NOT NULL,
+                    row_hmac TEXT NOT NULL,
+                    PRIMARY KEY (primary_action, companion_action)
+                )
+            """)
+
+            # 0005: dangerous_combinations + idx_dc_action_b
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS dangerous_combinations (
+                    action_a TEXT NOT NULL,
+                    action_b TEXT NOT NULL,
+                    severity TEXT NOT NULL
+                        CHECK (severity IN ('CRITICAL','HIGH','MEDIUM','LOW')),
+                    description TEXT NOT NULL,
+                    source TEXT NOT NULL
+                        CHECK (source IN ('policy_sentry','aws-docs','shipped','managed-policies','cloudsplaining')),
+                    refreshed_at TIMESTAMP NOT NULL,
+                    row_hmac TEXT NOT NULL,
+                    PRIMARY KEY (action_a, action_b)
+                )
+            """)
+            cursor.execute(
+                "CREATE INDEX IF NOT EXISTS idx_dc_action_b "
+                "ON dangerous_combinations(action_b, action_a)"
+            )
+
+            # 0006: action_resource_map
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS action_resource_map (
+                    action_name TEXT NOT NULL,
+                    resource_type TEXT NOT NULL,
+                    PRIMARY KEY (action_name, resource_type)
+                )
+            """)
+
+            # 0007: arn_templates
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS arn_templates (
+                    service_prefix TEXT NOT NULL,
+                    resource_type TEXT NOT NULL,
+                    arn_template TEXT NOT NULL,
+                    PRIMARY KEY (service_prefix, resource_type)
+                )
+            """)
+
+            # 0008: managed_policies (policy_document_hmac per M12)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS managed_policies (
+                    policy_name TEXT PRIMARY KEY,
+                    policy_arn TEXT NOT NULL,
+                    policy_document TEXT NOT NULL,
+                    description TEXT,
+                    version TEXT,
+                    fetched_at TIMESTAMP NOT NULL,
+                    policy_document_hmac TEXT NOT NULL
+                )
+            """)
+
     def insert_service(self, service: Service) -> None:
         """Insert a service record.
 
