@@ -1,0 +1,206 @@
+# Sentinel shipped defaults.  Lives at the lowest precedence rung (§ 5.2).
+# Users override by writing a TOML file at one of the higher-precedence
+# locations (project-local ./.sentinel.toml, user config, system config)
+# or by setting environment variables / CLI flags.
+#
+# Editing this file changes behavior for ALL installs when the package is
+# reinstalled.  Prefer a user-level override TOML for per-environment tweaks.
+
+# -----------------------------------------------------------------------------
+# Network + fetch security (§ 8)
+# -----------------------------------------------------------------------------
+
+[network]
+max_download_bytes = 10_485_760        # 10 MB
+timeout_seconds = 10
+max_redirects = 3
+verify_tls = true
+
+[network.allow_list]
+domains = [
+    "docs.aws.amazon.com",
+    "raw.githubusercontent.com",
+    "github.com",
+    "api.github.com",
+    "gist.githubusercontent.com",
+    # registry.terraform.io removed — contradicts § 1.2 "no HCL" non-goal.
+    # Users who need it extend via `--allow-domain registry.terraform.io`.
+]
+github_orgs = [
+    "aws-samples",
+    "aws-labs",
+    "salesforce",      # policy_sentry
+    "bridgecrewio",    # CloudSplaining / Checkov
+]
+
+[retries.budgets]
+github = 5
+aws_docs = 3
+user_url = 2
+
+[retries]
+max_total_wait_seconds = 300
+
+[cache]
+ttl_hours_aws_docs = 168               # 7 days
+ttl_hours_policy_sentry = 72           # 3 days
+ttl_hours_github = 24                  # 1 day
+ttl_hours_user_url = 1
+size_cap_mb = 500
+
+[pipeline]
+max_self_check_retries = 3
+fail_fast = false
+
+# -----------------------------------------------------------------------------
+# Intent keyword schema (M1 — 8-bucket expansion).  Each bucket declares:
+#   values:  list of natural-language synonyms matched against user intent
+#   levels:  list of AccessLevel enum member names granted by the intent
+# -----------------------------------------------------------------------------
+
+[intent.keywords.read]
+values = ["read-only", "read only", "readonly", "view", "get"]
+levels = ["READ"]
+
+[intent.keywords.list]
+values = ["list-only", "list", "enumerate"]
+levels = ["LIST"]
+
+[intent.keywords.read_write]
+values = ["read-write", "rw"]
+levels = ["READ", "WRITE"]
+
+[intent.keywords.write]
+values = ["write", "modify", "update", "create", "put"]
+levels = ["WRITE"]
+
+[intent.keywords.admin]
+values = ["admin", "full", "full-access"]
+levels = ["LIST", "READ", "WRITE", "PERMISSIONS_MANAGEMENT", "TAGGING"]
+
+[intent.keywords.deploy]
+values = ["deploy", "ci/cd", "deployment", "manage"]
+levels = ["WRITE", "TAGGING"]
+
+[intent.keywords.tagging]
+values = ["tag", "tagging", "label"]
+levels = ["TAGGING"]
+
+[intent.keywords.permissions]
+values = ["permissions", "grant", "attach-policy"]
+levels = ["PERMISSIONS_MANAGEMENT"]
+
+# Default AWS action-name verb prefixes.  Populated into verb_prefixes DB
+# table at Phase 2 Task 4.  Source column will read "shipped".
+[intent.verb_prefixes]
+read = ["Get", "Describe", "List", "Head", "Batch"]
+write = [
+    "Put", "Create", "Update", "Delete", "Remove",
+    "Terminate", "Run", "Start", "Stop", "Send",
+    "Publish", "Invoke", "Execute",
+]
+admin = ["Attach", "Detach", "SetDefault", "UpdateAssumeRole"]
+
+# -----------------------------------------------------------------------------
+# Security posture
+# -----------------------------------------------------------------------------
+
+[security]
+critical_services = ["iam", "sts", "organizations", "kms"]
+
+# Services that never take a region in ARN patterns (global-scope APIs).
+# Used by the rewriter when constructing least-privilege ARNs.
+region_less_global_services = [
+    "iam", "sts", "organizations", "cloudfront", "route53",
+]
+
+# -----------------------------------------------------------------------------
+# Service-name keyword aliasing (existing constants.py SERVICE_NAME_MAPPINGS).
+# Keys are plain words users type; values are canonical IAM service prefixes.
+# -----------------------------------------------------------------------------
+
+[service_name_mappings]
+s3 = "s3"
+bucket = "s3"
+"object storage" = "s3"
+ec2 = "ec2"
+instance = "ec2"
+compute = "ec2"
+lambda = "lambda"
+function = "lambda"
+dynamodb = "dynamodb"
+dynamo = "dynamodb"
+table = "dynamodb"
+rds = "rds"
+database = "rds"
+iam = "iam"
+role = "iam"
+user = "iam"
+sqs = "sqs"
+queue = "sqs"
+sns = "sns"
+topic = "sns"
+kms = "kms"
+key = "kms"
+secrets = "secretsmanager"
+secret = "secretsmanager"
+cloudwatch = "logs"
+logs = "logs"
+
+# -----------------------------------------------------------------------------
+# Parser limits (§ 8.3).  M14 condition-value caps prevent ReDoS against
+# RiskAnalyzer regexes (Python `re` allows catastrophic backtracking).
+# -----------------------------------------------------------------------------
+
+[parser.limits]
+max_json_nesting_depth = 32
+max_statements_per_policy = 100
+max_document_chars = 10_000
+max_document_size = 10_485_760          # 10 MB pre-parse byte cap
+max_condition_value_chars = 4096        # default operator cap
+
+[parser.limits.condition]
+# Per-operator overrides — tighter bounds for operators that never
+# legitimately carry long values.
+StringEquals = 4096
+StringLike = 4096
+ArnEquals = 8192                        # ARN lists can be long
+ArnLike = 8192
+Bool = 64
+NumericEquals = 128
+DateEquals = 128
+
+# -----------------------------------------------------------------------------
+# Condition profiles — named sets of MUST-HAVE condition keys for policies.
+# -----------------------------------------------------------------------------
+
+[condition_profiles.strict]
+enabled_keys = [
+    "aws:MultiFactorAuthPresent",
+    "aws:SecureTransport",
+    "aws:SourceIp",
+]
+
+[condition_profiles.moderate]
+enabled_keys = ["aws:SecureTransport"]
+
+[condition_profiles.none]
+enabled_keys = []
+
+# -----------------------------------------------------------------------------
+# Logging defaults (§ 11.1)
+# -----------------------------------------------------------------------------
+
+[logging]
+level = "INFO"
+format = "human"          # "human" | "json"
+
+# -----------------------------------------------------------------------------
+# Schema / placeholder defaults (previously constants.py values)
+# -----------------------------------------------------------------------------
+
+[defaults]
+account_id = "123456789012"
+region = "us-east-1"
+cache_ttl_hours = 24
+max_retries = 3
