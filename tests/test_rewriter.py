@@ -15,7 +15,7 @@ from src.sentinel.rewriter import (
     RewriteResult,
     RewriteChange,
 )
-from src.sentinel.database import Database, Service, Action
+from src.sentinel.database import Database, DatabaseError, Service, Action
 from src.sentinel.inventory import ResourceInventory, Resource
 
 from tests.conftest import make_test_db
@@ -261,20 +261,33 @@ def lambda_policy():
 class TestPolicyRewriterInit:
     """Tests for PolicyRewriter initialization."""
 
-    def test_init_no_args(self):
-        """Rewriter can be initialized without database or inventory."""
-        rewriter = PolicyRewriter()
-        assert rewriter.database is None
-        assert rewriter.inventory is None
+    def test_init_no_args_hard_fails(self):
+        """PolicyRewriter() with no DB HARD-FAILS under Task 8b D3.
+
+        Task 8b removed the class-constant fallback path — CompanionPermission
+        Detector now requires a seeded Database and raises DatabaseError when
+        constructed with None.  PolicyRewriter.__init__ delegates to it, so
+        the no-arg form must hard-fail.  This test documents the contract so
+        the deleted fallback cannot silently regress.
+        """
+        with pytest.raises(DatabaseError):
+            PolicyRewriter()
 
     def test_init_with_database(self, tmp_db):
         """Rewriter accepts a Database instance."""
         rewriter = PolicyRewriter(database=tmp_db)
         assert rewriter.database is tmp_db
 
-    def test_init_with_inventory(self, tmp_inventory):
-        """Rewriter accepts a ResourceInventory instance."""
-        rewriter = PolicyRewriter(inventory=tmp_inventory)
+    def test_init_with_inventory(self, tmp_db, tmp_inventory):
+        """Rewriter accepts a ResourceInventory instance.
+
+        Task 8b migration: Database is now mandatory; thread tmp_db as the
+        required DB dependency so the test exercises the inventory-assignment
+        path without tripping the D3 HARD-FAIL.
+        """
+        rewriter = PolicyRewriter(
+            database=tmp_db, inventory=tmp_inventory
+        )
         assert rewriter.inventory is tmp_inventory
 
     def test_init_with_both(self, tmp_db, tmp_inventory):
@@ -359,18 +372,14 @@ class TestWildcardReplacement:
         assert 's3:PutObject' not in actions
         assert 's3:DeleteObject' not in actions
 
-    def test_wildcard_no_database(self, wildcard_policy):
-        """Wildcards kept when no database is available."""
-        rewriter = PolicyRewriter()
-        result = rewriter.rewrite_policy(wildcard_policy)
-        actions = result.rewritten_policy.statements[0].actions
-        assert 's3:*' in actions
-
-    def test_no_database_assumption(self, wildcard_policy):
-        """Assumption recorded when no database is available."""
-        rewriter = PolicyRewriter()
-        result = rewriter.rewrite_policy(wildcard_policy)
-        assert any('database' in a.lower() for a in result.assumptions)
+    # NOTE: test_wildcard_no_database and test_no_database_assumption were
+    # deleted under Task 8b D3 HARD-FAIL migration.  Both tests explicitly
+    # exercised the no-database fallback path ("wildcards kept when no DB",
+    # "assumption recorded when no DB").  Task 8b removed the fallback —
+    # PolicyRewriter() without a Database now raises DatabaseError at
+    # construction, so there is no meaningful "no DB" code path left to
+    # test.  The hard-fail contract is documented in
+    # TestPolicyRewriterInit.test_init_no_args_hard_fails.
 
 
 # ---------------------------------------------------------------------------
@@ -435,9 +444,15 @@ class TestResourceScoping:
         ]
         assert len(arn_changes) >= 1
 
-    def test_no_inventory_assumption(self, simple_policy):
-        """Assumption recorded when no inventory is available."""
-        rewriter = PolicyRewriter()
+    def test_no_inventory_assumption(self, tmp_db, simple_policy):
+        """Assumption recorded when no inventory is available.
+
+        Task 8b migration: PolicyRewriter now REQUIRES a Database (D3
+        HARD-FAIL).  The test's premise — that a missing inventory
+        records an assumption — still holds; only the test's construction
+        needed to thread the required `tmp_db` fixture.
+        """
+        rewriter = PolicyRewriter(database=tmp_db)
         result = rewriter.rewrite_policy(simple_policy)
         assert any('inventory' in a.lower() for a in result.assumptions)
 
@@ -900,19 +915,13 @@ class TestRewriteResult:
         result = rewriter.rewrite_policy(wildcard_policy)
         assert len(result.changes) > 0
 
-    def test_result_has_assumptions(self):
-        """Result contains assumptions when database missing."""
-        rewriter = PolicyRewriter()
-        policy = Policy(
-            version='2012-10-17',
-            statements=[
-                Statement(
-                    effect='Allow', actions=['s3:*'], resources=['*']
-                )
-            ],
-        )
-        result = rewriter.rewrite_policy(policy)
-        assert len(result.assumptions) > 0
+    # NOTE: test_result_has_assumptions was deleted under Task 8b D3
+    # HARD-FAIL migration.  The test explicitly exercised the "DB missing"
+    # assumption-population path — PolicyRewriter() with no DB now raises
+    # DatabaseError, so the scenario is unreachable.  Inventory-missing
+    # assumption coverage is preserved in
+    # TestResourceScoping.test_no_inventory_assumption (which passes a DB
+    # and omits inventory).
 
     def test_intent_assumption_recorded(self, tmp_db, simple_policy):
         """Intent recorded in assumptions."""
