@@ -31,6 +31,12 @@ nul
 # Pytest
 .pytest_cache/
 
+# SQLite migration sidecars and backup artifacts (prod_imp.md § 6.3)
+*.db.bak
+*.db-wal
+*.db-shm
+*.db.migrate.lock
+
 # Agent state (runtime)
 agent_state/
 
@@ -55,3 +61,7 @@ verify_bug_fix.py
 klarna_task.txt
 prompt.txt
 work.png
+
+# Owner's uncommitted working files (never commit)
+final.png
+firebase-debug.log
