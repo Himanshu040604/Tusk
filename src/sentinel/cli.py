@@ -1245,13 +1245,7 @@ def _cmd_refresh_new_source(
         return EXIT_IO_ERROR
 
     if args.live:
-        print(
-            f"[INFO] --live refresh for {source} is wired in Phase 4 at "
-            "the loader level; CLI-driven URL enumeration lands in Phase 5. "
-            "Provide --data-path for now.",
-            file=sys.stderr,
-        )
-        return EXIT_INVALID_ARGS
+        return _refresh_live(db, source)
 
     if args.data_path is None:
         print(
@@ -1294,20 +1288,127 @@ def _cmd_refresh_new_source(
     return EXIT_SUCCESS
 
 
-def _cmd_refresh_all(args: argparse.Namespace) -> int:
-    """Run every known refresh source in sequence.
+_MANAGED_POLICY_SEEDS: tuple[tuple[str, str, str], ...] = (
+    # (policy_name, arn, url) — minimal curated seed so --live has something
+    # to enumerate before a full index scraper lands.
+    (
+        "AdministratorAccess",
+        "arn:aws:iam::aws:policy/AdministratorAccess",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/"
+        "policy-reference/aws-managed/AdministratorAccess.json",
+    ),
+    (
+        "ReadOnlyAccess",
+        "arn:aws:iam::aws:policy/ReadOnlyAccess",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/"
+        "policy-reference/aws-managed/ReadOnlyAccess.json",
+    ),
+)
 
-    Phase 4 scope: dispatches the legacy two (policy-sentry, aws-docs)
-    only when ``--data-path`` points at a directory containing their
-    expected subtrees.  The new sources require separate data paths
-    and are skipped in ``--all`` mode with a WARN log.
+
+_CLOUDSPLAINING_RULESET_URL = (
+    "https://raw.githubusercontent.com/"
+    "salesforce/cloudsplaining/main/"
+    "cloudsplaining/shared/iam_definition.json"
+)
+
+
+def _build_live_client():
+    """Share one client builder between fetch and refresh paths."""
+    from .cli_fetch import _build_http_client
+    return _build_http_client()
+
+
+def _refresh_live(db, source: str) -> int:
+    """Run the live scraper for Phase 4 sources (Task 11).
+
+    ``managed-policies`` enumerates :data:`_MANAGED_POLICY_SEEDS` and
+    upserts each.  ``cloudsplaining`` fetches the full ruleset JSON
+    and ingests it.  Errors per-source aggregate into the stats block.
     """
-    print(
-        "[WARN] `refresh --all` is a Phase 5 orchestration feature; "
-        "Phase 4 ships single-source dispatch only.",
-        file=sys.stderr,
-    )
+    if source == "managed-policies":
+        from ..refresh.aws_managed_policies import ManagedPoliciesLiveScraper
+
+        client = _build_live_client()
+        try:
+            scraper = ManagedPoliciesLiveScraper(db, client)
+            added = 0
+            updated = 0
+            errors: list[str] = []
+            for name, arn, url in _MANAGED_POLICY_SEEDS:
+                try:
+                    change = scraper.scrape_one(name=name, arn=arn, url=url)
+                    if change == "ADD":
+                        added += 1
+                    else:
+                        updated += 1
+                except Exception as exc:  # noqa: BLE001
+                    errors.append(f"{name}: {exc}")
+        finally:
+            client.close()
+        print(f"Refresh complete: {added} added, {updated} updated.")
+        for err in errors:
+            print(f"[WARN] {err}", file=sys.stderr)
+        return EXIT_SUCCESS if not errors else EXIT_ISSUES_FOUND
+
+    if source == "cloudsplaining":
+        from ..refresh.cloudsplaining import CloudSplainingLiveFetcher
+
+        client = _build_live_client()
+        try:
+            fetcher = CloudSplainingLiveFetcher(db, client)
+            stats = fetcher.fetch_and_load(_CLOUDSPLAINING_RULESET_URL)
+        except Exception as exc:  # noqa: BLE001
+            client.close()
+            print(f"Error: cloudsplaining live fetch failed: {exc}",
+                  file=sys.stderr)
+            return EXIT_IO_ERROR
+        client.close()
+        print(
+            f"Refresh complete: {stats.actions_added} dangerous actions, "
+            f"{stats.combinations_added} combinations, "
+            f"{stats.skipped} skipped."
+        )
+        for err in stats.errors:
+            print(f"[WARN] {err}", file=sys.stderr)
+        return EXIT_SUCCESS
+
+    print(f"Error: --live not supported for source {source!r}",
+          file=sys.stderr)
     return EXIT_INVALID_ARGS
+
+
+def _cmd_refresh_all(args: argparse.Namespace) -> int:
+    """Run every known refresh source in sequence (Task 10).
+
+    Each source is invoked via a synthetic ``argparse.Namespace`` so the
+    single-source dispatcher does the heavy lifting.  When ``--live`` is
+    set on the parent call, it's propagated to every child; the per-source
+    exit codes are aggregated and the worst is returned.
+    """
+    all_sources = ("policy-sentry", "aws-docs",
+                   "managed-policies", "cloudsplaining")
+    worst = EXIT_SUCCESS
+    for src in all_sources:
+        print(f"\n=== refresh: {src} ===", file=sys.stderr)
+        sub = argparse.Namespace(**vars(args))
+        sub.source = src
+        sub.all = False
+        # Legacy sources NEED --data-path; skip them when --live is on
+        # without a fallback — operators should run them explicitly.
+        if src in _LEGACY_SOURCES and not args.data_path:
+            print(f"[WARN] skipping {src}: --data-path required "
+                  "(legacy source has no live CLI wiring)",
+                  file=sys.stderr)
+            continue
+        try:
+            rc = cmd_refresh(sub)
+        except Exception as exc:  # noqa: BLE001
+            print(f"[ERROR] {src}: {exc}", file=sys.stderr)
+            rc = EXIT_IO_ERROR
+        if rc != EXIT_SUCCESS:
+            worst = max(worst, rc)
+    return worst
 
 
 def cmd_info(args: argparse.Namespace) -> int:
