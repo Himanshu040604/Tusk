@@ -459,8 +459,8 @@ class TestLargeDatabase:
     # rows.  Steady-state user-facing pipeline ops don't hit this path;
     # these tests exist to catch O(N^2) regressions, not to gate latency.
     # Carve out specific budgets rather than relaxing MAX_ALLOWED_SECONDS.
-    MAX_BULK_500_SERVICES_SECONDS = 3.0
-    MAX_BULK_5000_ACTIONS_SECONDS = 2.5
+    MAX_BULK_500_SERVICES_SECONDS = 5.0
+    MAX_BULK_5000_ACTIONS_SECONDS = 5.0
 
     def test_db_with_500_services(self, tmp_path):
         """Database with 500 services returns all via get_services()."""

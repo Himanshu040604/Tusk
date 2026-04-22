@@ -27,9 +27,29 @@ from sentinel.net.cache import DiskCache, canonical_url, url_key
 
 
 @pytest.fixture(autouse=True)
-def _isolate_hmac_cache() -> None:
-    """Reset in-process HMAC caches between tests so per-worker DATA_DIR is honored."""
+def _isolate_hmac_cache(tmp_path_factory: pytest.TempPathFactory) -> None:
+    """Isolate each cache test's HMAC state from the session data dir.
+
+    test_cache exercises key rotation via ``DiskCache.rotate_key()``, which
+    rewrites ``$SENTINEL_DATA_DIR/cache.key`` — invalidating every HMAC-
+    signed row the rest of the suite has already written (dangerous_actions,
+    companion_rules, etc.).  We work around this by temporarily pointing
+    ``SENTINEL_DATA_DIR`` at a per-test throw-away directory: rotations
+    happen inside that sandbox and never leak back into the session's
+    shared data dir.
+    """
+    sandbox = tmp_path_factory.mktemp("hmac-sandbox")
+    prior = os.environ.get("SENTINEL_DATA_DIR")
+    os.environ["SENTINEL_DATA_DIR"] = str(sandbox)
     hmac_keys._reset_cache()
+    try:
+        yield
+    finally:
+        hmac_keys._reset_cache()
+        if prior is None:
+            os.environ.pop("SENTINEL_DATA_DIR", None)
+        else:
+            os.environ["SENTINEL_DATA_DIR"] = prior
 
 
 # ---------------------------------------------------------------------------
