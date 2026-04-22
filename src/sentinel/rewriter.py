@@ -1139,60 +1139,88 @@ class PolicyRewriter:
     def to_policy_json(self, policy: Policy) -> Dict[str, Any]:
         """Convert Policy dataclass to IAM policy JSON format.
 
+        Thin instance-method wrapper around the module-level
+        :func:`serialize_policy` for backward compatibility.  The underlying
+        transform is a pure function of ``policy`` — it does not read
+        ``self.database`` or ``self.inventory`` — so callers that only need
+        serialization (e.g. formatters) can call ``serialize_policy(policy)``
+        directly without constructing a ``PolicyRewriter`` (which under Task
+        8b D3 HARD-FAIL now requires a ``Database``).
+
         Args:
             policy: Policy object to convert
 
         Returns:
             Dictionary in standard IAM policy JSON format
         """
-        result: Dict[str, Any] = {
-            'Version': policy.version,
+        return serialize_policy(policy)
+
+
+def serialize_policy(policy: Policy) -> Dict[str, Any]:
+    """Convert a :class:`Policy` dataclass to an IAM policy JSON dict.
+
+    Pure transform — no DB, no inventory, no side effects.  Split out of
+    ``PolicyRewriter.to_policy_json`` so that output formatters (text/JSON/
+    markdown) can render a rewritten policy without instantiating a
+    ``PolicyRewriter`` (whose constructor now HARD-FAILS without a Database
+    under Task 8b D3).
+
+    Args:
+        policy: Policy object to convert.
+
+    Returns:
+        Dictionary in standard IAM policy JSON format (Version / Id /
+        Statement[Effect, Sid, Action|NotAction, Resource|NotResource,
+        Condition, Principal]).
+    """
+    result: Dict[str, Any] = {
+        'Version': policy.version,
+    }
+
+    if policy.id:
+        result['Id'] = policy.id
+
+    statements: List[Dict[str, Any]] = []
+    for stmt in policy.statements:
+        # Skip statements with no actions at all (can happen after
+        # loop-back removes all invalid actions from a statement).
+        if not stmt.actions and not stmt.not_actions:
+            continue
+
+        stmt_dict: Dict[str, Any] = {
+            'Effect': stmt.effect,
         }
 
-        if policy.id:
-            result['Id'] = policy.id
+        if stmt.sid:
+            stmt_dict['Sid'] = stmt.sid
 
-        statements: List[Dict[str, Any]] = []
-        for stmt in policy.statements:
-            # Skip statements with no actions at all (can happen after
-            # loop-back removes all invalid actions from a statement).
-            if not stmt.actions and not stmt.not_actions:
-                continue
+        if stmt.not_actions:
+            stmt_dict['NotAction'] = stmt.not_actions
+        else:
+            stmt_dict['Action'] = (
+                stmt.actions[0]
+                if len(stmt.actions) == 1
+                else stmt.actions
+            )
 
-            stmt_dict: Dict[str, Any] = {
-                'Effect': stmt.effect,
-            }
+        if stmt.not_resources:
+            stmt_dict['NotResource'] = stmt.not_resources
+        elif stmt.resources:
+            stmt_dict['Resource'] = (
+                stmt.resources[0]
+                if len(stmt.resources) == 1
+                else stmt.resources
+            )
+        else:
+            stmt_dict['Resource'] = '*'
 
-            if stmt.sid:
-                stmt_dict['Sid'] = stmt.sid
+        if stmt.conditions:
+            stmt_dict['Condition'] = stmt.conditions
 
-            if stmt.not_actions:
-                stmt_dict['NotAction'] = stmt.not_actions
-            else:
-                stmt_dict['Action'] = (
-                    stmt.actions[0]
-                    if len(stmt.actions) == 1
-                    else stmt.actions
-                )
+        if stmt.principals:
+            stmt_dict['Principal'] = stmt.principals
 
-            if stmt.not_resources:
-                stmt_dict['NotResource'] = stmt.not_resources
-            elif stmt.resources:
-                stmt_dict['Resource'] = (
-                    stmt.resources[0]
-                    if len(stmt.resources) == 1
-                    else stmt.resources
-                )
-            else:
-                stmt_dict['Resource'] = '*'
+        statements.append(stmt_dict)
 
-            if stmt.conditions:
-                stmt_dict['Condition'] = stmt.conditions
-
-            if stmt.principals:
-                stmt_dict['Principal'] = stmt.principals
-
-            statements.append(stmt_dict)
-
-        result['Statement'] = statements
-        return result
+    result['Statement'] = statements
+    return result

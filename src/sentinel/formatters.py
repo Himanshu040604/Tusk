@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, List, Dict, Any, Optional
 
+from .rewriter import serialize_policy
+
 if TYPE_CHECKING:
     from .parser import Policy, ValidationResult
     from .analyzer import RiskFinding
@@ -106,8 +108,6 @@ class TextFormatter:
         Returns:
             Formatted text string.
         """
-        from .rewriter import PolicyRewriter
-
         lines = ["=== Rewrite Result ===", ""]
         lines.append(f"Changes applied: {len(result.changes)}")
         lines.append(
@@ -136,8 +136,7 @@ class TextFormatter:
 
         lines.append("")
         lines.append("Rewritten policy:")
-        rewriter = PolicyRewriter()
-        policy_dict = rewriter.to_policy_json(result.rewritten_policy)
+        policy_dict = serialize_policy(result.rewritten_policy)
         lines.append(json.dumps(policy_dict, indent=2))
 
         return "\n".join(lines)
@@ -151,7 +150,6 @@ class TextFormatter:
         Returns:
             Formatted text string.
         """
-        from .rewriter import PolicyRewriter
 
         lines = ["=== IAM Policy Sentinel - Pipeline Result ===", ""]
         lines.append(f"Final verdict: [{result.final_verdict.value}]")
@@ -197,8 +195,7 @@ class TextFormatter:
 
         # Rewritten policy
         lines.append("Rewritten policy:")
-        rewriter = PolicyRewriter()
-        policy_dict = rewriter.to_policy_json(result.rewritten_policy)
+        policy_dict = serialize_policy(result.rewritten_policy)
         lines.append(json.dumps(policy_dict, indent=2))
 
         return "\n".join(lines)
@@ -299,9 +296,6 @@ class JsonFormatter:
         Returns:
             JSON string.
         """
-        from .rewriter import PolicyRewriter
-
-        rewriter = PolicyRewriter()
         data = {
             "changes": [
                 {
@@ -323,7 +317,7 @@ class JsonFormatter:
                 }
                 for cp in result.companion_permissions_added
             ],
-            "rewritten_policy": rewriter.to_policy_json(
+            "rewritten_policy": serialize_policy(
                 result.rewritten_policy
             ),
         }
@@ -338,9 +332,6 @@ class JsonFormatter:
         Returns:
             JSON string.
         """
-        from .rewriter import PolicyRewriter
-
-        rewriter = PolicyRewriter()
         data = {
             "final_verdict": result.final_verdict.value,
             "iterations": result.iterations,
@@ -379,7 +370,7 @@ class JsonFormatter:
                 "completeness_score": result.self_check_result.completeness_score,
                 "findings_count": len(result.self_check_result.findings),
             },
-            "rewritten_policy": rewriter.to_policy_json(
+            "rewritten_policy": serialize_policy(
                 result.rewritten_policy
             ),
         }
@@ -481,8 +472,6 @@ class MarkdownFormatter:
         Returns:
             Markdown string.
         """
-        from .rewriter import PolicyRewriter
-
         lines = ["# Rewrite Result", ""]
         lines.append(f"- **Changes:** {len(result.changes)}")
         lines.append(
@@ -518,8 +507,7 @@ class MarkdownFormatter:
         lines.append("## Rewritten Policy")
         lines.append("")
         lines.append("```json")
-        rewriter = PolicyRewriter()
-        policy_dict = rewriter.to_policy_json(result.rewritten_policy)
+        policy_dict = serialize_policy(result.rewritten_policy)
         lines.append(json.dumps(policy_dict, indent=2))
         lines.append("```")
 
@@ -534,8 +522,6 @@ class MarkdownFormatter:
         Returns:
             Markdown string.
         """
-        from .rewriter import PolicyRewriter
-
         lines = ["# IAM Policy Sentinel - Pipeline Result", ""]
         lines.append(f"**Final verdict:** {result.final_verdict.value}")
         lines.append(f"**Iterations:** {result.iterations}")
@@ -595,8 +581,7 @@ class MarkdownFormatter:
         lines.append("## Rewritten Policy")
         lines.append("")
         lines.append("```json")
-        rewriter = PolicyRewriter()
-        policy_dict = rewriter.to_policy_json(result.rewritten_policy)
+        policy_dict = serialize_policy(result.rewritten_policy)
         lines.append(json.dumps(policy_dict, indent=2))
         lines.append("```")
 
