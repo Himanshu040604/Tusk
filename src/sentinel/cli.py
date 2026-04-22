@@ -11,8 +11,6 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional, Tuple, Union
-
 from .constants import (
     DEFAULT_DB_PATH,
     DEFAULT_INVENTORY_PATH,
@@ -54,7 +52,7 @@ def _verdict_to_exit_code(findings: list) -> int:
 
 def export_services_json(
     database: "Database",
-    output_path: Optional[Path] = None,
+    output_path: Path | None = None,
 ) -> Path:
     """Export service prefixes from DB to JSON file.
 
@@ -434,7 +432,7 @@ def _detect_format(policy_file: str, input_format: str) -> str:
 def read_policy_input(
     policy_file: str,
     input_format: str = "auto",
-) -> Tuple[str, str]:
+) -> tuple[str, str]:
     """Read policy content from file or stdin.
 
     Args:
@@ -442,7 +440,7 @@ def read_policy_input(
         input_format: Explicit format or 'auto' for extension-based detection.
 
     Returns:
-        Tuple of (content_string, resolved_format).
+        tuple of (content_string, resolved_format).
 
     Raises:
         FileNotFoundError: If file cannot be read.
@@ -461,7 +459,7 @@ def read_policy_input(
 
 def _get_formatter(
     args: argparse.Namespace,
-) -> Union[TextFormatter, JsonFormatter, MarkdownFormatter]:
+) -> TextFormatter | JsonFormatter | MarkdownFormatter:
     """Get the appropriate formatter based on args.
 
     Args:
@@ -492,7 +490,7 @@ def _write_output(args: argparse.Namespace, content: str) -> None:
         print(content)
 
 
-def resolve_database(args: argparse.Namespace) -> Optional["Database"]:
+def resolve_database(args: argparse.Namespace) -> "Database | None":
     """Resolve and open the IAM actions database.
 
     Search order: explicit --database flag, DEFAULT_DB_PATH relative to
@@ -529,7 +527,7 @@ def resolve_database(args: argparse.Namespace) -> Optional["Database"]:
 
 def resolve_inventory(
     args: argparse.Namespace,
-) -> Optional["ResourceInventory"]:
+) -> "ResourceInventory | None":
     """Resolve and open the resource inventory database.
 
     Same search order as resolve_database.
