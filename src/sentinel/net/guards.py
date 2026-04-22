@@ -60,8 +60,15 @@ def _strip_zone(addr: str) -> str:
     return addr.split("%", 1)[0]
 
 
+# Carrier-grade NAT range (RFC 6598).  Python's stdlib marks 100.64.0.0/10
+# as ``is_private`` only from 3.12.4+ — our ``requires-python=>=3.11`` matrix
+# includes 3.11.x which does NOT.  Explicitly reject to prevent SSRF into
+# shared CGNAT space regardless of stdlib version.
+_CGNAT_V4: Final = ipaddress.IPv4Network("100.64.0.0/10")
+
+
 def block_private_ipv4(addr: str) -> None:
-    """Reject RFC 1918 / loopback / link-local / multicast IPv4.
+    """Reject RFC 1918 / loopback / link-local / multicast / CGNAT IPv4.
 
     Raises:
         SSRFBlockedError: On any blocked range.
@@ -75,6 +82,7 @@ def block_private_ipv4(addr: str) -> None:
         or ip.is_multicast
         or ip.is_unspecified
         or ip.is_reserved
+        or ip in _CGNAT_V4
     ):
         raise SSRFBlockedError(f"IPv4 {addr} is in a blocked range")
 
