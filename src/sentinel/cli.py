@@ -775,15 +775,35 @@ def cmd_run(args: argparse.Namespace) -> int:
     """
     from .parser import PolicyParser, PolicyParserError
     from .self_check import Pipeline, PipelineConfig
+    from .models import PolicyInput, PolicyOrigin
+    from fetchers.local import LocalFileFetcher, StdinFetcher
+    from fetchers.base import PolicyNotFoundError
 
+    # Detect format up front so we can decide whether YAML→JSON
+    # conversion is needed after fetching.
+    fmt = _detect_format(args.policy_file, args.input_format)
+
+    # Fetch raw bytes via the appropriate fetcher so we get a proper
+    # PolicyOrigin (sha256, source_type, source_spec) attached to the
+    # PolicyInput handed to Pipeline.run — avoids the deprecated
+    # raw-string path.
     try:
-        content, fmt = read_policy_input(args.policy_file, args.input_format)
-    except FileNotFoundError as e:
+        if args.policy_file == "-":
+            fetch_result = StdinFetcher().fetch("-")
+        else:
+            fetch_result = LocalFileFetcher().fetch(args.policy_file)
+    except PolicyNotFoundError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
 
+    body_bytes = fetch_result.body
+    origin = fetch_result.origin
+
     # Pipeline.run() expects a JSON string internally.
-    # If the input is YAML, deserialize then re-serialize to JSON.
+    # If the input is YAML, deserialize then re-serialize to JSON —
+    # preserving the fetcher's origin (sha256 of the original bytes,
+    # source_type) but annotating source_spec so the origin badge
+    # records the round-trip.
     if fmt == "yaml":
         try:
             import yaml
@@ -795,7 +815,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             )
             return EXIT_INVALID_ARGS
         try:
-            data = yaml.safe_load(content)
+            data = yaml.safe_load(body_bytes.decode("utf-8"))
         except yaml.YAMLError as e:
             print(f"Error: Invalid YAML: {e}", file=sys.stderr)
             return EXIT_INVALID_ARGS
@@ -806,8 +826,16 @@ def cmd_run(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return EXIT_INVALID_ARGS
-        content = json.dumps(data)
-    policy_json = content
+        body_bytes = json.dumps(data).encode("utf-8")
+        origin = PolicyOrigin(
+            source_type=origin.source_type,
+            source_spec=f"{origin.source_spec} (yaml->json)",
+            sha256=origin.sha256,
+            fetched_at=origin.fetched_at,
+            cache_status=origin.cache_status,
+        )
+
+    policy_input = PolicyInput(body_bytes=body_bytes, origin=origin)
 
     db = resolve_database(args)
     inv = resolve_inventory(args)
@@ -838,7 +866,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         raise
 
     try:
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run(policy_input, config=config)
     except PolicyParserError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_INVALID_ARGS
