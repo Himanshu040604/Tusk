@@ -16,6 +16,55 @@ if TYPE_CHECKING:
     from .analyzer import RiskFinding
     from .rewriter import RewriteResult
     from .self_check import PipelineResult
+    from .models import PolicyOrigin
+
+
+# ---------------------------------------------------------------------------
+# Origin-badge renderers (M5, § 8.4).  Three representations — text,
+# json-shaped dict, markdown — share one factoring so the I1 caveat
+# (SHA-256 attests bytes-we-acted-on, not upstream provenance) is a
+# single place to audit.  Callers receive a short prefix-string (text /
+# markdown) or a JSON-serialisable dict; the legacy tests that don't
+# carry an origin simply get an empty string / omitted key.
+# ---------------------------------------------------------------------------
+
+_SHA_PREFIX_LEN = 12
+
+
+def _origin_text(origin: Optional["PolicyOrigin"]) -> str:
+    """One-line text badge or ``""`` when origin is absent."""
+    if origin is None:
+        return ""
+    prefix = origin.sha256[:_SHA_PREFIX_LEN]
+    return (
+        f"Origin: {origin.source_type} {origin.source_spec} "
+        f"(SHA256: {prefix}...) [CACHE: {origin.cache_status}]"
+    )
+
+
+def _origin_json(origin: Optional["PolicyOrigin"]) -> dict[str, str] | None:
+    """JSON-serialisable origin sub-tree or None."""
+    if origin is None:
+        return None
+    return {
+        "source_type": origin.source_type,
+        "source_spec": origin.source_spec,
+        "sha256": origin.sha256,
+        "fetched_at": origin.fetched_at.isoformat(),
+        "cache_status": origin.cache_status,
+    }
+
+
+def _origin_markdown(origin: Optional["PolicyOrigin"]) -> str:
+    """Markdown badge or ``""``."""
+    if origin is None:
+        return ""
+    prefix = origin.sha256[:_SHA_PREFIX_LEN]
+    return (
+        f"**Origin:** {origin.source_type} — "
+        f"`{origin.source_spec}` (SHA256 `{prefix}`) "
+        f"— cache `{origin.cache_status}`"
+    )
 
 
 class TextFormatter:
@@ -152,6 +201,10 @@ class TextFormatter:
         """
 
         lines = ["=== IAM Policy Sentinel - Pipeline Result ===", ""]
+        origin_line = _origin_text(getattr(result, "origin", None))
+        if origin_line:
+            lines.append(origin_line)
+            lines.append("")
         lines.append(f"Final verdict: [{result.final_verdict.value}]")
         lines.append(f"Iterations: {result.iterations}")
         lines.append("")
@@ -374,6 +427,9 @@ class JsonFormatter:
                 result.rewritten_policy
             ),
         }
+        origin_sub = _origin_json(getattr(result, "origin", None))
+        if origin_sub is not None:
+            data["origin"] = origin_sub
         return json.dumps(data, indent=2)
 
     def format_db_info(
@@ -523,6 +579,10 @@ class MarkdownFormatter:
             Markdown string.
         """
         lines = ["# IAM Policy Sentinel - Pipeline Result", ""]
+        origin_line = _origin_markdown(getattr(result, "origin", None))
+        if origin_line:
+            lines.append(origin_line)
+            lines.append("")
         lines.append(f"**Final verdict:** {result.final_verdict.value}")
         lines.append(f"**Iterations:** {result.iterations}")
         lines.append("")
