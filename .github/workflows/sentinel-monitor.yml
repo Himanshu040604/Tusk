@@ -1,0 +1,93 @@
+# Nightly monitoring workflow for IAM Policy Sentinel.
+#
+# Per prod_imp.md § 9.2 — fires the full refresh/run cycle on a cron so
+# drift in AWS managed-policies / cloudsplaining rules is surfaced before
+# the next business day.  On failure, an issue is created via
+# peter-evans/create-issue-from-file@v5 (H19 pattern).
+#
+# This workflow is the cross-platform counterpart to the Linux-only
+# scripts/sentinel-cron.sh (Amendment 6 Theme H); operators pick one.
+#
+# Security note: the only workflow-context inputs used are github.run_id,
+# github.repository, and github.server_url — all of which are
+# non-user-controllable metadata.  No issue/PR/comment bodies flow into
+# run: commands, so the workflow-injection pattern does not apply here.
+# -----------------------------------------------------------------------------
+name: sentinel-monitor
+
+on:
+  schedule:
+    - cron: "0 6 * * *"   # 06:00 UTC daily
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues:   write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RUN_ID:     ${{ github.run_id }}
+      REPOSITORY: ${{ github.repository }}
+      SERVER_URL: ${{ github.server_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies (L4 — frozen lockfile)
+        run: uv sync --frozen
+
+      - name: Refresh all sources (live)
+        id: refresh
+        env:
+          SENTINEL_GITHUB_TOKEN: ${{ secrets.SENTINEL_GITHUB_TOKEN }}
+        run: uv run sentinel refresh --all --live
+
+      - name: Run pipeline on tests/fixtures/test_policies (smoke)
+        env:
+          SENTINEL_GITHUB_TOKEN: ${{ secrets.SENTINEL_GITHUB_TOKEN }}
+        run: |
+          set -e
+          if [ -d tests/fixtures/test_policies ]; then
+              uv run sentinel run --batch tests/fixtures/test_policies \
+                  -o batch-report.json || echo "::warning::batch findings"
+          else
+              echo "::notice::no fixtures directory; skipping smoke run"
+          fi
+
+      - name: Upload batch report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: batch-report
+          path: batch-report.json
+          if-no-files-found: ignore
+
+      - name: Compose failure issue body
+        if: failure()
+        run: |
+          {
+              printf '## Sentinel nightly monitor failed\n\n'
+              printf 'Run: %s/%s/actions/runs/%s\n\n' \
+                  "$SERVER_URL" "$REPOSITORY" "$RUN_ID"
+              printf 'See the run log for the refresh step output.\n'
+          } > .sentinel-failure-body.md
+
+      - name: Open tracking issue on failure
+        if: failure()
+        env:
+          ISSUE_TITLE: "sentinel-monitor nightly failure — ${{ github.run_id }}"
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: ${{ env.ISSUE_TITLE }}
+          content-filepath: .sentinel-failure-body.md
+          labels: |
+            sentinel
+            automation
+            nightly-failure
