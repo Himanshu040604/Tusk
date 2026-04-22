@@ -9,7 +9,7 @@ import pytest
 from pathlib import Path
 
 from src.sentinel.parser import Policy, Statement
-from src.sentinel.database import Database, Service, Action
+from src.sentinel.database import Database, DatabaseError, Service, Action
 from src.sentinel.inventory import ResourceInventory, Resource
 from src.sentinel.self_check import (
     Pipeline,
@@ -224,11 +224,18 @@ def _make_policy_json(**overrides):
 class TestPipelineInit:
     """Tests for Pipeline initialization."""
 
-    def test_init_no_args(self):
-        """Pipeline can be initialized without dependencies."""
-        pipeline = Pipeline()
-        assert pipeline.database is None
-        assert pipeline.inventory is None
+    def test_init_no_args_hard_fails(self):
+        """Pipeline() with no DB HARD-FAILS under Task 8b D3.
+
+        Task 8b removed the class-constant fallback path — all DB-backed
+        classifiers (RiskAnalyzer, CompanionPermissionDetector) now require
+        a seeded Database.  Pipeline() delegates to
+        CompanionPermissionDetector(None) in its __init__, which raises
+        DatabaseError.  This test documents that contract so the no-arg
+        path cannot silently regress to the deleted fallback behavior.
+        """
+        with pytest.raises(DatabaseError):
+            Pipeline()
 
     def test_init_with_database(self, tmp_db):
         """Pipeline accepts a Database instance."""
