@@ -100,6 +100,56 @@ def build_parser() -> argparse.ArgumentParser:
         help="Show version and exit",
     )
 
+    # Root-level flags (§ 7.3).  Parsed before subcommand dispatch; passed
+    # down to every handler via the argparse Namespace.  Persistable flags
+    # may also be set via config file / env var; ephemeral flags (marked
+    # CLI-only per § 5.2) are HARD-FAILED if they appear elsewhere.
+    parser.add_argument(
+        "--profile",
+        default=None,
+        help="Activate named profile from config file",
+    )
+    parser.add_argument(
+        "--config",
+        default=None,
+        help="Override config file path (loaded after system/user/project TOMLs)",
+    )
+    parser.add_argument(
+        "--log-format",
+        choices=["human", "json"],
+        default=None,
+        help="Log output format (default: 'human')",
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default=None,
+        help="Log verbosity threshold (default: 'INFO')",
+    )
+    # Ephemeral flags (§ 5.2) — CLI-only; HARD-FAIL elsewhere.
+    parser.add_argument(
+        "--insecure",
+        action="store_true",
+        help="Disable TLS verification (ephemeral; not persistable in config)",
+    )
+    parser.add_argument(
+        "--allow-domain",
+        action="append",
+        default=[],
+        metavar="DOMAIN",
+        help="Extend allow-list with DOMAIN (ephemeral; may be repeated)",
+    )
+    parser.add_argument(
+        "--skip-migrations",
+        action="store_true",
+        help="Bypass Alembic auto-upgrade on startup (ephemeral)",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        default=None,
+        help="Override cache directory for this run (§ 8.5)",
+    )
+
     subparsers = parser.add_subparsers(dest="command")
 
     # validate
@@ -911,6 +961,69 @@ def cmd_fetch_examples(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS
 
 
+def _bootstrap_config_and_logging(args: argparse.Namespace) -> None:
+    """Resolve Settings and configure structlog BEFORE subcommand dispatch.
+
+    Runs the Amendment 6 Theme F3 ``SENTINEL_SKIP_MIGRATIONS`` loud-warn
+    check, builds the Settings via :func:`sentinel.config.load_settings`,
+    installs it as the process-wide singleton for downstream modules,
+    configures structlog per the resolved log-level/log-format, and emits
+    the M15 ``SSL_CERT_FILE`` audit WARN (post-configure, pre-dispatch).
+
+    CLI override dict passed to load_settings is restricted to ephemeral
+    keys + the persistable root flags; argparse defaults of ``None`` /
+    ``False`` / ``[]`` are dropped so they don't stomp TOML / env values.
+    """
+    # Local imports keep `import sentinel.cli` light — pydantic + structlog
+    # are paid for only when the CLI actually runs.
+    from .config import ConfigError, load_settings, set_settings, warn_if_skip_migrations_env
+    from .logging_setup import configure as configure_logging
+    from .logging_setup import ssl_cert_file_audit
+
+    # SENTINEL_SKIP_MIGRATIONS env-var carve-out.  Fires BEFORE logging is
+    # configured so it goes straight to raw stderr via print().
+    env_skip = warn_if_skip_migrations_env()
+
+    # Assemble CLI override dict.  Only include values the user actually
+    # supplied (non-default) so TOML / env values aren't masked.
+    cli_overrides: dict = {}
+    if args.log_level is not None:
+        cli_overrides.setdefault("logging", {})["level"] = args.log_level
+    if args.log_format is not None:
+        cli_overrides.setdefault("logging", {})["format"] = args.log_format
+    if args.insecure:
+        cli_overrides["insecure"] = True
+    if args.allow_domain:
+        cli_overrides["allow_domain"] = list(args.allow_domain)
+    # skip_migrations arrives EITHER from the CLI flag OR from the env.
+    if args.skip_migrations or env_skip:
+        cli_overrides["skip_migrations"] = True
+
+    config_path = Path(args.config) if args.config else None
+
+    try:
+        settings = load_settings(
+            cli_overrides=cli_overrides or None,
+            config_path_override=config_path,
+            profile_override=args.profile,
+        )
+    except ConfigError as exc:
+        # Logging not yet configured — go straight to stderr.
+        print(str(exc), file=sys.stderr)
+        sys.exit(EXIT_INVALID_ARGS)
+
+    set_settings(settings)
+
+    configure_logging(
+        level=settings.logging.level,
+        fmt=settings.logging.format,
+    )
+
+    # M15 audit WARN — AFTER configure so the redact_sensitive processor
+    # is active, BEFORE any subcommand fires a network call.
+    ssl_cert_file_audit()
+
+
 def main() -> None:
     """CLI entry point. Dispatches to subcommand handlers."""
     from . import __version__
@@ -921,6 +1034,11 @@ def main() -> None:
     if args.version:
         print(f"IAM Policy Sentinel v{__version__}")
         sys.exit(EXIT_SUCCESS)
+
+    # Bootstrap config + logging unless the user only asked for --help /
+    # --version.  Handlers see the resolved Settings via the singleton
+    # (sentinel.config.get_settings()).
+    _bootstrap_config_and_logging(args)
 
     if args.command is None:
         parser.print_help()
