@@ -207,12 +207,64 @@ class PolicyParser:
         Raises:
             PolicyParserError: If JSON is invalid or required fields missing
         """
+        # H12 — pre-parse balanced-bracket depth guard.  Rejects pathological
+        # inputs whose nesting would push ``json.loads`` into algorithmic
+        # slow paths (or stack overflow) BEFORE allocating the parse tree.
+        self._check_nesting_depth(policy_json)
+
         try:
             data = json.loads(policy_json)
         except json.JSONDecodeError as e:
             raise PolicyParserError(f"Invalid JSON: {e}")
 
         return self._parse_policy_dict(data)
+
+    def _check_nesting_depth(self, policy_json: str) -> None:
+        """Pre-parse linear-scan bracket-depth guard (H12).
+
+        Counts ``{[`` opens and ``}]`` closes while respecting JSON string
+        literals + backslash escapes.  Raises :class:`PolicyParserError`
+        on the FIRST push that would exceed
+        ``[parser.limits.max_json_nesting_depth]``.
+
+        Complexity: ``O(len(policy_json))`` single pass, no allocations
+        beyond the Python-string iterator.  Safe on untrusted input — we
+        never call ``json.loads`` if the depth check fails.
+        """
+        try:
+            from .config import get_settings
+
+            max_depth = get_settings().parser.limits.max_json_nesting_depth
+        except Exception:
+            # Settings may not be initialised in unit tests that construct
+            # PolicyParser() directly — fall back to the shipped default.
+            max_depth = 32
+
+        depth = 0
+        in_str = False
+        escape = False
+        for ch in policy_json:
+            if escape:
+                escape = False
+                continue
+            if in_str:
+                if ch == "\\":
+                    escape = True
+                elif ch == '"':
+                    in_str = False
+                continue
+            if ch == '"':
+                in_str = True
+            elif ch == "{" or ch == "[":
+                depth += 1
+                if depth > max_depth:
+                    raise PolicyParserError(
+                        f"Policy JSON exceeds max nesting depth "
+                        f"({max_depth}); refusing to parse"
+                    )
+            elif ch == "}" or ch == "]":
+                if depth > 0:
+                    depth -= 1
 
     def parse_policy_file(self, file_path: Path) -> Policy:
         """Parse IAM policy from file.
