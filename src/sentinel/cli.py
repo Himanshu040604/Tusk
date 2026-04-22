@@ -1469,6 +1469,17 @@ def main() -> None:
         except Exception as e:  # noqa: BLE001 — seed is best-effort on first run.
             print(f"[WARN] Baseline seed skipped: {e}", file=sys.stderr)
 
+    from .cli_cache import cmd_cache
+    from .cli_managed import cmd_managed
+    from .cli_config import cmd_config
+    from .cli_fetch import cmd_fetch
+    from .cli_misc import (
+        cmd_watch,
+        cmd_wizard,
+        cmd_compare,
+        cmd_search,
+    )
+
     handlers = {
         "validate": cmd_validate,
         "analyze": cmd_analyze,
@@ -1478,6 +1489,14 @@ def main() -> None:
         "info": cmd_info,
         "export-services": cmd_export_services,
         "fetch-examples": cmd_fetch_examples,
+        "cache": cmd_cache,
+        "managed": cmd_managed,
+        "config": cmd_config,
+        "fetch": cmd_fetch,
+        "watch": cmd_watch,
+        "wizard": cmd_wizard,
+        "compare": cmd_compare,
+        "search": cmd_search,
     }
 
     handler = handlers.get(args.command)
