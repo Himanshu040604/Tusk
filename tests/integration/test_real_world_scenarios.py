@@ -282,7 +282,7 @@ class TestOverPermissivePolicies:
     def test_full_wildcard_detected_and_rewritten(self, db, inventory):
         pipeline = Pipeline(database=db, inventory=inventory)
         policy_json = _load_fixture("wildcard_overuse.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         assert result.rewritten_policy is not None
@@ -299,7 +299,7 @@ class TestOverPermissivePolicies:
     def test_service_wildcard_gets_expanded(self, db):
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("wildcard_overuse.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         # Risk findings should flag wildcards
         wildcard_findings = [f for f in result.risk_findings if "WILDCARD" in f.risk_type]
@@ -308,7 +308,7 @@ class TestOverPermissivePolicies:
     def test_wildcard_policy_pipeline_result_complete(self, db):
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("wildcard_overuse.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         # All 9 sections of PipelineResult should be populated
         assert result.original_policy is not None
@@ -396,7 +396,7 @@ class TestHallucinatedActions:
     def test_hallucinated_actions_through_pipeline(self, db):
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("hallucinated_actions.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         # Pipeline should complete without crashing
         assert isinstance(result, PipelineResult)
@@ -419,7 +419,7 @@ class TestPrivilegeEscalation:
     def test_passrole_with_lambda_detected(self, db):
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("privilege_escalation.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         # Should detect privilege escalation
         escalation_findings = [
@@ -447,7 +447,7 @@ class TestPrivilegeEscalation:
     def test_escalation_policy_wildcard_resource_flagged(self, db):
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("privilege_escalation.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         # Wildcard resources on IAM actions should produce risk findings
         assert len(result.risk_findings) >= 1
@@ -455,7 +455,7 @@ class TestPrivilegeEscalation:
     def test_escalation_pipeline_completes(self, db):
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("privilege_escalation.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         assert result.iterations >= 1
@@ -500,7 +500,7 @@ class TestMissingCompanions:
     def test_missing_companions_added_by_pipeline(self, db):
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("missing_companions.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         all_actions = []
         for stmt in result.rewritten_policy.statements:
@@ -514,7 +514,7 @@ class TestMissingCompanions:
     def test_companions_fixture_pipeline_result_complete(self, db):
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("missing_companions.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert result.original_policy is not None
         assert result.rewritten_policy is not None
@@ -599,7 +599,7 @@ class TestStructuralIssues:
                 ],
             }
         )
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         # Self-check should flag invalid ARN format
         arn_findings = [
             f
@@ -655,7 +655,7 @@ class TestEdgeCases:
     def test_cross_service_through_pipeline(self, db, inventory):
         pipeline = Pipeline(database=db, inventory=inventory)
         policy_json = _load_fixture("cross_service_complex.json")
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         assert result.iterations >= 1
@@ -686,7 +686,7 @@ class TestIntentMismatches:
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("intent_mismatch.json")
         config = PipelineConfig(intent="read-only s3")
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         # Pipeline should narrow to read actions when intent is read-only
         allow_actions = []
@@ -721,7 +721,7 @@ class TestIntentMismatches:
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("intent_mismatch.json")
         config = PipelineConfig(intent="read-only s3")
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         assert isinstance(result, PipelineResult)
         assert result.iterations >= 1
@@ -731,7 +731,7 @@ class TestIntentMismatches:
         pipeline = Pipeline(database=db)
         policy_json = _load_fixture("intent_mismatch.json")
         # No intent -- actions should pass through without narrowing
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         all_actions = []
         for stmt in result.rewritten_policy.statements:

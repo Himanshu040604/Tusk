@@ -277,7 +277,7 @@ class TestPipelineBasicFlow:
         """Simple policy flows through all 4 pipeline steps."""
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         assert isinstance(result, PipelineResult)
         assert result.original_policy is not None
         assert result.rewritten_policy is not None
@@ -289,7 +289,7 @@ class TestPipelineBasicFlow:
         """Wildcard policy gets rewritten and passes self-check."""
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["s3:*"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         # Wildcards should be expanded
         all_actions = []
         for stmt in result.rewritten_policy.statements:
@@ -310,7 +310,7 @@ class TestPipelineBasicFlow:
             ],
         }
         pipeline = Pipeline(database=tmp_db)
-        result = pipeline.run(json.dumps(policy))
+        result = pipeline.run_text(json.dumps(policy))
         assert result.rewritten_policy is not None
         deny_stmts = [s for s in result.rewritten_policy.statements if s.effect == "Deny"]
         assert len(deny_stmts) >= 1
@@ -320,7 +320,7 @@ class TestPipelineBasicFlow:
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["*"])
         config = PipelineConfig(intent="read-only s3")
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
         all_actions = []
         for stmt in result.rewritten_policy.statements:
             if stmt.effect == "Allow":
@@ -332,7 +332,7 @@ class TestPipelineBasicFlow:
         """PipelineResult has all fields populated."""
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         assert result.original_policy is not None
         assert result.rewritten_policy is not None
         assert isinstance(result.validation_results, list)
@@ -368,7 +368,7 @@ class TestPipelineLoopBack:
             ],
         }
         config = PipelineConfig(max_self_check_retries=3)
-        result = pipeline.run(json.dumps(policy), config)
+        result = pipeline.run_text(json.dumps(policy), config)
         # Should have attempted at least one loop-back
         assert result.iterations >= 1
 
@@ -386,7 +386,7 @@ class TestPipelineLoopBack:
             ],
         }
         config = PipelineConfig(max_self_check_retries=3)
-        result = pipeline.run(json.dumps(policy), config)
+        result = pipeline.run_text(json.dumps(policy), config)
         # After loop-back, invalid action should be removed
         all_actions = []
         for stmt in result.rewritten_policy.statements:
@@ -398,7 +398,7 @@ class TestPipelineLoopBack:
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
         config = PipelineConfig(max_self_check_retries=2)
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
         assert result.iterations <= config.max_self_check_retries
 
     def test_iterations_count_correct(self, tmp_db):
@@ -406,7 +406,7 @@ class TestPipelineLoopBack:
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
         config = PipelineConfig(max_self_check_retries=3)
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
         # For a clean policy, should be 1 iteration (no loop-back needed)
         assert result.iterations >= 1
 
@@ -423,7 +423,7 @@ class TestPipelineConfig:
         """Pipeline works with default config."""
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         assert result.final_verdict is not None
 
     def test_strict_mode_fails_on_warnings(self, tmp_db):
@@ -435,7 +435,7 @@ class TestPipelineConfig:
             resources=["*"],
         )
         config = PipelineConfig(strict_mode=True)
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
         # Wildcard resource produces WARNING, strict mode -> FAIL
         if result.self_check_result.findings:
             has_warning = any(
@@ -449,7 +449,7 @@ class TestPipelineConfig:
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
         config = PipelineConfig(max_self_check_retries=1)
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
         assert result.iterations <= 1
 
 
@@ -466,7 +466,7 @@ class TestPipelineEndToEnd:
         pipeline = Pipeline(database=tmp_db, inventory=tmp_inventory)
         policy_json = _make_policy_json(actions=["s3:*"])
         config = PipelineConfig(intent="read-only s3")
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
         all_actions = []
         for stmt in result.rewritten_policy.statements:
             if stmt.effect == "Allow":
@@ -481,7 +481,7 @@ class TestPipelineEndToEnd:
         """Lambda policy gets companion permissions through the pipeline."""
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["lambda:InvokeFunction"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         all_actions = []
         for stmt in result.rewritten_policy.statements:
             all_actions.extend(stmt.actions)
@@ -495,7 +495,7 @@ class TestPipelineEndToEnd:
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["*"])
         config = PipelineConfig(intent="read-only s3")
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
         all_actions = []
         for stmt in result.rewritten_policy.statements:
             if stmt.effect == "Allow":
@@ -509,7 +509,7 @@ class TestPipelineEndToEnd:
         """Privilege escalation actions are detected in risk findings."""
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["iam:PassRole", "lambda:CreateFunction"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         escalation_findings = [
             f
             for f in result.risk_findings
@@ -521,7 +521,7 @@ class TestPipelineEndToEnd:
         """Pipeline final verdict matches self-check result verdict."""
         pipeline = Pipeline(database=tmp_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         assert result.final_verdict == result.self_check_result.verdict
 
 
@@ -560,7 +560,7 @@ class TestPipelineHITL:
         pipeline = Pipeline(database=tmp_db)
         policy_json = self._make_tier2_policy_json()
         config = PipelineConfig(interactive=False)
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         # No interactive HITL decisions recorded
         assert result.hitl_decisions == []
@@ -574,7 +574,7 @@ class TestPipelineHITL:
         # Approve all Tier 2 actions
         monkeypatch.setattr("builtins.input", lambda _: "a")
 
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         # Should have HITL decisions
         assert len(result.hitl_decisions) >= 1
@@ -591,7 +591,7 @@ class TestPipelineHITL:
         # Reject all Tier 2 actions
         monkeypatch.setattr("builtins.input", lambda _: "r")
 
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         # Should have rejected decisions
         rejected = [d for d in result.hitl_decisions if not d.user_approved]
@@ -628,7 +628,7 @@ class TestPipelineHITL:
         # Skip on first prompt -- auto-approve all
         monkeypatch.setattr("builtins.input", lambda _: "s")
 
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         # All Tier 2 actions should be approved
         assert all(d.user_approved for d in result.hitl_decisions)
@@ -639,6 +639,6 @@ class TestPipelineHITL:
         # All actions are valid Tier 1
         policy_json = _make_policy_json(actions=["s3:GetObject", "s3:PutObject"])
         config = PipelineConfig(interactive=True)
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         assert result.hitl_decisions == []

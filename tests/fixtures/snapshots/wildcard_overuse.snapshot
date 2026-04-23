@@ -1,0 +1,9 @@
+{
+  "final_verdict": "CheckVerdict.WARNING",
+  "iterations": 2,
+  "rewritten_actions": [
+    "kms:Decrypt"
+  ],
+  "rewritten_statement_count": 1,
+  "validation_result_count": 4
+}

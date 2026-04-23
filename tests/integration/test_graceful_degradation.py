@@ -320,7 +320,7 @@ class TestMissingInventory:
         """Pipeline(database=db, inventory=None) works."""
         pipeline = Pipeline(database=db, inventory=None)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         assert result.original_policy is not None
@@ -334,7 +334,7 @@ class TestMissingInventory:
             actions=["s3:GetObject"],
             resources=["*"],
         )
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         # Collect all resources from rewritten policy
         all_resources = []
@@ -355,7 +355,7 @@ class TestMissingInventory:
         """RewriteResult.assumptions mentions missing inventory."""
         pipeline = Pipeline(database=db, inventory=None)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assumptions = result.rewrite_result.assumptions
         assert len(assumptions) > 0, "Expected at least one assumption"
@@ -381,7 +381,7 @@ class TestOutdatedDatabase:
 
         pipeline = Pipeline(database=empty_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         assert result.original_policy is not None
@@ -411,7 +411,7 @@ class TestOutdatedDatabase:
         pipeline = Pipeline(database=partial_db)
         # Policy references both s3 (in DB) and lambda (not in DB)
         policy_json = _make_policy_json(actions=["s3:GetObject", "lambda:InvokeFunction"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         # s3:GetObject should be validated as TIER_1_VALID
@@ -450,7 +450,7 @@ class TestOutdatedDatabase:
         pipeline = Pipeline(database=known_db)
         # Use a completely unknown service prefix
         policy_json = _make_policy_json(actions=["s3:GetObject", "madeupservice:DoSomething"])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         # Unknown service action should be classified as TIER_3_INVALID
@@ -474,8 +474,8 @@ class TestVagueIntent:
         pipeline = Pipeline(database=db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
 
-        result_no_intent = pipeline.run(policy_json, PipelineConfig(intent=None))
-        result_empty_intent = pipeline.run(policy_json, PipelineConfig(intent=""))
+        result_no_intent = pipeline.run_text(policy_json, PipelineConfig(intent=None))
+        result_empty_intent = pipeline.run_text(policy_json, PipelineConfig(intent=""))
 
         # Both should produce valid results
         assert isinstance(result_no_intent, PipelineResult)
@@ -497,7 +497,7 @@ class TestVagueIntent:
         pipeline = Pipeline(database=db)
         policy_json = _make_policy_json(actions=["s3:GetObject", "s3:PutObject"])
         config = PipelineConfig(intent="do stuff")
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         assert isinstance(result, PipelineResult)
         assert result.original_policy is not None
@@ -511,7 +511,7 @@ class TestVagueIntent:
         policy_json = _make_policy_json(actions=["s3:GetObject", "s3:PutObject", "s3:DeleteObject"])
         # Intent says read-only, contradicting the write actions present
         config = PipelineConfig(intent="read-only s3")
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         assert isinstance(result, PipelineResult)
         assert result.original_policy is not None
@@ -534,7 +534,7 @@ class TestCorruptedInput:
         pipeline = Pipeline(database=db)
         long_action = "s3:" + "A" * 497  # 500 characters total
         policy_json = _make_policy_json(actions=["s3:GetObject", long_action])
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         assert result.original_policy is not None
@@ -560,7 +560,7 @@ class TestCorruptedInput:
             ],
         }
         policy_json = json.dumps(policy, ensure_ascii=False)
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         assert result.original_policy is not None
@@ -595,7 +595,7 @@ class TestCorruptedInput:
             resources=["arn:aws:s3:::my-bucket/*"],
             condition=nested_condition,
         )
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         assert result.original_policy is not None
@@ -658,4 +658,4 @@ class TestCorruptedDatabase:
         pipeline = Pipeline(database=bad_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
         with pytest.raises(ValidationError):
-            pipeline.run(policy_json)
+            pipeline.run_text(policy_json)

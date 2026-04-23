@@ -191,7 +191,7 @@ class TestNewServiceThroughPipeline:
                 ],
             }
         )
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         assert isinstance(result, PipelineResult)
         assert result.iterations >= 1
@@ -220,7 +220,7 @@ class TestNewServiceThroughPipeline:
             }
         )
         config = PipelineConfig(intent="invoke bedrock agent and read s3")
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
 
         assert isinstance(result, PipelineResult)
         assert result.rewritten_policy is not None
@@ -244,7 +244,7 @@ class TestNewServiceThroughPipeline:
                 ],
             }
         )
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
 
         # Both services should be processed
         assert isinstance(result, PipelineResult)

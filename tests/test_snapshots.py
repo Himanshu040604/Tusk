@@ -57,7 +57,7 @@ def _run_pipeline(fixture_path: Path, tmp_path: Path) -> dict:
     db = Database(db_path)
     pipeline = Pipeline(database=db)
     policy_json = fixture_path.read_text()
-    result = pipeline.run(policy_json)
+    result = pipeline.run_text(policy_json)
 
     # Extract only the stable, business-logic fields — skip timestamps,
     # object ids, and other transient state.

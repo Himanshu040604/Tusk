@@ -469,7 +469,7 @@ class TestLargePolicies:
         )
 
         start = time.time()
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         elapsed = time.time() - start
 
         assert elapsed < MAX_ALLOWED_SECONDS, (
@@ -646,7 +646,7 @@ class TestPipelineStress:
         )
 
         start = time.time()
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         elapsed = time.time() - start
 
         assert elapsed < MAX_ALLOWED_SECONDS, (
@@ -694,7 +694,7 @@ class TestPipelineStress:
         )
 
         start = time.time()
-        result = pipeline.run(policy_json)
+        result = pipeline.run_text(policy_json)
         elapsed = time.time() - start
 
         assert elapsed < MAX_ALLOWED_SECONDS, (
@@ -741,7 +741,7 @@ class TestPipelineStress:
         )
 
         start = time.time()
-        result = pipeline.run(policy_json, config)
+        result = pipeline.run_text(policy_json, config)
         elapsed = time.time() - start
 
         assert elapsed < MAX_ALLOWED_SECONDS, (
@@ -799,7 +799,7 @@ class TestColdStartBudget:
         # Fresh Pipeline + parse round-trip — measures cold instantiation.
         start = time.time()
         pipeline = Pipeline(database=db)
-        pipeline.run(policy_json)
+        pipeline.run_text(policy_json)
         elapsed = time.time() - start
 
         assert elapsed < self.COLD_START_BUDGET_SECONDS, (

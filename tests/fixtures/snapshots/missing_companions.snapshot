@@ -1,0 +1,15 @@
+{
+  "final_verdict": "CheckVerdict.WARNING",
+  "iterations": 2,
+  "rewritten_actions": [
+    "kms:Decrypt",
+    "logs:CreateLogGroup",
+    "logs:CreateLogStream",
+    "logs:PutLogEvents",
+    "sqs:ChangeMessageVisibility",
+    "sqs:DeleteMessage",
+    "sqs:GetQueueAttributes"
+  ],
+  "rewritten_statement_count": 3,
+  "validation_result_count": 3
+}
