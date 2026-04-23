@@ -101,7 +101,7 @@ class ClipboardFetcher:
             return None
         try:
             return pyperclip.paste()
-        except pyperclip.PyperclipException as exc:  # type: ignore[attr-defined]
+        except pyperclip.PyperclipException as exc:
             self._log.warning("pyperclip_failed", error=str(exc))
             return None
 

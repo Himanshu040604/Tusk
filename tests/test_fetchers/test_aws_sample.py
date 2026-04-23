@@ -11,12 +11,12 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-from fetchers.aws_sample import (
+from sentinel.fetchers.aws_sample import (
     AWSSampleFetcher,
     _extract_first_policy_block,
     _looks_like_policy_json,
 )
-from fetchers.base import PolicyNotFoundError
+from sentinel.fetchers.base import PolicyNotFoundError
 
 
 _VALID_POLICY = '{"Version":"2012-10-17","Statement":[{"Effect":"Allow"}]}'

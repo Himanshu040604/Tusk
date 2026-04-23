@@ -28,7 +28,7 @@ from .exit_codes import (
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from fetchers.base import FetchResult
+    from .fetchers.base import FetchResult
 
 
 def _build_http_client():
@@ -93,12 +93,12 @@ def _check_alert(result: "FetchResult") -> None:
 
 def _dispatch_fetch(args: argparse.Namespace) -> "FetchResult":
     """Route the mutually-exclusive flags to the matching fetcher."""
-    from fetchers.aws_managed import AWSManagedFetcher
-    from fetchers.aws_sample import AWSSampleFetcher
-    from fetchers.clipboard import ClipboardFetcher
-    from fetchers.cloudsplaining import CloudSplainingFetcher
-    from fetchers.github import GitHubFetcher
-    from fetchers.url import URLFetcher
+    from .fetchers.aws_managed import AWSManagedFetcher
+    from .fetchers.aws_sample import AWSSampleFetcher
+    from .fetchers.clipboard import ClipboardFetcher
+    from .fetchers.cloudsplaining import CloudSplainingFetcher
+    from .fetchers.github import GitHubFetcher
+    from .fetchers.url import URLFetcher
     from .cli import resolve_database
     from .config import get_settings
 
@@ -131,7 +131,7 @@ def _dispatch_fetch(args: argparse.Namespace) -> "FetchResult":
 
 def cmd_fetch(args: argparse.Namespace) -> int:
     """Fetch a policy from a remote source and pipe through the full pipeline."""
-    from fetchers.base import FetcherError
+    from .fetchers.base import FetcherError
     from .cli import (
         resolve_database,
         resolve_inventory,

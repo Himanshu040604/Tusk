@@ -19,8 +19,8 @@ from .exit_codes import EXIT_INVALID_ARGS, EXIT_IO_ERROR, EXIT_SUCCESS
 
 def cmd_managed(args: argparse.Namespace) -> int:
     """Dispatch to ``list`` / ``show`` / ``analyze``."""
-    from fetchers.aws_managed import AWSManagedFetcher
-    from fetchers.base import PolicyNotFoundError
+    from .fetchers.aws_managed import AWSManagedFetcher
+    from .fetchers.base import PolicyNotFoundError
     from .cli import (
         resolve_database,
         resolve_inventory,

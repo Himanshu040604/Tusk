@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 import httpx
 
-from fetchers.cloudsplaining import CloudSplainingFetcher
+from sentinel.fetchers.cloudsplaining import CloudSplainingFetcher
 from sentinel.config import Settings
 
 

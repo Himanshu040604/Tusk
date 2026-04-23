@@ -71,14 +71,16 @@ Repository = "https://github.com/IAM-Policy-Sentinel/klarna"
 Issues = "https://github.com/IAM-Policy-Sentinel/klarna/issues"
 
 # -----------------------------------------------------------------------------
-# Hatch configuration — src-layout, dynamic version, all three packages
-# listed from day 1 (H3) even though `src/fetchers/` is empty until Phase 4.
+# Hatch configuration — src-layout, dynamic version, single sentinel package.
+# Amendment 7 (2026-04-22): fetchers/ and refresh/ moved under src/sentinel/
+# as subpackages.  Previously listed as peers per § 4.2; collapsed to one
+# entry to match the nested layout.
 # -----------------------------------------------------------------------------
 [tool.hatch.version]
 path = "src/sentinel/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/sentinel", "src/refresh", "src/fetchers"]
+packages = ["src/sentinel"]
 
 [tool.hatch.build.targets.sdist]
 include = [

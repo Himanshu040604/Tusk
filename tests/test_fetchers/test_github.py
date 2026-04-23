@@ -11,8 +11,8 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-from fetchers.base import InvalidSpecError
-from fetchers.github import GitHubFetcher, _parse_spec
+from sentinel.fetchers.base import InvalidSpecError
+from sentinel.fetchers.github import GitHubFetcher, _parse_spec
 from sentinel.config import Settings
 
 

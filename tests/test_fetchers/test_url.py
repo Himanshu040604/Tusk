@@ -12,8 +12,8 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-from fetchers.url import URLFetcher
-from fetchers.base import FetchResult
+from sentinel.fetchers.url import URLFetcher
+from sentinel.fetchers.base import FetchResult
 
 
 def _make_response(

@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from fetchers.base import FetchResult, PolicyNotFoundError
-from fetchers.local import LocalFileFetcher, StdinFetcher
+from sentinel.fetchers.base import FetchResult, PolicyNotFoundError
+from sentinel.fetchers.local import LocalFileFetcher, StdinFetcher
 
 
 class TestLocalFileFetcher:

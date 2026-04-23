@@ -9,7 +9,7 @@ import base64
 
 import pytest
 
-from src.refresh.aws_examples import (
+from src.sentinel.refresh.aws_examples import (
     RepoConfig,
     NormalizedPolicy,
     BenchmarkEntry,
@@ -118,18 +118,18 @@ class TestHelperFunctions:
 class TestVerifyGhCli:
     """Tests for gh CLI verification."""
 
-    @patch("src.refresh.aws_examples.subprocess.run")
+    @patch("src.sentinel.refresh.aws_examples.subprocess.run")
     def test_gh_authenticated(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0)
         verify_gh_cli()
 
-    @patch("src.refresh.aws_examples.subprocess.run")
+    @patch("src.sentinel.refresh.aws_examples.subprocess.run")
     def test_gh_not_authenticated(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=1)
         with pytest.raises(RuntimeError, match="not authenticated"):
             verify_gh_cli()
 
-    @patch("src.refresh.aws_examples.subprocess.run", side_effect=FileNotFoundError)
+    @patch("src.sentinel.refresh.aws_examples.subprocess.run", side_effect=FileNotFoundError)
     def test_gh_not_installed(self, mock_run: MagicMock) -> None:
         with pytest.raises(RuntimeError, match="not found"):
             verify_gh_cli()
@@ -143,13 +143,13 @@ class TestVerifyGhCli:
 class TestRunGhApi:
     """Tests for the gh API wrapper."""
 
-    @patch("src.refresh.aws_examples.subprocess.run")
+    @patch("src.sentinel.refresh.aws_examples.subprocess.run")
     def test_successful_call(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout='{"key": "value"}')
         result = run_gh_api("repos/owner/repo")
         assert result == {"key": "value"}
 
-    @patch("src.refresh.aws_examples.subprocess.run")
+    @patch("src.sentinel.refresh.aws_examples.subprocess.run")
     def test_with_params(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=0, stdout='{"ok": true}')
         result = run_gh_api("endpoint", params="recursive=1")
@@ -158,12 +158,12 @@ class TestRunGhApi:
         assert "endpoint?recursive=1" in call_args[-1]
         assert result == {"ok": True}
 
-    @patch("src.refresh.aws_examples.subprocess.run")
+    @patch("src.sentinel.refresh.aws_examples.subprocess.run")
     def test_nonzero_exit(self, mock_run: MagicMock) -> None:
         mock_run.return_value = MagicMock(returncode=1, stdout="")
         assert run_gh_api("bad/endpoint") is None
 
-    @patch("src.refresh.aws_examples.subprocess.run", side_effect=OSError)
+    @patch("src.sentinel.refresh.aws_examples.subprocess.run", side_effect=OSError)
     def test_os_error(self, mock_run: MagicMock) -> None:
         assert run_gh_api("any") is None
 
@@ -176,13 +176,13 @@ class TestRunGhApi:
 class TestExampleFetcher:
     """Tests for the ExampleFetcher class."""
 
-    @patch("src.refresh.aws_examples.verify_gh_cli")
+    @patch("src.sentinel.refresh.aws_examples.verify_gh_cli")
     def test_init_calls_verify(self, mock_verify: MagicMock, tmp_path: Path) -> None:
         ExampleFetcher(tmp_path)
         mock_verify.assert_called_once()
 
-    @patch("src.refresh.aws_examples.run_gh_api")
-    @patch("src.refresh.aws_examples.verify_gh_cli")
+    @patch("src.sentinel.refresh.aws_examples.run_gh_api")
+    @patch("src.sentinel.refresh.aws_examples.verify_gh_cli")
     def test_fetch_repo_downloads_json(
         self, mock_verify: MagicMock, mock_api: MagicMock, tmp_path: Path
     ) -> None:
@@ -207,8 +207,8 @@ class TestExampleFetcher:
         data = json.loads(files[0].read_text(encoding="utf-8"))
         assert data["Version"] == "2012-10-17"
 
-    @patch("src.refresh.aws_examples.run_gh_api", return_value=None)
-    @patch("src.refresh.aws_examples.verify_gh_cli")
+    @patch("src.sentinel.refresh.aws_examples.run_gh_api", return_value=None)
+    @patch("src.sentinel.refresh.aws_examples.verify_gh_cli")
     def test_fetch_repo_handles_tree_failure(
         self, mock_verify: MagicMock, mock_api: MagicMock, tmp_path: Path
     ) -> None:
@@ -216,8 +216,8 @@ class TestExampleFetcher:
         config = RepoConfig(owner="aws", repo="bad", description="bad")
         assert fetcher._fetch_repo(config) == []
 
-    @patch("src.refresh.aws_examples.run_gh_api")
-    @patch("src.refresh.aws_examples.verify_gh_cli")
+    @patch("src.sentinel.refresh.aws_examples.run_gh_api")
+    @patch("src.sentinel.refresh.aws_examples.verify_gh_cli")
     def test_download_file_bad_base64(
         self, mock_verify: MagicMock, mock_api: MagicMock, tmp_path: Path
     ) -> None:

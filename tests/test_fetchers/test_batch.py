@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from fetchers.base import PolicyNotFoundError
-from fetchers.batch import BatchFetcher
+from sentinel.fetchers.base import PolicyNotFoundError
+from sentinel.fetchers.batch import BatchFetcher
 
 
 class TestBatchFetcher:

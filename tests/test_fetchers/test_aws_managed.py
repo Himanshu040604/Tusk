@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from fetchers.aws_managed import AWSManagedFetcher
-from fetchers.base import PolicyNotFoundError
+from sentinel.fetchers.aws_managed import AWSManagedFetcher
+from sentinel.fetchers.base import PolicyNotFoundError
 
 
 def _insert_managed_policy(

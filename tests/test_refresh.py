@@ -7,12 +7,12 @@ import pytest
 
 from src.sentinel.database import Database, Service
 
-from src.refresh.policy_sentry_loader import (
+from src.sentinel.refresh.policy_sentry_loader import (
     PolicySentryLoader,
     RefreshStats,
     ChangelogEntry,
 )
-from src.refresh.aws_docs_scraper import (
+from src.sentinel.refresh.aws_docs_scraper import (
     AwsDocsScraper,
     ServiceAuthorizationParser,
 )

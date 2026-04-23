@@ -915,8 +915,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     from .parser import PolicyParser, PolicyParserError
     from .self_check import Pipeline, PipelineConfig
     from .models import PolicyInput, PolicyOrigin
-    from fetchers.local import LocalFileFetcher, StdinFetcher
-    from fetchers.base import PolicyNotFoundError
+    from .fetchers.local import LocalFileFetcher, StdinFetcher
+    from .fetchers.base import PolicyNotFoundError
 
     # Phase 5 Task 9: batch fan-out.  When --batch is supplied, iterate
     # BatchFetcher.iter_fetch and run the pipeline per file; honour
@@ -1030,8 +1030,8 @@ def _cmd_run_batch(args: argparse.Namespace) -> int:
     otherwise every file is processed and the worst exit code is
     returned.  A per-file JSON report is written to ``-o`` when set.
     """
-    from fetchers.batch import BatchFetcher
-    from fetchers.base import PolicyNotFoundError
+    from .fetchers.batch import BatchFetcher
+    from .fetchers.base import PolicyNotFoundError
     from .models import PolicyInput
     from .self_check import Pipeline, PipelineConfig
 
@@ -1163,14 +1163,14 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     if args.dry_run:
         # Dry-run: validate data using in-memory DB (no disk writes)
         if args.source == "policy-sentry":
-            from ..refresh.policy_sentry_loader import PolicySentryLoader
+            from .refresh.policy_sentry_loader import PolicySentryLoader
 
             db = Database(Path(":memory:"))
             db.create_schema()
             loader = PolicySentryLoader(db)
             errors = loader.validate_data(data_path)
         else:
-            from ..refresh.aws_docs_scraper import AwsDocsScraper
+            from .refresh.aws_docs_scraper import AwsDocsScraper
 
             db = Database(Path(":memory:"))
             db.create_schema()
@@ -1192,7 +1192,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         return EXIT_IO_ERROR
 
     if args.source == "policy-sentry":
-        from ..refresh.policy_sentry_loader import PolicySentryLoader
+        from .refresh.policy_sentry_loader import PolicySentryLoader
 
         loader = PolicySentryLoader(db)
         if data_path.is_dir():
@@ -1200,7 +1200,7 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         else:
             stats, changelog = loader.load_from_file(data_path)
     else:
-        from ..refresh.aws_docs_scraper import AwsDocsScraper
+        from .refresh.aws_docs_scraper import AwsDocsScraper
 
         scraper = AwsDocsScraper(db)
         if data_path.is_dir():
@@ -1276,7 +1276,7 @@ def _cmd_refresh_new_source(
 
     stats: object
     if source == "managed-policies":
-        from ..refresh.aws_managed_policies import ManagedPoliciesLoader
+        from .refresh.aws_managed_policies import ManagedPoliciesLoader
 
         mp_loader = ManagedPoliciesLoader(db)
         mp_stats = (
@@ -1290,7 +1290,7 @@ def _cmd_refresh_new_source(
         )
         stats = mp_stats
     else:  # cloudsplaining
-        from ..refresh.cloudsplaining import CloudSplainingLoader
+        from .refresh.cloudsplaining import CloudSplainingLoader
 
         cs_loader = CloudSplainingLoader(db)
         cs_stats = (
@@ -1349,7 +1349,7 @@ def _refresh_live(db, source: str) -> int:
     and ingests it.  Errors per-source aggregate into the stats block.
     """
     if source == "managed-policies":
-        from ..refresh.aws_managed_policies import ManagedPoliciesLiveScraper
+        from .refresh.aws_managed_policies import ManagedPoliciesLiveScraper
 
         client = _build_live_client()
         try:
@@ -1374,7 +1374,7 @@ def _refresh_live(db, source: str) -> int:
         return EXIT_SUCCESS if not errors else EXIT_ISSUES_FOUND
 
     if source == "cloudsplaining":
-        from ..refresh.cloudsplaining import CloudSplainingLiveFetcher
+        from .refresh.cloudsplaining import CloudSplainingLiveFetcher
 
         client = _build_live_client()
         try:
@@ -1510,7 +1510,7 @@ def cmd_fetch_examples(args: argparse.Namespace) -> int:
     Returns:
         Exit code.
     """
-    from ..refresh.aws_examples import (
+    from .refresh.aws_examples import (
         ExampleFetcher,
         PolicyNormalizer,
         BenchmarkRunner,

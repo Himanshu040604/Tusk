@@ -1868,6 +1868,20 @@ This is a plan-premise correction, not a design change. No implementation impact
 
 ---
 
+### Amendment 7 — 2026-04-22: fetchers/refresh relocation (departure from § 4.2)
+
+**Decision:** move `src/fetchers/` and `src/refresh/` under `src/sentinel/` as subpackages (`src/sentinel/fetchers/`, `src/sentinel/refresh/`), departing from the peer-layout specified in § 4.2.
+
+**Rationale:** The implemented codebase contains 30 cross-package absolute imports between `fetchers`/`refresh` and `sentinel`, creating brittle coupling that surfaced as a latent runtime bug — `from ..refresh.*` imports in `src/sentinel/cli.py` crash with `ImportError: attempted relative import beyond top-level package` when `cmd_refresh` executes. The § 4.2 peer-layout was specified before the coupling was visible. Nesting both under `sentinel/` is now the canonical arrangement: single logical package, clean relative imports, one entry in pyproject.toml wheel packages.
+
+**Scope:** 30+ cross-package import rewrites (absolute + relative forms), 17+ test mock string literals, `pyproject.toml` package list.
+
+**Backwards-compat:** project is pre-PyPI; no external consumers depend on `fetchers.X` or `refresh.X` import paths.
+
+**Verification:** `rg '(from|import) (fetchers|refresh)\b'` returns zero; full test suite passes; `sentinel refresh --source policy-sentry --dry-run --data-path /tmp/x` no longer crashes with ImportError.
+
+---
+
 ## End of plan
 
 Next step: you review this document. If approved, Phase 1 begins. If anything needs changing, we amend this file before any code is written.
