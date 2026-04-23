@@ -5,6 +5,80 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-04-23
+
+Phase 7.1 completeness pass.  Post-ship review by 6 agents identified
+5 gaps in the Phase 7 fix set — this release closes all of them, adds
+4 direct regression tests for previously-untested Phase 7 fixes, and
+applies 3 cosmetic corrections.  No behaviour change for correct data
+paths; three additional silent-failure modes now fail loudly.
+
+### Fixed
+
+- **self_check.py cold-start regression (P0-3 completion).** Module-level
+  `from .constants import WRITE_PREFIXES, READ_INTENT_KEYWORDS` was
+  missed by the original P0-3 α+γ pass and was still pulling
+  `pydantic_settings` (~1.1s) on first import of `self_check.py`.
+  Moved to function-scope inside `_find_write_actions` and
+  `_check_functional_completeness` per the same pattern already applied
+  in analyzer.py/rewriter.py/formatters.py.
+- **`_validate_actions` shared DB connection (P1-8 completion).** P1-8 β
+  shared the connection in `parser.validate_policy` but left the sibling
+  self-check loop opening up to ~60 connections per 20-action policy.
+  Now wraps the loop in `with self.database.get_connection() as conn:`
+  and calls `_classify_action_with_conn(action, conn)` (helper already
+  existed).  Extracted the tier->CheckFinding builder into
+  `_append_validate_finding` so both the no-DB fallback and shared-
+  connection hot path share one body.
+- **conftest.py `try/except Exception: pass` on DB rebuild.** The shared
+  SENTINEL_DATA_DIR fixture silently swallowed rebuild failures, letting
+  the suite report 715/715 green while production was broken.  Replaced
+  with `pytest.fail(f"Shared DB rebuild failed: {exc}")` so harness
+  regressions abort loudly.
+- **HMAC root-key silent regen on key loss (silent-failure B2).**
+  `_load_or_create_root_key` would silently create a new key when the
+  file was missing or truncated, invalidating every HMAC-signed DB row
+  with zero ERROR event.  New probe `_db_has_signed_rows` scopes to the
+  key's own data_dir; if signed rows exist and the key is missing/
+  truncated, `HMACError` is raised with `rotate-key` recovery text.
+  Auto-generation still runs on a genuine first-install state.
+- **cli.main baseline seed failure → silent warn (silent-failure B3).**
+  `try: seed_all_baseline(...) except Exception as e: print("[WARN]...")`
+  let Sentinel proceed with an empty `dangerous_actions` table and zero
+  risk findings on admin-privilege policies.  Replaced with `[ERROR]`
+  output and `sys.exit(EXIT_IO_ERROR)`, matching the migration-error
+  handler above it.
+
+### Added
+
+- **Regression test: P0-2 γ mis-stamped DB abort.** Creates a Phase-1-only
+  DB, stamps it at Alembic HEAD via `command.stamp`, then asserts
+  `check_and_upgrade_all_dbs` raises `DatabaseError` with
+  "missing expected tables".
+- **Regression test: P1-4 α wizard refuses unknown intent.** Subprocess
+  invocation with bogus service+intent; asserts `EXIT_INVALID_ARGS`,
+  "Recognized intents" in output, `"service:*"` NOT in stdout.
+- **Regression test: P1-6 β `Database.is_empty` rejects injection.**
+  Real-table / unknown-table / classic SQL-injection payload probe,
+  verifies `actions` table still exists afterwards via sqlite_master.
+- **Regression test: P2-13 β HMAC perm refuse-to-load.** chmod 0o644 on
+  cache.key, asserts `HMACError` raised with `0o600` or `rotate-key`
+  in the message.  Platform-skipped on Windows.
+
+### Changed
+
+- **CHANGELOG [0.6.0]** fix count prose corrected from "Fourteen" to
+  "Sixteen" to match the 16 rows in the implementation report table.
+- **prod_imp.md § 4.2** gained a forward-reference note for Amendment 7
+  (§ 17) which relocated `fetchers/` and `refresh/` under
+  `src/sentinel/`.  Historical layout listing preserved for traceability.
+- **PEP 585 generics** — `typing.List/Dict/Set/Optional/Tuple` subscripts
+  replaced with lowercase `list/dict/set/... | None/tuple` in the 3
+  core modules (analyzer.py, rewriter.py, self_check.py).  Enforced
+  project-wide via `UP006` added to `[tool.ruff.lint].select`; auto-fix
+  rippled through constants.py, database.py, parser.py, formatters.py,
+  inventory.py, and 3 `refresh/*` modules for consistency.
+
 ## [0.6.0] - 2026-04-22
 
 Phase 7 hardening release.  Sixteen investigator-confirmed issues
