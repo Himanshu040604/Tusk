@@ -13,7 +13,12 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, List, Dict, Set, Optional, Tuple, Any
 
-from .constants import WRITE_PREFIXES, READ_INTENT_KEYWORDS
+# P0-3 α+γ completion (phase 7.1) — constants imports deferred to function
+# scope to break the cold-start chain.  Module-level
+# `from .constants import WRITE_PREFIXES, READ_INTENT_KEYWORDS` triggers
+# `_settings()` -> `get_settings()` -> pydantic_settings stack at first
+# import (~1.1s).  The same deferred pattern already applied to analyzer,
+# rewriter, and formatters in Phase 7; self_check.py was missed.
 from .parser import (
     PolicyParser,
     Policy,
@@ -466,6 +471,8 @@ class SelfCheckValidator:
         # Score component 2: Access level match with intent (weight 0.3)
         access_level_score = 1.0
         if config.intent:
+            from .constants import READ_INTENT_KEYWORDS  # P0-3 α+γ deferred (phase 7.1)
+
             intent_lower = config.intent.lower()
             is_read_only = any(
                 re.search(r"\b" + re.escape(kw) + r"\b", intent_lower)
@@ -784,6 +791,8 @@ class SelfCheckValidator:
         Returns:
             List of write action names.
         """
+        from .constants import WRITE_PREFIXES  # P0-3 α+γ deferred (phase 7.1)
+
         write_actions: List[str] = []
         for stmt in policy.statements:
             if stmt.effect != "Allow":
