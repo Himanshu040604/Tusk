@@ -28,15 +28,18 @@ from tests.conftest import make_test_db
 
 
 @pytest.fixture
-def tmp_db(tmp_path):
+def tmp_db(tmp_path, migrated_db_template):
     """Create a migrated + seeded IAM actions DB with sample actions.
 
     Task 0 migration: Pipeline wires every Phase 2 consumer
     (RiskAnalyzer, CompanionPermissionDetector, PolicyRewriter), all
     of which bulk-load from the classification tables populated by
     make_test_db.
+
+    v0.7.0 (Phase 7.3): uses ``template=migrated_db_template`` for the
+    session-scoped fast-copy path (~1ms per test vs ~200ms migration).
     """
-    db_path = make_test_db(tmp_path)
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
     db = Database(db_path)
 
     for svc in [
