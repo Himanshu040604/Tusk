@@ -29,6 +29,9 @@ from sentinel.hmac_keys import (
 )
 import sentinel.hmac_keys as hk
 
+# NOTE: xdist stability is handled by the `_reset_hmac_cache_after_test`
+# autouse fixture in conftest.py (v0.6.2).  No per-test cleanup needed here.
+
 
 # ---------------------------------------------------------------------------
 # _data_dir resolution paths

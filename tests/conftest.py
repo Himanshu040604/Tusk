@@ -303,6 +303,33 @@ def _clear_known_services_cache() -> Iterator[None]:
     _known_services.cache_clear()
 
 
+@pytest.fixture(autouse=True)
+def _reset_hmac_cache_after_test() -> Iterator[None]:
+    """v0.6.2 — Clear ``hmac_keys._root_key_cached`` after every test.
+
+    Tests that monkey-patch ``SENTINEL_DATA_DIR`` can leave a K_db
+    derived from the tmp-path cached in the process-lifetime globals
+    (``_root_key_cached``, ``_cache_sub_key``, ``_db_sub_key``).  Under
+    xdist, subsequent tests on the same worker may then try to verify
+    rows signed with the SESSION-shared K_db against that leaked
+    tmp-path K_db -- HMAC mismatch, cascading failures.
+
+    Function-scope teardown after the test unwinds guarantees the
+    next-starting test derives freshly from the live env var.  Must
+    run AFTER any monkeypatch teardown so env-var restoration has
+    happened; pytest's LIFO fixture teardown ordering handles this
+    correctly because monkeypatch is requested implicitly (earlier in
+    the resolution order).
+    """
+    yield
+    try:
+        from sentinel.hmac_keys import _reset_cache as _hk_reset
+
+        _hk_reset()
+    except ImportError:
+        pass  # Phase 1.5 compatibility.
+
+
 __all__ = [
     "make_test_db",
     "signed_db_row",

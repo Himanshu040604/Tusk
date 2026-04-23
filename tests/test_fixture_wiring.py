@@ -24,6 +24,9 @@ import pytest
 
 from tests.conftest import make_test_db, signed_db_row
 
+# NOTE: xdist stability is handled by the `_reset_hmac_cache_after_test`
+# autouse fixture in conftest.py (v0.6.2).  No per-test cleanup needed here.
+
 
 # ---------------------------------------------------------------------------
 # migrated_db_template — fast-copy path
