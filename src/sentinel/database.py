@@ -115,6 +115,38 @@ class DatabaseError(Exception):
     pass
 
 
+# P1-6 β — frozenset whitelist of known table names.  ``Database.is_empty``
+# checks membership before any SQL runs, so an attacker-controlled string
+# can never reach the interpolated SELECT path even if the caller forgets
+# the usual ``(table,)`` binding.  Keep in sync with Alembic migrations
+# 0001–0008; updates land atomically with new migration commits.
+_EXPECTED_TABLES: frozenset[str] = frozenset({
+    # Phase 1 (initial schema + Phase-1.5 tweaks)
+    "services",
+    "actions",
+    "resource_types",
+    "condition_keys",
+    "arn_condition_keys",
+    "action_condition_keys",
+    "action_resource_types",
+    "action_dependent_actions",
+    "metadata",
+    "validation_errors",
+    # Phase 2 (dynamic data tables + Task 6 HMAC + Task 7 lookup + Task 10 seeds)
+    "verb_prefixes",
+    "dangerous_actions",
+    "companion_rules",
+    "dangerous_combinations",
+    "action_resource_map",
+    "arn_templates",
+    "managed_policies",
+    # Phase 2 / inventory — lives in inventory.db, included here so the
+    # is_empty shim on inventory Database instances (if any) short-circuits
+    # cleanly rather than raising.
+    "resources",
+})
+
+
 class Database:
     """SQLite database interface for IAM actions.
 
@@ -169,12 +201,19 @@ class Database:
     def is_empty(self, table: str) -> bool:
         """Return True if ``table`` has zero rows (or does not exist).
 
-        Used by the CLI first-run seeder to decide whether to invoke
-        ``seed_all_baseline`` — subsequent runs short-circuit here
-        instead of reopening a second sqlite connection.  Treats a
-        missing table as "empty" so a pre-Alembic DB stamped at HEAD
-        without tables still triggers the seeder path (belt-and-braces;
-        migrations should have created the table before this fires).
+        P1-6 β — hardened against SQL-injection via the ``table``
+        argument.  Two-layer defense:
+
+        1. ``table`` must be in ``_EXPECTED_TABLES`` (frozenset of known
+           table names from the migration catalogue).  Unknown names
+           return True immediately, without touching SQL.
+        2. Even for whitelisted names, the table-exists probe uses a
+           parameterized ``sqlite_master`` query.  Only after
+           confirmation does the row probe interpolate — and the
+           interpolated value is ``probe[0]`` (the name SQLite itself
+           stored), not the caller's string.  Double-quoted to satisfy
+           ANSI quoting for any identifier that would otherwise be a
+           reserved word.
 
         Args:
             table: Table name to probe.  Must be a static identifier
@@ -183,14 +222,18 @@ class Database:
         Returns:
             True if the table has no rows or does not exist.
         """
+        if table not in _EXPECTED_TABLES:
+            return True
         with self.get_connection() as conn:
             probe = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                "SELECT name FROM sqlite_master WHERE type='table' AND name = ? LIMIT 1",
                 (table,),
             ).fetchone()
             if not probe:
                 return True
-            row = conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
+            # probe[0] is the SQLite-round-tripped identifier — safe to
+            # interpolate inside ANSI quotes.
+            row = conn.execute(f'SELECT 1 FROM "{probe[0]}" LIMIT 1').fetchone()
             return row is None
 
     def create_schema(self) -> None:
