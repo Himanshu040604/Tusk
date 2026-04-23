@@ -1884,6 +1884,23 @@ This is a plan-premise correction, not a design change. No implementation impact
 
 ---
 
+### Amendment 8 — 2026-04-23: Contract tightening to match § 2 fail-closed principle (v0.6.2)
+
+**Decision:** Tighten 5 silent-failure patterns to loud raises, bringing implementation into alignment with § 2 principle 4 (fail-closed).
+
+**Changes:**
+- `parser.py` (6 sites): DB-error silent demotion of validation tier now raises.
+- `config.py`: missing shipped `defaults.toml` now aborts instead of silently empty config.
+- `analyzer.py`: unguarded `re.compile` on DB-sourced patterns now converts `re.error` to `DatabaseError`.
+- `migrations.py`: `_current_revision` broad except narrowed; debug-logs the swallowed exception.
+- `net/cache.py`: `HMACError` no longer silently falls through to in-memory cache.
+
+**Rationale:** These are contract tightenings, not feature changes. The § 2 fail-closed principle was always the design intent; these 5 sites were implementation gaps from earlier phases. No documented behavior is being reversed — only previously-unintended silent fallbacks are being removed.
+
+**Version impact:** v0.6.2 (patch bump justified because no external contract is changed; only internal failure-mode cleanup).
+
+---
+
 ## End of plan
 
 Next step: you review this document. If approved, Phase 1 begins. If anything needs changing, we amend this file before any code is written.
