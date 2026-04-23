@@ -168,13 +168,26 @@ def _phase2_missing_tables(db_path: Path) -> list[str]:
     Returns ``[]`` if all expected tables are present or the DB is not the
     IAM DB (Phase-2 tables only live on iam_actions.db — inventory DB has
     its own schema).  Uses a read-only URI so no WAL interaction.
+
+    Raises:
+        DatabaseError: ``sqlite3.connect`` failed or the introspection
+            query raised (corrupt DB, I/O error, locked file).  The
+            P0-2 γ guarantee demands fail-closed on DB errors — a silent
+            ``[]`` return here would let ``verify_phase2_tables`` think
+            nothing is missing and let a broken DB proceed.
+            See phase7_2_postship_review_silent_failures.md § NEW-A.
     """
+    from .database import DatabaseError
+
     if not db_path.exists():
         return []
     try:
         conn = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
-    except sqlite3.Error:
-        return []
+    except sqlite3.Error as exc:
+        raise DatabaseError(
+            f"Could not probe Phase-2 tables in {db_path}: {exc}. "
+            f"DB may be corrupted — delete {db_path} and rerun 'sentinel info'."
+        ) from exc
     try:
         existing = {
             r[0] for r in conn.execute(
@@ -182,6 +195,11 @@ def _phase2_missing_tables(db_path: Path) -> list[str]:
             ).fetchall()
         }
         return sorted(_PHASE2_EXPECTED_TABLES - existing)
+    except sqlite3.Error as exc:
+        raise DatabaseError(
+            f"Could not probe Phase-2 tables in {db_path}: {exc}. "
+            f"DB may be corrupted — delete {db_path} and rerun 'sentinel info'."
+        ) from exc
     finally:
         conn.close()
 

@@ -390,3 +390,87 @@ def test_p2_15_intent_mapper_precompiles_once(
     # Every entry must already be a compiled regex (not a raw str).
     for pattern, _levels in compiled:
         assert isinstance(pattern, re.Pattern)
+
+
+# ---------------------------------------------------------------------------
+# v0.7.0 additions — Phase 7.3 regression tests
+# ---------------------------------------------------------------------------
+
+
+def test_phase2_missing_tables_raises_on_sqlite_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """NEW-A regression: ``_phase2_missing_tables`` must raise ``DatabaseError``
+    when ``sqlite3.connect`` fails, NOT silently return ``[]``.
+
+    The v0.6.2 post-ship silent-failure review identified this regression:
+    on ``sqlite3.Error`` the function returned ``[]``, which means
+    ``verify_phase2_tables`` saw no missing tables and proceeded — defeating
+    the P0-2 γ fail-closed guarantee for the disk-corruption case it was
+    built to catch.
+
+    Fix: raise ``DatabaseError`` with a recovery hint naming the DB path.
+    This test asserts the fail-closed behaviour so a future regression
+    that restores the silent ``[]`` return fails loudly.
+    """
+    from sentinel.migrations import _phase2_missing_tables
+    import sentinel.migrations as migrations_mod
+
+    # Seed a real file so the ``exists()`` check passes (otherwise we'd
+    # hit the early-return branch which is correct behaviour).
+    db_path = tmp_path / "corrupt.db"
+    db_path.write_bytes(b"not a valid sqlite file")
+
+    # Monkeypatch sqlite3.connect at the module level so only this call
+    # site raises — we don't want to break other tests.
+    def _raising_connect(*_args, **_kwargs):  # type: ignore[no-untyped-def]
+        raise sqlite3.OperationalError("unable to open database file (simulated)")
+
+    monkeypatch.setattr(migrations_mod.sqlite3, "connect", _raising_connect)
+
+    # The fail-closed contract: raise, don't silently return [].
+    with pytest.raises(DatabaseError, match=r"Could not probe Phase-2 tables"):
+        _phase2_missing_tables(db_path)
+
+
+def test_serial_mode_test_isolation_via_per_test_db(tmp_path: Path) -> None:
+    """Phase 7.3 regression: per-test DB isolation must hold.
+
+    The v0.6.2 post-ship review identified 11 serial-mode test failures
+    caused by cross-test HMAC-cache / shared-DB pollution.  Phase 7.3
+    restructured the test harness so every CLI-path test gets its own
+    DB via ``make_test_db(tmp_path, template=migrated_db_template)``.
+
+    This test exercises a minimal shape of that contract: two
+    ``make_test_db`` invocations in the same test-worker process produce
+    DIFFERENT files — per-test isolation holds.  A regression that
+    reintroduced shared-state (e.g., a hardcoded data-dir path) would
+    fail this test.
+    """
+    from tests.conftest import make_test_db  # type: ignore[import-not-found]
+
+    dir_a = tmp_path / "a"
+    dir_b = tmp_path / "b"
+    dir_a.mkdir()
+    dir_b.mkdir()
+
+    path_a = make_test_db(dir_a)
+    path_b = make_test_db(dir_b)
+
+    # Must be distinct files — each test gets its own sandbox.
+    assert path_a != path_b
+    assert path_a.resolve() != path_b.resolve()
+    # Both exist on disk.
+    assert path_a.is_file()
+    assert path_b.is_file()
+    # Both are readable as sqlite DBs (schema sanity).
+    for p in (path_a, path_b):
+        conn = sqlite3.connect(p)
+        try:
+            rows = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name='dangerous_actions'"
+            ).fetchall()
+        finally:
+            conn.close()
+        assert rows, f"Expected dangerous_actions table in {p}"
