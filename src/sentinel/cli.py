@@ -1666,6 +1666,13 @@ def main() -> None:
         # on first run.  Idempotent — empty-table probe skips the call on
         # every subsequent invocation.  Runs ONLY for the IAM DB; inventory
         # DB has no shipped-baseline rows.
+        #
+        # Phase 7.1 silent-failure B3: previously this swallowed any seed
+        # failure as `[WARN] Baseline seed skipped` and continued with an
+        # empty dangerous_actions table.  That composes with parser-layer
+        # silent demotions to produce fail-open: analyzer finds zero risks
+        # on admin-privilege policies because its classification tables
+        # are empty.  Abort instead.
         try:
             from .database import Database as _SeedDB
             from .seed_data import seed_all_baseline
@@ -1677,8 +1684,17 @@ def main() -> None:
                     f"[INFO] Seeded baseline classification rows: {counts}",
                     file=sys.stderr,
                 )
-        except Exception as e:  # noqa: BLE001 — seed is best-effort on first run.
-            print(f"[WARN] Baseline seed skipped: {e}", file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001 — loud abort replaces silent warn.
+            print(f"[ERROR] Baseline seed failed: {exc}", file=sys.stderr)
+            print(
+                "[ERROR] Sentinel requires seeded classification data to operate correctly.",
+                file=sys.stderr,
+            )
+            print(
+                "[ERROR] Recovery: delete data/iam_actions.db and re-run 'sentinel info'.",
+                file=sys.stderr,
+            )
+            sys.exit(EXIT_IO_ERROR)
 
     from .cli_cache import cmd_cache
     from .cli_managed import cmd_managed
