@@ -5,6 +5,70 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-04-23
+
+Phase 7.3 test-harness restructure plus one safety-critical regression
+fix.  No external contract changes; the minor bump signals the scope of
+internal test-infrastructure restructuring that retires the v0.6.1
+Deviation 2 shared-session workaround.
+
+### Fixed
+
+- **`_phase2_missing_tables` silent fail-open on sqlite3 error (NEW-A,
+  P0-2 γ regression).**  `src/sentinel/migrations.py:174-177` returned
+  `[]` on `sqlite3.Error`, which let `verify_phase2_tables` think no
+  tables were missing and let a broken DB proceed — defeating the P0-2
+  γ fail-closed guarantee for the disk-corruption case it was built to
+  catch.  Now raises `DatabaseError` with a recovery hint naming the DB
+  path.  Applies to BOTH the `sqlite3.connect` branch AND the
+  introspection-query branch.
+  Regression test: `test_phase2_missing_tables_raises_on_sqlite_error`.
+
+### Changed
+
+- **Test harness — per-test DB isolation via `migrated_db_template` fast-
+  copy (C4).**  The shared-session `SENTINEL_DATA_DIR` workaround from
+  v0.6.1 Deviation 2 is retired.  Every CLI-path test now gets its own
+  DB via `make_test_db(tmp_path, template=migrated_db_template)` — a
+  ≥1ms fast-copy from the session template instead of ~200ms migration.
+  `_sentinel_data_dir_per_worker` restores per-worker isolation as
+  originally designed in `prod_imp.md` § 12 Phase 1.5 Task 1.
+  11 test files migrated: `test_analyzer.py` (57 tests),
+  `test_rewriter.py` (45), `test_self_check.py` (48),
+  `tests/integration/test_pipeline.py` (85),
+  `test_cli.py` (11 TestCmd* tests via new `cli_db_path` fixture),
+  `test_cli_subcommands_coverage.py` (6 tests), `test_snapshots.py` (2),
+  `test_aws_examples.py` (1), `test_fetchers/test_aws_managed.py` (5).
+- **11 serial-mode test failures from v0.6.2 resolved.**  The shared-state
+  class of test bugs (DB seeded under wrong K_db, HMAC mismatch in
+  `cmd_analyze`/`cmd_rewrite`/`cmd_run`) is eliminated by construction:
+  no test writes to `data/iam_actions.db` at the repo root; each worker
+  derives K_db from its own per-worker data-dir.
+
+### Added
+
+- **Regression test for NEW-A P0-2 γ fix.**
+  `test_phase2_missing_tables_raises_on_sqlite_error` monkeypatches
+  `sqlite3.connect` to raise and asserts `DatabaseError` propagates out
+  of `_phase2_missing_tables` (not a silent `[]` return).
+- **Regression test for per-test DB isolation.**
+  `test_serial_mode_test_isolation_via_per_test_db` asserts two
+  `make_test_db` invocations produce distinct files — guards against any
+  future test reintroducing shared-state pollution.
+
+### Docs
+
+- **Amendment 9 in prod_imp.md § 17.**  Documents the retirement of
+  v0.6.1 Deviation 2 (shared-session workaround) — finishes what
+  Phase 1.5 Task 2 started.
+
+### Internal
+
+- **Template fast-copy delivers ~50% test-suite speedup.**  Full serial
+  pytest: 146s (v0.6.2) → 79s (v0.7.0).  Full parallel (`-n auto`):
+  75s (v0.6.2) → 47s (v0.7.0).  No cold-start regression (`sentinel
+  --version` still ~186ms median).
+
 ## [0.6.2] - 2026-04-23
 
 Phase 7.2 full polish sweep.  Post-ship review (5 agents covering
@@ -130,7 +194,7 @@ removed (see Amendment 8 in `prod_imp.md § 17`).
   tightening vs § 2 fail-closed principle; v0.6.2 patch bump
   justification (no external contract changes).
 
-## [0.6.1] - 2026-04-23
+## [0.6.1] - 2026-04-22
 
 Phase 7.1 completeness pass.  Post-ship review by 6 agents identified
 5 gaps in the Phase 7 fix set — this release closes all of them, adds

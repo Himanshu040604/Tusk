@@ -1901,6 +1901,27 @@ This is a plan-premise correction, not a design change. No implementation impact
 
 ---
 
+### Amendment 9 — 2026-04-23: Retirement of v0.6.1 Deviation 2 (test harness restructure, v0.7.0)
+
+**Decision:** Retire the shared-session `SENTINEL_DATA_DIR` workaround introduced in v0.6.1 (Deviation 2). Restore per-worker data-dir isolation as originally designed in § 12 Phase 1.5 Task 1.
+
+**Rationale:** The shared-session workaround was introduced because pre-v0.6.2 tests relied on a shared `data/iam_actions.db` which polluted across xdist workers (HMAC mismatch when different workers derived different K_db from different data dirs). With `migrated_db_template` fast-copy now adopted in all CLI-path tests, each test gets its own DB + key — no sharing required. The workaround is strictly less safe than the original per-worker design and created a new class of serial-mode test failures (11 tests failing in v0.6.2 serial-mode runs because shared-state pollution could not be prevented even with the `_reset_hmac_cache_after_test` autouse).
+
+**Changes:**
+- `tests/conftest.py` `_sentinel_data_dir_per_worker`: per-worker `tmp_path_factory.mktemp(f"sentinel-{worker_id}")` per the original § 12 Phase 1.5 Task 1 design. Removes the session-scope `check_and_upgrade_all_dbs(data/iam_actions.db, None) + seed_all_baseline(...)` pair that rebuilt the shared repo-root DB.
+- `tests/conftest.py` `make_test_db`: docstring now documents the callsite inventory (19 callsites across 10 files) and the adoption sweep target.
+- 10 test files migrated to pass `template=migrated_db_template` at `make_test_db()` callsites, covering all CLI-path test fixtures.
+- `tests/test_cli.py` gains a `cli_db_path` fixture that provides a per-test template-backed DB path for `cmd_run` / `cmd_analyze` / `cmd_rewrite` invocations; 9 previously-`database=None` tests now explicitly pass this path.
+- `src/sentinel/migrations.py` `_phase2_missing_tables`: raises `DatabaseError` on `sqlite3.Error` instead of silently returning `[]` (P0-2 γ regression fix; NEW-A from phase7_2_postship_review_silent_failures.md).
+
+**Net effect:** 11 serial-mode test failures in v0.6.2 resolved. Closes Architect Concern C4 from the v0.6.2 post-ship review. Full test suite wall time drops ~50% (146s → 79s serial; 75s → 47s parallel) because the template fast-copy path eliminates per-test migration cost.
+
+**No plan-design changes** — this finishes what Phase 1.5 Task 2 started.
+
+**Version impact:** v0.7.0 (minor bump signals the scope of internal test-infrastructure restructuring; no external contract changes).
+
+---
+
 ## End of plan
 
 Next step: you review this document. If approved, Phase 1 begins. If anything needs changing, we amend this file before any code is written.
