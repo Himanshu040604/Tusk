@@ -28,16 +28,20 @@ Key behaviors:
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import sqlite3
 import sys
 from pathlib import Path
 
+import sqlalchemy.exc
 from alembic import command
 from alembic.config import Config
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
+
+logger = logging.getLogger(__name__)
 
 # 60s per § 6.3.  Exposed for test monkeypatching.
 FILELOCK_TIMEOUT_SECONDS = 60
@@ -98,13 +102,22 @@ def _current_revision(db_path: Path) -> str | None:
     url = f"sqlite:///file:{db_path.resolve()}?mode=ro&uri=true"
     try:
         engine = create_engine(url)
-    except Exception:
+    except (OSError, sqlalchemy.exc.OperationalError) as exc:
+        # Narrow per Architect Concern 2 (v0.6.2): engine-creation failure
+        # (DB absent or OS-level I/O) should not mask other runtime errors.
+        logger.debug("_current_revision: create_engine failed for %s: %s", db_path, exc)
         return None
     try:
         with engine.connect() as conn:
             ctx = MigrationContext.configure(conn)
             return ctx.get_current_revision()
-    except Exception:
+    except (sqlalchemy.exc.OperationalError, sqlalchemy.exc.DatabaseError) as exc:
+        # Narrow per Architect Concern 2 (v0.6.2): MigrationContext.configure /
+        # get_current_revision failure is logged so operators have forensic
+        # signal instead of silently returning None.
+        logger.debug(
+            "_current_revision: failed to query revision for %s: %s", db_path, exc
+        )
         return None
     finally:
         engine.dispose()
