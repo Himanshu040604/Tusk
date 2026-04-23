@@ -385,7 +385,11 @@ def _shipped_defaults_path() -> Path:
     """Locate ``defaults.toml`` bundled with the package.
 
     Walks up from this file's location; works for both editable installs
-    (``uv sync``) and wheel installs.
+    (``uv sync``) and wheel installs.  Returns the first existing file,
+    or the repo-root candidate (non-existent) so the caller can raise
+    :class:`ConfigError` with a remediation hint.  A missing shipped
+    ``defaults.toml`` is a broken install, not a soft-fallback case —
+    see § 2 fail-closed principle.
     """
     here = Path(__file__).resolve()
     # src/sentinel/config.py -> project root is three parents up
@@ -396,7 +400,7 @@ def _shipped_defaults_path() -> Path:
     alt = here.parent / "defaults.toml"
     if alt.is_file():
         return alt
-    return candidate  # return missing path — caller handles gracefully
+    return candidate  # return missing path — caller raises ConfigError
 
 
 def _system_config_path() -> Path:
@@ -491,10 +495,18 @@ def load_settings(
     :func:`warn_if_skip_migrations_env` path invoked from the CLI main.
     """
     # Layer 1 — shipped defaults.
+    # Fail-closed (§ 2 principle 4): a missing shipped defaults.toml indicates
+    # a broken package installation, not a soft-fallback case.  Distinguish
+    # this from user-config absence (layers 2-4), which is legitimate.
     merged: dict[str, Any] = {}
     shipped = _shipped_defaults_path()
-    if shipped.is_file():
-        merged = _deep_merge(merged, load_toml_with_ephemeral_guard(shipped))
+    if not shipped.is_file():
+        raise ConfigError(
+            "ConfigError: Shipped defaults.toml is missing at "
+            f"{shipped} — package installation is broken. "
+            "Reinstall via 'uv sync' (editable) or reinstall the wheel."
+        )
+    merged = _deep_merge(merged, load_toml_with_ephemeral_guard(shipped))
 
     # Layers 2-4 — system, user, project-local (guarded for ephemeral keys).
     for path in (_system_config_path(), _user_config_path(), _project_local_path()):
