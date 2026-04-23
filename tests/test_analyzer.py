@@ -22,15 +22,18 @@ from tests.conftest import make_test_db
 
 
 @pytest.fixture
-def database(tmp_path):
+def database(tmp_path, migrated_db_template):
     """Create migrated + seeded database with sample actions.
 
     Task 0 migration: uses ``make_test_db`` so the Phase 2
     classification tables (``dangerous_actions`` / ``companion_rules``)
     exist and are populated with shipped baseline rows — required
     after Task 8 deletes the class-constant fallbacks.
+
+    v0.7.0 (Phase 7.3): uses ``template=migrated_db_template`` for the
+    session-scoped fast-copy path (~1ms per test vs ~200ms migration).
     """
-    db_path = make_test_db(tmp_path)
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
     db = Database(db_path)
 
     # Add sample services
