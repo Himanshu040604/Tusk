@@ -684,7 +684,18 @@ class TestResolveInventory:
 class TestCmdAnalyze:
     """Test the analyze subcommand handler."""
 
-    def test_analyze_returns_success_for_safe_policy(self, tmp_policy_file: Path):
+    def test_analyze_policy_with_exfil_risk_exits_issues_found(
+        self, tmp_policy_file: Path
+    ):
+        """v0.6.2 split (was `test_analyze_returns_success_for_safe_policy`):
+        strict assertion that s3:GetObject is classified as MEDIUM
+        data_exfiltration and therefore returns EXIT_ISSUES_FOUND.
+
+        The shipped tmp_policy_file fixture contains `s3:GetObject` which
+        is a seeded exfiltration classification -- a rewrite that broke
+        this classification would silently pass under the old
+        `code in (SUCCESS, ISSUES_FOUND)` widened assertion.
+        """
         args = Namespace(
             policy_file=str(tmp_policy_file),
             database=None,
@@ -695,9 +706,47 @@ class TestCmdAnalyze:
             intent=None,
         )
         code = cmd_analyze(args)
-        # P0-1 α: with seeded DB active, s3:GetObject is MEDIUM data_exfiltration.
-        # Accept EXIT_SUCCESS (empty DB) or EXIT_ISSUES_FOUND (seeded MEDIUM).
-        assert code in (EXIT_SUCCESS, EXIT_ISSUES_FOUND)
+        assert code == EXIT_ISSUES_FOUND, (
+            f"Expected EXIT_ISSUES_FOUND ({EXIT_ISSUES_FOUND}) from "
+            f"s3:GetObject exfil classification; got {code}."
+        )
+
+    def test_analyze_truly_safe_policy_exits_success(self, tmp_path: Path):
+        """v0.6.2 split: a policy containing only a List-tier action with
+        no exfil/destruction/escalation classification must return
+        EXIT_SUCCESS strictly.
+        """
+        # s3:ListBucket is a List-tier action, not a seeded dangerous
+        # classification, and thus must not produce any findings.
+        safe = tmp_path / "safe_policy.json"
+        safe.write_text(
+            json.dumps(
+                {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Action": "s3:ListBucket",
+                            "Resource": "arn:aws:s3:::my-bucket",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        args = Namespace(
+            policy_file=str(safe),
+            database=None,
+            inventory=None,
+            output_format="text",
+            output=None,
+            input_format="auto",
+            intent=None,
+        )
+        code = cmd_analyze(args)
+        assert code == EXIT_SUCCESS, (
+            f"Expected EXIT_SUCCESS ({EXIT_SUCCESS}) for safe policy; got {code}."
+        )
 
     def test_analyze_wildcard_returns_issues(self, tmp_wildcard_policy: Path):
         args = Namespace(
