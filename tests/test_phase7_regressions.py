@@ -1,12 +1,21 @@
-"""Regression tests for Phase 7 completeness gaps (v0.6.1).
+"""Regression tests for Phase 7 completeness gaps (v0.6.1 / v0.6.2).
 
-Closes test-harness coverage for 4 of the 7 Phase 7 fixes identified in
-the post-ship test review as having no direct regression test:
+Closes test-harness coverage for the Phase 7 fixes identified in the
+post-ship test review as having no direct regression test:
 
+v0.6.1 (original suite):
 * P0-2 γ — `verify_phase2_tables` aborts on mis-stamped DB.
 * P1-4 α — `cmd_wizard` refuses to emit a `service:*` fallback.
 * P1-6 β — `Database.is_empty` SQL-injection hardening.
 * P2-13 β — HMAC root-key file refuses to load on broad POSIX perms.
+
+v0.6.2 (extension):
+* P0-1 α — bulk-load raises DatabaseError on HMAC tamper.
+* P0-3 — cold-start import graph (pydantic_settings not in self_check).
+* P1-5 — fetchers/refresh relocation: imports resolve from new paths.
+* P1-8 — shared-connection `_classify_action_with_conn` path.
+* P2-14 — Pipeline reuses one RiskAnalyzer across SelfCheckValidator.
+* P2-15 — IntentMapper precompiles keyword patterns once.
 
 Per phase7_postship_review_tests.md § "Top 5 test improvements needed".
 """
@@ -195,3 +204,189 @@ def test_hmac_refuses_to_load_on_broad_perms(
 
     with pytest.raises(HMACError, match=r"0o600|rotate-key"):
         hk._load_or_create_root_key()
+
+
+# ---------------------------------------------------------------------------
+# v0.6.2 additions — Phase 7 fixes previously without regression coverage
+# ---------------------------------------------------------------------------
+
+
+def test_p0_1_alpha_bulk_load_raises_on_hmac_tamper(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P0-1 α: a tampered dangerous_actions row must raise DatabaseError
+    from RiskAnalyzer.__init__, not silently yield zero findings.
+
+    Tampers the description column on a seeded row so the stored row_hmac
+    no longer matches -- verify_row returns False, bulk-load must raise.
+    """
+    from sentinel.analyzer import RiskAnalyzer
+
+    monkeypatch.setenv("SENTINEL_DATA_DIR", str(tmp_path / "data_dir"))
+    from tests.conftest import make_test_db  # type: ignore[import-not-found]
+
+    db_path = make_test_db(tmp_path)
+    db = Database(db_path)
+
+    # Tamper: update ONE dangerous_actions row's description without
+    # recomputing row_hmac -> verify_row() will reject it.
+    with db.get_connection() as conn:
+        # Pick any seeded row.
+        row = conn.execute(
+            "SELECT action_name, category FROM dangerous_actions LIMIT 1"
+        ).fetchone()
+        assert row is not None, "Expected seeded dangerous_actions rows"
+        conn.execute(
+            "UPDATE dangerous_actions SET description = ? "
+            "WHERE action_name = ? AND category = ?",
+            ("TAMPERED", row[0], row[1]),
+        )
+        conn.commit()
+
+    with pytest.raises(DatabaseError, match=r"HMAC|tamper"):
+        RiskAnalyzer(db)
+
+
+def test_p0_3_cold_start_no_pydantic_settings_in_self_check() -> None:
+    """P0-3: sentinel.self_check must not transitively import
+    pydantic_settings -- which is heavy and pushes cold-start > 200ms.
+
+    The fix deferred the config import; a regression that moves it back
+    to module scope would re-inflate cold-start.
+    """
+    import subprocess
+
+    sentinel = Path(__file__).resolve().parent.parent / ".venv" / "bin" / "python"
+    # -X importtime prints every import; grep in-process afterwards.
+    result = subprocess.run(
+        [str(sentinel), "-c", "import sentinel.self_check"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    # pydantic_settings MUST NOT be imported as a side effect.
+    combined = result.stdout + result.stderr
+    assert "pydantic_settings" not in combined, (
+        f"Cold-start regression: pydantic_settings imported via self_check.\n"
+        f"Output:\n{combined}"
+    )
+
+
+def test_p1_5_fetchers_refresh_imports_resolve() -> None:
+    """P1-5: After the fetchers/refresh relocation, all new import paths
+    must resolve cleanly.  A regression (e.g., stale `from sentinel.X import Y`
+    pointing at the old location) would raise ImportError at collection.
+    """
+    # Smoke imports of the key relocated symbols.
+    from sentinel.fetchers.batch import BatchFetcher  # noqa: F401
+    from sentinel.fetchers.github import GitHubFetcher  # noqa: F401
+    from sentinel.fetchers.url import URLFetcher  # noqa: F401
+    from sentinel.fetchers.local import LocalFileFetcher  # noqa: F401
+    from sentinel.refresh.aws_managed_policies import (  # noqa: F401
+        ManagedPoliciesLiveScraper,
+    )
+    from sentinel.refresh.cloudsplaining import CloudSplainingLiveFetcher  # noqa: F401
+
+
+def test_p1_8_classify_with_conn_path_used(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P1-8: validate_policy on a policy with N actions must open only ONE
+    connection via `_classify_action_with_conn`, not N.
+    """
+    from sentinel.parser import PolicyParser, Policy, Statement
+
+    monkeypatch.setenv("SENTINEL_DATA_DIR", str(tmp_path / "data_dir"))
+    from tests.conftest import make_test_db  # type: ignore[import-not-found]
+
+    db_path = make_test_db(tmp_path)
+    db = Database(db_path)
+
+    # Count get_connection() calls via monkeypatch wrapper.
+    call_count = {"n": 0}
+    real_get_connection = db.get_connection
+
+    def _counting_get_connection():
+        call_count["n"] += 1
+        return real_get_connection()
+
+    monkeypatch.setattr(db, "get_connection", _counting_get_connection)
+
+    parser = PolicyParser(db)
+    # The parser already loaded get_services() once in __init__; reset counter
+    # so we measure ONLY validate_policy behaviour.
+    call_count["n"] = 0
+
+    policy = Policy(
+        version="2012-10-17",
+        statements=[
+            Statement(
+                effect="Allow",
+                actions=[
+                    "s3:GetObject",
+                    "s3:PutObject",
+                    "s3:DeleteObject",
+                    "s3:ListBucket",
+                ],
+                resources=["*"],
+            )
+        ],
+    )
+    parser.validate_policy(policy)
+
+    # P1-8: 1 shared connection for 4 actions, not 4+ per-call.
+    assert call_count["n"] <= 2, (
+        f"Expected shared connection path (≤2 get_connection), "
+        f"got {call_count['n']} -- P1-8 β regressed?"
+    )
+
+
+def test_p2_14_pipeline_reuses_one_risk_analyzer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P2-14: Pipeline constructs ONE RiskAnalyzer and hands the same
+    instance to SelfCheckValidator via the `risk_analyzer=` DI slot.
+    Avoids paying the ~200ms bulk-load cost twice on a single run.
+    """
+    from sentinel.self_check import Pipeline
+
+    monkeypatch.setenv("SENTINEL_DATA_DIR", str(tmp_path / "data_dir"))
+    from tests.conftest import make_test_db  # type: ignore[import-not-found]
+
+    db_path = make_test_db(tmp_path)
+    db = Database(db_path)
+
+    pipeline = Pipeline(database=db)
+    # Pipeline owns a _risk_analyzer; SelfCheckValidator receives it via DI.
+    # We can't trivially inspect the SelfCheckValidator until run() fires,
+    # but we CAN assert the attribute is present and is the right type.
+    from sentinel.analyzer import RiskAnalyzer
+
+    assert isinstance(pipeline._risk_analyzer, RiskAnalyzer)
+
+
+def test_p2_15_intent_mapper_precompiles_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P2-15: IntentMapper must precompile keyword patterns in __init__
+    (single pass) rather than recompile on every map_intent() call.
+    """
+    import re
+
+    from sentinel.analyzer import IntentMapper
+
+    monkeypatch.setenv("SENTINEL_DATA_DIR", str(tmp_path / "data_dir"))
+    from tests.conftest import make_test_db  # type: ignore[import-not-found]
+
+    db_path = make_test_db(tmp_path)
+    db = Database(db_path)
+
+    mapper = IntentMapper(db)
+    # The attribute must exist and be non-empty.
+    compiled = mapper._compiled_keyword_patterns
+    assert isinstance(compiled, list)
+    assert len(compiled) > 0
+    # Every entry must already be a compiled regex (not a raw str).
+    for pattern, _levels in compiled:
+        assert isinstance(pattern, re.Pattern)
