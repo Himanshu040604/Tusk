@@ -175,6 +175,30 @@ def make_test_db(
        and ``RiskAnalyzer`` / ``CompanionPermissionDetector`` only
        find content via the DB.
 
+    **v0.7.0 (Phase 7.3) — template= adoption sweep**
+
+    Callsite inventory (audit performed 2026-04-23, see
+    phase7_3_implementation_report.md):
+
+    | File | Count | Uses template= | Rationale |
+    |------|-------|----------------|-----------|
+    | test_rewriter.py | 1 | YES (via tmp_db fixture) | CLI-path — fast-copy |
+    | test_analyzer.py | 2 | 1 YES / 1 (fixture) YES | CLI-path — fast-copy |
+    | test_self_check.py | 1 | YES | CLI-path — fast-copy |
+    | test_aws_examples.py | 1 | YES | CLI-path — fast-copy |
+    | test_cli_subcommands_coverage.py | 4 | YES | CLI-path — fast-copy |
+    | test_snapshots.py | 1 | YES | CLI-path — fast-copy |
+    | test_fetchers/test_aws_managed.py | 1 | YES | CLI-path — fast-copy |
+    | test_phase7_regressions.py | 4 | YES | Regression tests — fast-copy |
+    | integration/test_pipeline.py | 1 | YES | Integration — fast-copy |
+    | test_fixture_wiring.py | 3 | Mixed (tests the helper) | Helper test |
+
+    All non-migration-testing callsites now pass ``template=``.
+    Migration-specific tests (``test_migrations_coverage.py``,
+    ``test_alembic_drift.py``, ``test_alembic_roundtrip.py``) do NOT
+    use ``make_test_db`` at all — they call ``check_and_upgrade_all_dbs``
+    directly to exercise the migration path itself.
+
     Args:
         tmp_path: per-test temp directory (pytest ``tmp_path`` fixture).
         seed: If False, skip ``seed_all_baseline`` — for tests that
