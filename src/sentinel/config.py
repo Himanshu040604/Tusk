@@ -536,7 +536,17 @@ def load_settings(
             if prof.get(field):
                 merged[field] = prof[field]
         if prof.get("max_retries") is not None:
+            # P2-9 α — fan max_retries out to all 3 budget keys that
+            # RetryPolicy.from_settings actually reads.  Previously the
+            # value landed only in defaults.max_retries which no runtime
+            # path consults, so users setting `max_retries = 5` in their
+            # profile saw their network calls still retry 3× by default.
+            # Keep defaults.max_retries for backwards compat (any code
+            # reading Settings.defaults.max_retries directly still sees
+            # the profile value).
             _set_dotted(merged, "defaults.max_retries", prof["max_retries"])
+            for source in ("github", "aws_docs", "user_url"):
+                _set_dotted(merged, f"retries.budgets.{source}", prof["max_retries"])
         if prof.get("fail_fast") is not None:
             _set_dotted(merged, "pipeline.fail_fast", prof["fail_fast"])
         if prof.get("security_critical_services") is not None:
