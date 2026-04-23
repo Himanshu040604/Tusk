@@ -29,6 +29,16 @@ from pathlib import Path
 _ROOT_KEY_FILENAME = "cache.key"
 _ROOT_KEY_SIZE = 32  # 256 bits.
 
+
+class HMACError(Exception):
+    """Raised on HMAC key load/sign failures.
+
+    Dedicated exception class (not OSError/ValueError) so callers can
+    discriminate: a broad-perms refuse-to-load at startup requires a
+    rotate-key recovery, while an OSError on the key file means the FS
+    is read-only (graceful in-memory degradation path).
+    """
+
 # Domain-separation labels.  "sentinel-v1/..." versions the KDF contract —
 # bump the v1 prefix if the scheme ever changes (e.g., HKDF upgrade).
 _LABEL_CACHE = b"sentinel-v1/cache"
@@ -83,6 +93,20 @@ def _load_or_create_root_key() -> bytes:
     key_path = data_dir / _ROOT_KEY_FILENAME
 
     if key_path.exists():
+        # P2-13 β — refuse to load on broad POSIX perms.  If the key file
+        # was copied out, chmod'd world-readable, or written by a prior
+        # run on a filesystem that silently dropped chmod (then later
+        # migrated to a proper POSIX fs), treat it as compromised.
+        # Windows-carve-out matches the _write_key precedent — chmod may
+        # silently no-op on non-POSIX filesystems so perm bits aren't a
+        # security signal there.
+        if sys.platform != "win32":
+            mode = key_path.stat().st_mode & 0o777
+            if mode & 0o077:
+                raise HMACError(
+                    f"Key file {key_path} has mode {oct(mode)}; must be 0o600. "
+                    f"Run 'sentinel cache rotate-key' to regenerate."
+                )
         key = key_path.read_bytes()
         if len(key) != _ROOT_KEY_SIZE:
             # Truncated / corrupted file: regenerate.  Log via stderr so
