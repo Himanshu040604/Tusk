@@ -78,12 +78,12 @@ def configure(
             structlog.contextvars.merge_contextvars,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
-            redact_event_dict,
-            _pick_renderer(fmt),
+            redact_event_dict,  # type: ignore[list-item]
+            _pick_renderer(fmt),  # type: ignore[list-item]
         ],
         wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, level, logging.INFO)),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(file=stream),
+        logger_factory=structlog.PrintLoggerFactory(file=stream),  # type: ignore[arg-type]
         # H23: False during Phase 1 so reconfigure actually reshapes bound
         # loggers.  May flip to True in Phase 6 once init is stable.
         cache_logger_on_first_use=False,

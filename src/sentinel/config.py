@@ -349,7 +349,7 @@ class Settings(BaseSettings):
     )
 
     @classmethod
-    def settings_customise_sources(  # type: ignore[override]
+    def settings_customise_sources(
         cls,
         settings_cls: type[BaseSettings],
         init_settings: PydanticBaseSettingsSource,

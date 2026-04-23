@@ -71,7 +71,7 @@ def _cmd_show(args: argparse.Namespace) -> int:
     from .config import get_settings
 
     try:
-        import tomli_w  # type: ignore[import-not-found]
+        import tomli_w
     except ImportError:
         print("Error: tomli-w is required for `config show`. Run `uv sync`.", file=sys.stderr)
         return EXIT_IO_ERROR

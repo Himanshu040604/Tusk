@@ -58,7 +58,7 @@ def _run_pipeline_on_file(path: Path) -> int:
 def cmd_watch(args: argparse.Namespace) -> int:
     """Watch a file or directory and re-run the pipeline on every change."""
     try:
-        from watchfiles import watch  # type: ignore[import-not-found]
+        from watchfiles import watch
     except ImportError:
         print("Error: watchfiles not installed. Run `uv sync`.", file=sys.stderr)
         return EXIT_IO_ERROR

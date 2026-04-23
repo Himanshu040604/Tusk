@@ -23,6 +23,7 @@ import os
 import secrets
 import stat
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 _ROOT_KEY_FILENAME = "cache.key"
@@ -134,7 +135,7 @@ def derive_db_row_key() -> bytes:
     return _db_sub_key
 
 
-def sign_row(table: str, pk: tuple[str, ...], columns: dict[str, object]) -> str:
+def sign_row(table: str, pk: tuple[str, ...], columns: Mapping[str, object]) -> str:
     """Compute the HMAC-SHA256 hex digest for a DB row.
 
     Binds the table name + primary-key tuple + all signed columns so an
@@ -172,7 +173,7 @@ def sign_row(table: str, pk: tuple[str, ...], columns: dict[str, object]) -> str
 def verify_row(
     table: str,
     pk: tuple[str, ...],
-    columns: dict[str, object],
+    columns: Mapping[str, object],
     expected_hmac: str,
 ) -> bool:
     """Constant-time verify a row's HMAC.  False on any mismatch or error."""

@@ -7,7 +7,7 @@ IAM actions, services, resource types, and condition keys.
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Iterator
 from contextlib import contextmanager
 
 from .constants import SCHEMA_VERSION
@@ -136,7 +136,7 @@ class Database:
         self.read_only = read_only
 
     @contextmanager
-    def get_connection(self) -> sqlite3.Connection:
+    def get_connection(self) -> Iterator[sqlite3.Connection]:
         """Get database connection as context manager.
 
         Yields:
@@ -606,6 +606,8 @@ class Database:
                     action.is_tagging_only,
                 ),
             )
+            # lastrowid is int for AUTOINCREMENT INSERTs; narrow from int|None.
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
     def get_action(self, service_prefix: str, action_name: str) -> Action | None:

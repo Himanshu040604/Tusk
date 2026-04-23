@@ -189,7 +189,9 @@ def _validate_literal_or_hostname(host: str) -> list[str]:
 
     resolved: list[str] = []
     for family, _type, _proto, _canon, sockaddr in infos:
-        addr_str = sockaddr[0]
+        # sockaddr[0] is str for AF_INET/AF_INET6; the union type hint is
+        # overly broad.  Narrow explicitly.
+        addr_str = str(sockaddr[0])
         if family == socket.AF_INET:
             block_private_ipv4(addr_str)
         elif family == socket.AF_INET6:

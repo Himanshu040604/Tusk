@@ -177,7 +177,7 @@ def _upgrade_single_db(
 ) -> None:
     """Run the full upgrade flow for a single DB (acquires filelock)."""
     # Import filelock lazily — keeps module import cheap for `sentinel --version`.
-    from filelock import FileLock, Timeout as FileLockTimeout  # type: ignore[import-not-found]
+    from filelock import FileLock, Timeout as FileLockTimeout
 
     lock_path = db_path.with_suffix(db_path.suffix + ".migrate.lock")
     lock = FileLock(str(lock_path), timeout=FILELOCK_TIMEOUT_SECONDS)

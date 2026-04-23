@@ -11,10 +11,16 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING
+
 from .constants import (
     DEFAULT_DB_PATH,
     DEFAULT_INVENTORY_PATH,
 )
+
+if TYPE_CHECKING:  # pragma: no cover
+    from .database import Database
+    from .inventory import ResourceInventory
 from .exit_codes import (
     EXIT_SUCCESS,
     EXIT_ISSUES_FOUND,
@@ -1268,30 +1274,36 @@ def _cmd_refresh_new_source(
         print(f"Error: Data path not found: {data_path}", file=sys.stderr)
         return EXIT_IO_ERROR
 
+    stats: object
     if source == "managed-policies":
         from ..refresh.aws_managed_policies import ManagedPoliciesLoader
 
-        loader = ManagedPoliciesLoader(db)
-        stats = (
-            loader.load_from_directory(data_path)
+        mp_loader = ManagedPoliciesLoader(db)
+        mp_stats = (
+            mp_loader.load_from_directory(data_path)
             if data_path.is_dir()
-            else loader.load_from_file(data_path)
+            else mp_loader.load_from_file(data_path)
         )
-        print(f"Refresh complete: {stats.policies_added} added, {stats.policies_updated} updated.")
+        print(
+            f"Refresh complete: {mp_stats.policies_added} added, "
+            f"{mp_stats.policies_updated} updated."
+        )
+        stats = mp_stats
     else:  # cloudsplaining
         from ..refresh.cloudsplaining import CloudSplainingLoader
 
-        loader = CloudSplainingLoader(db)
-        stats = (
-            loader.load_from_directory(data_path)
+        cs_loader = CloudSplainingLoader(db)
+        cs_stats = (
+            cs_loader.load_from_directory(data_path)
             if data_path.is_dir()
-            else loader.load_from_file(data_path)
+            else cs_loader.load_from_file(data_path)
         )
         print(
-            f"Refresh complete: {stats.actions_added} dangerous actions, "
-            f"{stats.combinations_added} combinations, "
-            f"{stats.skipped} skipped."
+            f"Refresh complete: {cs_stats.actions_added} dangerous actions, "
+            f"{cs_stats.combinations_added} combinations, "
+            f"{cs_stats.skipped} skipped."
         )
+        stats = cs_stats
     for err in stats.errors:
         print(f"[WARN] {err}", file=sys.stderr)
     return EXIT_SUCCESS
@@ -1631,7 +1643,7 @@ def main() -> None:
     # DB (`config path` — opt-in skip list).  Runs AFTER argparse, BEFORE
     # subcommand dispatch so every DB-touching handler sees a migrated
     # schema.  Honors --skip-migrations and SENTINEL_SKIP_MIGRATIONS=1.
-    _MIGRATION_SKIP_COMMANDS = frozenset()  # reserved for `config path` etc.
+    _MIGRATION_SKIP_COMMANDS: frozenset[str] = frozenset()  # reserved for `config path` etc.
     if args.command not in _MIGRATION_SKIP_COMMANDS:
         try:
             from .migrations import check_and_upgrade_all_dbs

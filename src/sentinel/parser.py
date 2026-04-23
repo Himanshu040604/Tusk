@@ -395,8 +395,8 @@ class PolicyParser:
             raise PolicyParserError(f"Invalid Effect: {effect}")
 
         # Get actions (Action or NotAction)
-        actions = []
-        not_actions = None
+        actions: list[str] = []
+        not_actions: list[str] | None = None
 
         if "Action" in stmt:
             action_data = stmt["Action"]
@@ -418,8 +418,8 @@ class PolicyParser:
             raise PolicyParserError("Statement missing 'Action' or 'NotAction'")
 
         # Get resources (Resource or NotResource)
-        resources = []
-        not_resources = None
+        resources: list[str] = []
+        not_resources: list[str] | None = None
 
         if "Resource" in stmt:
             resource_data = stmt["Resource"]

@@ -41,11 +41,12 @@ def _build_cache() -> DiskCache:
 
 
 def _human_bytes(n: int) -> str:
+    size: float = float(n)
     for unit in ("B", "KiB", "MiB", "GiB"):
-        if n < 1024:
-            return f"{n:.1f} {unit}"
-        n /= 1024
-    return f"{n:.1f} TiB"
+        if size < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TiB"
 
 
 def cmd_cache(args: argparse.Namespace) -> int:

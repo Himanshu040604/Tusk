@@ -144,7 +144,7 @@ class RetryPolicy:
         """
         attempts = self.budget_for(source)
 
-        def _wait(retry_state):  # type: ignore[no-untyped-def]
+        def _wait(retry_state):
             if retry_after_hook is not None:
                 hinted = retry_after_hook()
                 if hinted is not None:

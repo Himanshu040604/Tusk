@@ -1165,7 +1165,7 @@ class HITLSystem:
         """
         return self.decisions.copy()
 
-    def get_approval_stats(self) -> Dict[str, int]:
+    def get_approval_stats(self) -> Dict[str, float]:
         """Get approval statistics.
 
         Returns:

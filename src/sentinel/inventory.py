@@ -7,7 +7,7 @@ for policy validation.
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Iterator
 from contextlib import contextmanager
 
 from .constants import DEFAULT_ACCOUNT_ID, DEFAULT_REGION, SCHEMA_VERSION
@@ -72,7 +72,7 @@ class ResourceInventory:
         self.read_only = read_only
 
     @contextmanager
-    def get_connection(self) -> sqlite3.Connection:
+    def get_connection(self) -> Iterator[sqlite3.Connection]:
         """Get database connection as context manager.
 
         Yields:
@@ -210,6 +210,7 @@ class ResourceInventory:
                     resource.metadata,
                 ),
             )
+            assert cursor.lastrowid is not None
             return cursor.lastrowid
 
     def get_resource_by_arn(self, arn: str) -> Resource | None:
