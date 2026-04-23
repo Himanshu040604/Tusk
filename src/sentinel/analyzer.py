@@ -490,12 +490,26 @@ class RiskAnalyzer:
 
             if category == "privilege_escalation":
                 priv.add(action_name)
-            elif category == "exfiltration":
-                exfil.append((re.compile(action_name), description))
-            elif category == "destruction":
-                destruction.append((re.compile(action_name), description))
-            elif category == "permissions_mgmt":
-                perms_mgmt.append((re.compile(action_name), description))
+            elif category in ("exfiltration", "destruction", "permissions_mgmt"):
+                # Security #1 (v0.6.2): wrap re.compile so a malformed
+                # DB-sourced regex surfaces as DatabaseError (naming the
+                # offending row) rather than crashing RiskAnalyzer.__init__
+                # with an uninformative re.error.
+                try:
+                    compiled = re.compile(action_name)
+                except re.error as exc:
+                    from .database import DatabaseError
+
+                    raise DatabaseError(
+                        f"Invalid regex in dangerous_actions "
+                        f"({action_name!r}, {category!r}): {exc}"
+                    ) from exc
+                if category == "exfiltration":
+                    exfil.append((compiled, description))
+                elif category == "destruction":
+                    destruction.append((compiled, description))
+                else:  # permissions_mgmt
+                    perms_mgmt.append((compiled, description))
 
         self._priv_escalation = frozenset(priv)
         self._exfil_patterns = tuple(exfil)
