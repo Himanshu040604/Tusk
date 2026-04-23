@@ -73,8 +73,7 @@ def _cmd_show(args: argparse.Namespace) -> int:
     try:
         import tomli_w  # type: ignore[import-not-found]
     except ImportError:
-        print("Error: tomli-w is required for `config show`. "
-              "Run `uv sync`.", file=sys.stderr)
+        print("Error: tomli-w is required for `config show`. Run `uv sync`.", file=sys.stderr)
         return EXIT_IO_ERROR
 
     settings = get_settings()
@@ -84,8 +83,7 @@ def _cmd_show(args: argparse.Namespace) -> int:
     try:
         text = tomli_w.dumps(coerced)
     except Exception as exc:  # noqa: BLE001 — diagnostic only.
-        print(f"Error: failed to render config as TOML: {exc}",
-              file=sys.stderr)
+        print(f"Error: failed to render config as TOML: {exc}", file=sys.stderr)
         return EXIT_IO_ERROR
     print(text, end="")
     return EXIT_SUCCESS
@@ -93,7 +91,9 @@ def _cmd_show(args: argparse.Namespace) -> int:
 
 def _cmd_path(args: argparse.Namespace) -> int:
     from .config import (
-        _project_local_path, _system_config_path, _user_config_path,
+        _project_local_path,
+        _system_config_path,
+        _user_config_path,
         get_settings,
     )
 
@@ -104,8 +104,7 @@ def _cmd_path(args: argparse.Namespace) -> int:
     if settings.config_path:
         print(str(settings.config_path))
         return EXIT_SUCCESS
-    for p in (_project_local_path(), _user_config_path(),
-              _system_config_path()):
+    for p in (_project_local_path(), _user_config_path(), _system_config_path()):
         if p.is_file():
             print(str(p))
             return EXIT_SUCCESS
@@ -120,8 +119,7 @@ def _cmd_init(args: argparse.Namespace) -> int:
 
     target = _user_config_path()
     if target.exists():
-        print(f"Error: config already exists at {target}. "
-              "Refusing to overwrite.", file=sys.stderr)
+        print(f"Error: config already exists at {target}. Refusing to overwrite.", file=sys.stderr)
         return EXIT_INVALID_ARGS
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(_STARTER_CONFIG, encoding="utf-8")

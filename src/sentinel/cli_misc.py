@@ -31,15 +31,26 @@ def _run_pipeline_on_file(path: Path) -> int:
     from .cli import cmd_run
 
     ns = argparse.Namespace(
-        policy_file=str(path), input_format="auto",
-        intent=None, account_id=None, region=None,
-        strict=False, max_retries=3, no_companions=False,
-        no_conditions=False, interactive=False,
-        policy_type=None, condition_profile="moderate",
-        allow_wildcard_actions=False, allow_wildcard_resources=False,
-        output_format="text", output=None,
-        database=None, inventory=None,
-        batch=None, fail_fast=False,
+        policy_file=str(path),
+        input_format="auto",
+        intent=None,
+        account_id=None,
+        region=None,
+        strict=False,
+        max_retries=3,
+        no_companions=False,
+        no_conditions=False,
+        interactive=False,
+        policy_type=None,
+        condition_profile="moderate",
+        allow_wildcard_actions=False,
+        allow_wildcard_resources=False,
+        output_format="text",
+        output=None,
+        database=None,
+        inventory=None,
+        batch=None,
+        fail_fast=False,
     )
     return cmd_run(ns)
 
@@ -64,9 +75,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
             now = time.monotonic()
             for _change, path_str in changes:
                 p = Path(path_str)
-                if not p.is_file() or p.suffix.lower() not in {
-                    ".json", ".yaml", ".yml"
-                }:
+                if not p.is_file() or p.suffix.lower() not in {".json", ".yaml", ".yml"}:
                     continue
                 if now - last_fire.get(path_str, 0.0) < _DEBOUNCE_SECONDS:
                     continue
@@ -109,34 +118,33 @@ def cmd_wizard(args: argparse.Namespace) -> int:
     if not service:
         print("Error: a service prefix is required.", file=sys.stderr)
         return EXIT_INVALID_ARGS
-    intent = _wizard_prompt(
-        "intent (read-only / read-write / admin)", default="read-only"
-    )
-    resource = _wizard_prompt(
-        f"resource ARN pattern (optional; default '*')", default="*"
-    )
+    intent = _wizard_prompt("intent (read-only / read-write / admin)", default="read-only")
+    resource = _wizard_prompt(f"resource ARN pattern (optional; default '*')", default="*")
 
     mapping = mapper.map_intent(intent, service_filter=[service])
     actions = sorted(set(mapping.actions))
     if not actions:
         actions = [f"{service}:*"]
-        print("[WARN] IntentMapper produced no actions — falling back to "
-              f"'{service}:*'.", file=sys.stderr)
+        print(
+            f"[WARN] IntentMapper produced no actions — falling back to '{service}:*'.",
+            file=sys.stderr,
+        )
 
     policy = {
         "Version": "2012-10-17",
-        "Statement": [{
-            "Sid": "WizardGenerated",
-            "Effect": "Allow",
-            "Action": actions,
-            "Resource": resource or "*",
-        }],
+        "Statement": [
+            {
+                "Sid": "WizardGenerated",
+                "Effect": "Allow",
+                "Action": actions,
+                "Resource": resource or "*",
+            }
+        ],
     }
     print("")
     print(json.dumps(policy, indent=2))
     print("")
-    print("(Run `sentinel run <file>` on the saved JSON for full validation.)",
-          file=sys.stderr)
+    print("(Run `sentinel run <file>` on the saved JSON for full validation.)", file=sys.stderr)
     return EXIT_SUCCESS
 
 
@@ -165,8 +173,7 @@ def _analyze_for_compare(path: str, args: argparse.Namespace) -> dict:
         "path": path,
         "actions": sorted(set(actions)),
         "findings": [
-            f"{getattr(f, 'severity', '')}:{getattr(f, 'description', repr(f))}"
-            for f in findings
+            f"{getattr(f, 'severity', '')}:{getattr(f, 'description', repr(f))}" for f in findings
         ],
     }
 
@@ -187,8 +194,10 @@ def cmd_compare(args: argparse.Namespace) -> int:
     actions_only_b = sorted(set(b["actions"]) - set(a["actions"]))
 
     payload = {
-        "policy_a": args.policy_a, "policy_b": args.policy_b,
-        "findings_both": both, "findings_only_a": only_a,
+        "policy_a": args.policy_a,
+        "policy_b": args.policy_b,
+        "findings_both": both,
+        "findings_only_a": only_a,
         "findings_only_b": only_b,
         "actions_only_a": actions_only_a,
         "actions_only_b": actions_only_b,
@@ -237,25 +246,24 @@ def cmd_search(args: argparse.Namespace) -> int:
     # GitHub Search API is on api.github.com, which may not be in the
     # default allow-list.  Extend for the duration of this call.
     allow = AllowList(
-        list(settings.network.allow_list.domains)
-        + list(settings.allow_domain)
-        + ["api.github.com"]
+        list(settings.network.allow_list.domains) + list(settings.allow_domain) + ["api.github.com"]
     )
     cache = DiskCache(ttl_seconds_by_source={"github": 60})  # short TTL for search
     retry = RetryPolicy.from_settings(settings.retries)
     token = settings.github_token.get_secret_value()
-    q = f'{args.query} in:file extension:json'
-    url = (
-        f"https://api.github.com/search/code?q={q}"
-        f"&per_page={max(1, min(100, args.limit))}"
-    )
+    q = f"{args.query} in:file extension:json"
+    url = f"https://api.github.com/search/code?q={q}&per_page={max(1, min(100, args.limit))}"
     with SentinelHTTPClient(
-        settings=settings, allow_list=allow, cache=cache,
-        retry_policy=retry, insecure=settings.insecure,
+        settings=settings,
+        allow_list=allow,
+        cache=cache,
+        retry_policy=retry,
+        insecure=settings.insecure,
     ) as client:
         try:
             resp = client.get(
-                url, source="github",
+                url,
+                source="github",
                 headers={
                     "Authorization": f"token {token}",
                     "Accept": "application/vnd.github+json",
@@ -275,7 +283,7 @@ def cmd_search(args: argparse.Namespace) -> int:
         {
             "repo": it.get("repository", {}).get("full_name"),
             "path": it.get("path"),
-            "url":  it.get("html_url"),
+            "url": it.get("html_url"),
         }
         for it in items
     ]

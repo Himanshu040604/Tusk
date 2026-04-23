@@ -26,9 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from sentinel.database import Database
 
 
-_COLS_SUMMARY = (
-    "policy_name, policy_arn, description, version, fetched_at"
-)
+_COLS_SUMMARY = "policy_name, policy_arn, description, version, fetched_at"
 _COLS_FULL = (
     "policy_name, policy_arn, policy_document, description, version, "
     "fetched_at, policy_document_hmac"
@@ -53,8 +51,7 @@ class AWSManagedFetcher:
             rows = conn.execute(
                 "SELECT policy_name FROM managed_policies ORDER BY policy_name"
             ).fetchall()
-        return [row["policy_name"] if isinstance(row, sqlite3.Row) else row[0]
-                for row in rows]
+        return [row["policy_name"] if isinstance(row, sqlite3.Row) else row[0] for row in rows]
 
     # ---------------------------------------------------------------- summary
 
@@ -62,15 +59,18 @@ class AWSManagedFetcher:
         """Return metadata-only summary — no document bytes."""
         with self._db.get_connection() as conn:
             row = conn.execute(
-                f"SELECT {_COLS_SUMMARY} FROM managed_policies "
-                "WHERE policy_name = ?",
+                f"SELECT {_COLS_SUMMARY} FROM managed_policies WHERE policy_name = ?",
                 (name,),
             ).fetchone()
         if row is None:
             raise PolicyNotFoundError(f"managed policy not found: {name!r}")
-        return {k: row[k] for k in row.keys()} if isinstance(row, sqlite3.Row) \
-            else dict(zip(("policy_name", "policy_arn", "description",
-                           "version", "fetched_at"), row))
+        return (
+            {k: row[k] for k in row.keys()}
+            if isinstance(row, sqlite3.Row)
+            else dict(
+                zip(("policy_name", "policy_arn", "description", "version", "fetched_at"), row)
+            )
+        )
 
     # ---------------------------------------------------------------- show
 
@@ -78,15 +78,13 @@ class AWSManagedFetcher:
         """Return ``(policy_document_bytes, stored_hmac)`` or raise."""
         with self._db.get_connection() as conn:
             row = conn.execute(
-                f"SELECT {_COLS_FULL} FROM managed_policies "
-                "WHERE policy_name = ?",
+                f"SELECT {_COLS_FULL} FROM managed_policies WHERE policy_name = ?",
                 (name,),
             ).fetchone()
         if row is None:
             raise PolicyNotFoundError(f"managed policy not found: {name!r}")
         doc = row["policy_document"] if isinstance(row, sqlite3.Row) else row[2]
-        mac = row["policy_document_hmac"] if isinstance(row, sqlite3.Row) \
-            else row[6]
+        mac = row["policy_document_hmac"] if isinstance(row, sqlite3.Row) else row[6]
         return doc.encode("utf-8"), str(mac)
 
     def show(self, name: str) -> bytes:
@@ -104,7 +102,10 @@ class AWSManagedFetcher:
             body=body,
         )
         return FetchResult(
-            body=body, headers={}, cache_status="N/A", origin=origin,
+            body=body,
+            headers={},
+            cache_status="N/A",
+            origin=origin,
         )
 
 

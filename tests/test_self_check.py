@@ -30,6 +30,7 @@ from tests.conftest import make_test_db
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def tmp_db(tmp_path):
     """Create a migrated + seeded IAM actions DB with sample actions.
@@ -43,85 +44,95 @@ def tmp_db(tmp_path):
     db = Database(db_path)
 
     for svc in [
-        Service(service_prefix='s3', service_name='Amazon S3'),
-        Service(service_prefix='ec2', service_name='Amazon EC2'),
-        Service(service_prefix='lambda', service_name='AWS Lambda'),
-        Service(service_prefix='logs', service_name='CloudWatch Logs'),
-        Service(service_prefix='kms', service_name='AWS KMS'),
-        Service(service_prefix='sqs', service_name='Amazon SQS'),
+        Service(service_prefix="s3", service_name="Amazon S3"),
+        Service(service_prefix="ec2", service_name="Amazon EC2"),
+        Service(service_prefix="lambda", service_name="AWS Lambda"),
+        Service(service_prefix="logs", service_name="CloudWatch Logs"),
+        Service(service_prefix="kms", service_name="AWS KMS"),
+        Service(service_prefix="sqs", service_name="Amazon SQS"),
     ]:
         db.insert_service(svc)
 
     s3_actions = [
-        ('GetObject', 'Read', False, True, False),
-        ('PutObject', 'Write', False, False, True),
-        ('DeleteObject', 'Write', False, False, True),
-        ('ListBucket', 'List', True, False, False),
-        ('GetBucketPolicy', 'Read', False, True, False),
+        ("GetObject", "Read", False, True, False),
+        ("PutObject", "Write", False, False, True),
+        ("DeleteObject", "Write", False, False, True),
+        ("ListBucket", "List", True, False, False),
+        ("GetBucketPolicy", "Read", False, True, False),
     ]
     for name, level, is_list, is_read, is_write in s3_actions:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='s3',
-            action_name=name,
-            full_action=f's3:{name}',
-            description=f'S3 {name}',
-            access_level=level,
-            is_list=is_list,
-            is_read=is_read,
-            is_write=is_write,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="s3",
+                action_name=name,
+                full_action=f"s3:{name}",
+                description=f"S3 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     ec2_actions = [
-        ('DescribeInstances', 'List', True, False, False),
-        ('RunInstances', 'Write', False, False, True),
-        ('TerminateInstances', 'Write', False, False, True),
+        ("DescribeInstances", "List", True, False, False),
+        ("RunInstances", "Write", False, False, True),
+        ("TerminateInstances", "Write", False, False, True),
     ]
     for name, level, is_list, is_read, is_write in ec2_actions:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='ec2',
-            action_name=name,
-            full_action=f'ec2:{name}',
-            description=f'EC2 {name}',
-            access_level=level,
-            is_list=is_list,
-            is_read=is_read,
-            is_write=is_write,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="ec2",
+                action_name=name,
+                full_action=f"ec2:{name}",
+                description=f"EC2 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
-    for name in ['InvokeFunction', 'CreateFunction', 'UpdateFunctionCode']:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='lambda',
-            action_name=name,
-            full_action=f'lambda:{name}',
-            description=f'Lambda {name}',
-            access_level='Write',
-            is_write=True,
-        ))
+    for name in ["InvokeFunction", "CreateFunction", "UpdateFunctionCode"]:
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="lambda",
+                action_name=name,
+                full_action=f"lambda:{name}",
+                description=f"Lambda {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
-    for name in ['CreateLogGroup', 'CreateLogStream', 'PutLogEvents']:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='logs',
-            action_name=name,
-            full_action=f'logs:{name}',
-            description=f'Logs {name}',
-            access_level='Write',
-            is_write=True,
-        ))
+    for name in ["CreateLogGroup", "CreateLogStream", "PutLogEvents"]:
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="logs",
+                action_name=name,
+                full_action=f"logs:{name}",
+                description=f"Logs {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
-    for name in ['Decrypt', 'Encrypt', 'GenerateDataKey']:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='kms',
-            action_name=name,
-            full_action=f'kms:{name}',
-            description=f'KMS {name}',
-            access_level='Write',
-            is_write=True,
-        ))
+    for name in ["Decrypt", "Encrypt", "GenerateDataKey"]:
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="kms",
+                action_name=name,
+                full_action=f"kms:{name}",
+                description=f"KMS {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     return db
 
@@ -136,21 +147,21 @@ def tmp_inventory(tmp_path):
     resources = [
         Resource(
             resource_id=None,
-            service_prefix='s3',
-            resource_type='bucket',
-            resource_arn='arn:aws:s3:::my-app-data',
-            resource_name='my-app-data',
+            service_prefix="s3",
+            resource_type="bucket",
+            resource_arn="arn:aws:s3:::my-app-data",
+            resource_name="my-app-data",
             region=None,
-            account_id='123456789012',
+            account_id="123456789012",
         ),
         Resource(
             resource_id=None,
-            service_prefix='lambda',
-            resource_type='function',
-            resource_arn='arn:aws:lambda:us-east-1:123456789012:function:my-func',
-            resource_name='my-func',
-            region='us-east-1',
-            account_id='123456789012',
+            service_prefix="lambda",
+            resource_type="function",
+            resource_arn="arn:aws:lambda:us-east-1:123456789012:function:my-func",
+            resource_name="my-func",
+            region="us-east-1",
+            account_id="123456789012",
         ),
     ]
     for r in resources:
@@ -169,23 +180,23 @@ def _make_rewrite_result(
     """Helper to build a RewriteResult with defaults."""
     if original_policy is None:
         original_policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
     if rewritten_policy is None:
         rewritten_policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['arn:aws:s3:::my-bucket/*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["arn:aws:s3:::my-bucket/*"],
                 )
             ],
         )
@@ -193,9 +204,9 @@ def _make_rewrite_result(
         original_policy=original_policy,
         rewritten_policy=rewritten_policy,
         changes=changes or [],
-        assumptions=assumptions if assumptions is not None else [
-            "No resource inventory available."
-        ],
+        assumptions=assumptions
+        if assumptions is not None
+        else ["No resource inventory available."],
         warnings=warnings or [],
     )
 
@@ -203,6 +214,7 @@ def _make_rewrite_result(
 # ---------------------------------------------------------------------------
 # Test CheckFinding Dataclass
 # ---------------------------------------------------------------------------
+
 
 class TestCheckFindingDataclass:
     """Tests for CheckFinding dataclass initialization."""
@@ -247,6 +259,7 @@ class TestCheckFindingDataclass:
 # ---------------------------------------------------------------------------
 # Test SelfCheckResult Dataclass
 # ---------------------------------------------------------------------------
+
 
 class TestSelfCheckResultDataclass:
     """Tests for SelfCheckResult dataclass initialization."""
@@ -293,6 +306,7 @@ class TestSelfCheckResultDataclass:
 # Test PipelineConfig Dataclass
 # ---------------------------------------------------------------------------
 
+
 class TestPipelineConfigDataclass:
     """Tests for PipelineConfig dataclass defaults."""
 
@@ -337,6 +351,7 @@ class TestPipelineConfigDataclass:
 # Test SelfCheckValidator Initialization
 # ---------------------------------------------------------------------------
 
+
 class TestSelfCheckValidatorInit:
     """Tests for SelfCheckValidator initialization."""
 
@@ -359,9 +374,7 @@ class TestSelfCheckValidatorInit:
 
     def test_init_with_both(self, tmp_db, tmp_inventory):
         """Validator accepts both database and inventory."""
-        validator = SelfCheckValidator(
-            database=tmp_db, inventory=tmp_inventory
-        )
+        validator = SelfCheckValidator(database=tmp_db, inventory=tmp_inventory)
         assert validator.database is tmp_db
         assert validator.inventory is tmp_inventory
 
@@ -370,6 +383,7 @@ class TestSelfCheckValidatorInit:
 # Test Action Validation
 # ---------------------------------------------------------------------------
 
+
 class TestActionValidation:
     """Tests for _validate_actions check."""
 
@@ -377,12 +391,12 @@ class TestActionValidation:
         """Valid Tier 1 actions produce no findings."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 's3:PutObject'],
-                    resources=['arn:aws:s3:::bucket/*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "s3:PutObject"],
+                    resources=["arn:aws:s3:::bucket/*"],
                 )
             ],
         )
@@ -393,37 +407,36 @@ class TestActionValidation:
         """Tier 3 invalid action flagged as ERROR."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 'invalidformat'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "invalidformat"],
+                    resources=["*"],
                 )
             ],
         )
         findings = validator._validate_actions(policy)
         errors = [f for f in findings if f.severity == CheckSeverity.ERROR]
         assert len(errors) >= 1
-        assert any('invalidformat' in f.message for f in errors)
+        assert any("invalidformat" in f.message for f in errors)
 
     def test_tier2_unknown_action_detected(self, tmp_db):
         """Tier 2 unknown action flagged as ERROR."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 's3:SomeNewAction'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "s3:SomeNewAction"],
+                    resources=["*"],
                 )
             ],
         )
         findings = validator._validate_actions(policy)
         tier2_findings = [
-            f for f in findings
-            if 'Tier 2' in f.message or 'unknown' in f.message.lower()
+            f for f in findings if "Tier 2" in f.message or "unknown" in f.message.lower()
         ]
         assert len(tier2_findings) >= 1
 
@@ -431,12 +444,12 @@ class TestActionValidation:
         """Full wildcard actions are not re-validated."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['*'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["*"],
+                    resources=["*"],
                 )
             ],
         )
@@ -446,7 +459,7 @@ class TestActionValidation:
     def test_empty_policy_passes(self, tmp_db):
         """Empty policy with no statements produces no findings."""
         validator = SelfCheckValidator(database=tmp_db)
-        policy = Policy(version='2012-10-17', statements=[])
+        policy = Policy(version="2012-10-17", statements=[])
         findings = validator._validate_actions(policy)
         assert len(findings) == 0
 
@@ -454,24 +467,25 @@ class TestActionValidation:
         """Mixed valid/invalid actions each produce appropriate findings."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 'badformat', 's3:ListBucket'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "badformat", "s3:ListBucket"],
+                    resources=["*"],
                 )
             ],
         )
         findings = validator._validate_actions(policy)
         assert len(findings) >= 1
         action_messages = [f.action for f in findings]
-        assert 'badformat' in action_messages
+        assert "badformat" in action_messages
 
 
 # ---------------------------------------------------------------------------
 # Test ARN Format Validation
 # ---------------------------------------------------------------------------
+
 
 class TestArnFormatValidation:
     """Tests for _check_arn_formats check."""
@@ -480,14 +494,12 @@ class TestArnFormatValidation:
         """Valid ARN produces no findings."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=[
-                        'arn:aws:s3:us-east-1:123456789012:bucket/my-bucket'
-                    ],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["arn:aws:s3:us-east-1:123456789012:bucket/my-bucket"],
                 )
             ],
         )
@@ -498,12 +510,12 @@ class TestArnFormatValidation:
         """Wildcard resource flagged as ERROR by default (fail-closed)."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
@@ -516,21 +528,17 @@ class TestArnFormatValidation:
         """Placeholder ARN flagged as INFO (not error)."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=[
-                        'arn:aws:s3:::PLACEHOLDER-bucket-name'
-                    ],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["arn:aws:s3:::PLACEHOLDER-bucket-name"],
                 )
             ],
         )
         findings = validator._check_arn_formats(policy)
-        info_findings = [
-            f for f in findings if f.severity == CheckSeverity.INFO
-        ]
+        info_findings = [f for f in findings if f.severity == CheckSeverity.INFO]
         assert len(info_findings) >= 1
         assert info_findings[0].check_type == "PLACEHOLDER_ARN"
 
@@ -538,12 +546,12 @@ class TestArnFormatValidation:
         """Malformed ARN flagged as ERROR."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['arn:aws:s3'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["arn:aws:s3"],
                 )
             ],
         )
@@ -556,15 +564,15 @@ class TestArnFormatValidation:
         """Multiple resources are all individually checked."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
                     resources=[
-                        '*',
-                        'arn:aws:s3:::PLACEHOLDER-bucket',
-                        'arn:aws:s3:us-east-1:123456789012:bucket/ok',
+                        "*",
+                        "arn:aws:s3:::PLACEHOLDER-bucket",
+                        "arn:aws:s3:us-east-1:123456789012:bucket/ok",
                     ],
                 )
             ],
@@ -579,6 +587,7 @@ class TestArnFormatValidation:
 # Test Functional Completeness
 # ---------------------------------------------------------------------------
 
+
 class TestFunctionalCompleteness:
     """Tests for _check_functional_completeness check."""
 
@@ -586,22 +595,22 @@ class TestFunctionalCompleteness:
         """Policy covering all original services scores high."""
         validator = SelfCheckValidator(database=tmp_db)
         original = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['arn:aws:s3:::bucket/*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["arn:aws:s3:::bucket/*"],
                 )
             ],
         )
@@ -610,31 +619,29 @@ class TestFunctionalCompleteness:
             rewritten_policy=rewritten,
         )
         config = PipelineConfig()
-        findings, score = validator._check_functional_completeness(
-            rewritten, result, config
-        )
+        findings, score = validator._check_functional_completeness(rewritten, result, config)
         assert score >= 0.8
 
     def test_missing_companion_lowers_score(self, tmp_db):
         """Missing companion permissions lower the completeness score."""
         validator = SelfCheckValidator(database=tmp_db)
         original = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['lambda:InvokeFunction'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["lambda:InvokeFunction"],
+                    resources=["*"],
                 )
             ],
         )
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['lambda:InvokeFunction'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["lambda:InvokeFunction"],
+                    resources=["*"],
                 )
             ],
         )
@@ -643,12 +650,8 @@ class TestFunctionalCompleteness:
             rewritten_policy=rewritten,
         )
         config = PipelineConfig()
-        findings, score = validator._check_functional_completeness(
-            rewritten, result, config
-        )
-        companion_findings = [
-            f for f in findings if f.check_type == "MISSING_COMPANION"
-        ]
+        findings, score = validator._check_functional_completeness(rewritten, result, config)
+        companion_findings = [f for f in findings if f.check_type == "MISSING_COMPANION"]
         assert len(companion_findings) >= 1
         assert score < 1.0
 
@@ -656,22 +659,22 @@ class TestFunctionalCompleteness:
         """Read-only intent with write actions is flagged."""
         validator = SelfCheckValidator(database=tmp_db)
         original = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 's3:PutObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "s3:PutObject"],
+                    resources=["*"],
                 )
             ],
         )
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 's3:PutObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "s3:PutObject"],
+                    resources=["*"],
                 )
             ],
         )
@@ -680,9 +683,7 @@ class TestFunctionalCompleteness:
             rewritten_policy=rewritten,
         )
         config = PipelineConfig(intent="read-only s3")
-        findings, score = validator._check_functional_completeness(
-            rewritten, result, config
-        )
+        findings, score = validator._check_functional_completeness(rewritten, result, config)
         mismatch = [f for f in findings if f.check_type == "INTENT_MISMATCH"]
         assert len(mismatch) >= 1
 
@@ -690,22 +691,22 @@ class TestFunctionalCompleteness:
         """Missing service in rewritten policy is flagged."""
         validator = SelfCheckValidator(database=tmp_db)
         original = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 'ec2:DescribeInstances'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "ec2:DescribeInstances"],
+                    resources=["*"],
                 )
             ],
         )
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
@@ -714,63 +715,55 @@ class TestFunctionalCompleteness:
             rewritten_policy=rewritten,
         )
         config = PipelineConfig()
-        findings, score = validator._check_functional_completeness(
-            rewritten, result, config
-        )
-        svc_findings = [
-            f for f in findings
-            if f.check_type == "MISSING_SERVICE_COVERAGE"
-        ]
+        findings, score = validator._check_functional_completeness(rewritten, result, config)
+        svc_findings = [f for f in findings if f.check_type == "MISSING_SERVICE_COVERAGE"]
         assert len(svc_findings) >= 1
 
     def test_empty_rewrite_low_score(self, tmp_db):
         """Empty rewritten policy gets a low score."""
         validator = SelfCheckValidator(database=tmp_db)
         original = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
-        rewritten = Policy(version='2012-10-17', statements=[])
+        rewritten = Policy(version="2012-10-17", statements=[])
         result = _make_rewrite_result(
             original_policy=original,
             rewritten_policy=rewritten,
         )
         config = PipelineConfig()
-        findings, score = validator._check_functional_completeness(
-            rewritten, result, config
-        )
+        findings, score = validator._check_functional_completeness(rewritten, result, config)
         assert score <= 0.5
 
     def test_score_range(self, tmp_db):
         """Completeness score is always between 0.0 and 1.0."""
         validator = SelfCheckValidator(database=tmp_db)
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
         result = _make_rewrite_result(rewritten_policy=rewritten)
         config = PipelineConfig()
-        _, score = validator._check_functional_completeness(
-            rewritten, result, config
-        )
+        _, score = validator._check_functional_completeness(rewritten, result, config)
         assert 0.0 <= score <= 1.0
 
 
 # ---------------------------------------------------------------------------
 # Test Overly Broad Permissions
 # ---------------------------------------------------------------------------
+
 
 class TestOverlyBroadPermissions:
     """Tests for _check_overly_broad_permissions check."""
@@ -779,12 +772,12 @@ class TestOverlyBroadPermissions:
         """Policy without wildcards produces no findings."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['arn:aws:s3:::bucket/*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["arn:aws:s3:::bucket/*"],
                 )
             ],
         )
@@ -795,20 +788,20 @@ class TestOverlyBroadPermissions:
         """Full wildcard action flagged as ERROR by default (fail-closed)."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['*'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["*"],
+                    resources=["*"],
                 )
             ],
         )
         findings = validator._check_overly_broad_permissions(policy)
         errors = [
-            f for f in findings
-            if f.check_type == "OVERLY_BROAD_ACTION"
-            and f.severity == CheckSeverity.ERROR
+            f
+            for f in findings
+            if f.check_type == "OVERLY_BROAD_ACTION" and f.severity == CheckSeverity.ERROR
         ]
         assert len(errors) >= 1
 
@@ -816,20 +809,20 @@ class TestOverlyBroadPermissions:
         """Service wildcard action flagged as WARNING."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:*'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:*"],
+                    resources=["*"],
                 )
             ],
         )
         findings = validator._check_overly_broad_permissions(policy)
         svc_wildcards = [
-            f for f in findings
-            if f.check_type == "OVERLY_BROAD_ACTION"
-            and f.severity == CheckSeverity.WARNING
+            f
+            for f in findings
+            if f.check_type == "OVERLY_BROAD_ACTION" and f.severity == CheckSeverity.WARNING
         ]
         assert len(svc_wildcards) >= 1
 
@@ -837,20 +830,20 @@ class TestOverlyBroadPermissions:
         """Partial wildcard action flagged as INFO."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:Get*'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:Get*"],
+                    resources=["*"],
                 )
             ],
         )
         findings = validator._check_overly_broad_permissions(policy)
         info = [
-            f for f in findings
-            if f.check_type == "OVERLY_BROAD_ACTION"
-            and f.severity == CheckSeverity.INFO
+            f
+            for f in findings
+            if f.check_type == "OVERLY_BROAD_ACTION" and f.severity == CheckSeverity.INFO
         ]
         assert len(info) >= 1
 
@@ -859,6 +852,7 @@ class TestOverlyBroadPermissions:
 # Test Tier 2 Exclusion
 # ---------------------------------------------------------------------------
 
+
 class TestTier2Exclusion:
     """Tests for _check_tier2_exclusion check."""
 
@@ -866,58 +860,52 @@ class TestTier2Exclusion:
         """No Tier 2 actions in rewritten policy produces no findings."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
         validation_results = [
             ValidationResult(
-                action='s3:GetObject',
+                action="s3:GetObject",
                 tier=ValidationTier.TIER_1_VALID,
                 reason="Valid",
             ),
         ]
-        findings = validator._check_tier2_exclusion(
-            policy, validation_results
-        )
+        findings = validator._check_tier2_exclusion(policy, validation_results)
         assert len(findings) == 0
 
     def test_tier2_action_in_policy_flagged(self, tmp_db):
         """Tier 2 action found in rewritten policy flagged as ERROR."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 's3:NewUnknownAction'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "s3:NewUnknownAction"],
+                    resources=["*"],
                 )
             ],
         )
         validation_results = [
             ValidationResult(
-                action='s3:GetObject',
+                action="s3:GetObject",
                 tier=ValidationTier.TIER_1_VALID,
                 reason="Valid",
             ),
             ValidationResult(
-                action='s3:NewUnknownAction',
+                action="s3:NewUnknownAction",
                 tier=ValidationTier.TIER_2_UNKNOWN,
                 reason="Unknown",
             ),
         ]
-        findings = validator._check_tier2_exclusion(
-            policy, validation_results
-        )
-        tier2_errors = [
-            f for f in findings if f.check_type == "TIER2_IN_POLICY"
-        ]
+        findings = validator._check_tier2_exclusion(policy, validation_results)
+        tier2_errors = [f for f in findings if f.check_type == "TIER2_IN_POLICY"]
         assert len(tier2_errors) >= 1
         assert tier2_errors[0].severity == CheckSeverity.ERROR
 
@@ -925,47 +913,43 @@ class TestTier2Exclusion:
         """Only Tier 2 actions in the rewritten policy are flagged."""
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
         validation_results = [
             ValidationResult(
-                action='s3:GetObject',
+                action="s3:GetObject",
                 tier=ValidationTier.TIER_1_VALID,
                 reason="Valid",
             ),
             ValidationResult(
-                action='s3:NewAction',
+                action="s3:NewAction",
                 tier=ValidationTier.TIER_2_UNKNOWN,
                 reason="Unknown",
             ),
         ]
-        findings = validator._check_tier2_exclusion(
-            policy, validation_results
-        )
+        findings = validator._check_tier2_exclusion(policy, validation_results)
         # s3:NewAction is Tier 2 but NOT in the rewritten policy
         assert len(findings) == 0
 
     def test_empty_policy_passes(self, tmp_db):
         """Empty rewritten policy produces no Tier 2 findings."""
         validator = SelfCheckValidator(database=tmp_db)
-        policy = Policy(version='2012-10-17', statements=[])
+        policy = Policy(version="2012-10-17", statements=[])
         validation_results = [
             ValidationResult(
-                action='s3:GetObject',
+                action="s3:GetObject",
                 tier=ValidationTier.TIER_2_UNKNOWN,
                 reason="Unknown",
             ),
         ]
-        findings = validator._check_tier2_exclusion(
-            policy, validation_results
-        )
+        findings = validator._check_tier2_exclusion(policy, validation_results)
         assert len(findings) == 0
 
 
@@ -973,15 +957,14 @@ class TestTier2Exclusion:
 # Test Assumption Validation
 # ---------------------------------------------------------------------------
 
+
 class TestAssumptionValidation:
     """Tests for _check_assumptions check."""
 
     def test_assumptions_present_passes(self, tmp_db):
         """Non-empty assumptions list produces no findings."""
         validator = SelfCheckValidator(database=tmp_db)
-        result = _make_rewrite_result(
-            assumptions=["No database available."]
-        )
+        result = _make_rewrite_result(assumptions=["No database available."])
         findings = validator._check_assumptions(result)
         assert len(findings) == 0
 
@@ -997,19 +980,16 @@ class TestAssumptionValidation:
     def test_empty_assumption_string_flagged(self, tmp_db):
         """Empty string in assumptions list flagged."""
         validator = SelfCheckValidator(database=tmp_db)
-        result = _make_rewrite_result(
-            assumptions=["Valid assumption", "", "  "]
-        )
+        result = _make_rewrite_result(assumptions=["Valid assumption", "", "  "])
         findings = validator._check_assumptions(result)
-        empty_findings = [
-            f for f in findings if f.check_type == "EMPTY_ASSUMPTION"
-        ]
+        empty_findings = [f for f in findings if f.check_type == "EMPTY_ASSUMPTION"]
         assert len(empty_findings) >= 1
 
 
 # ---------------------------------------------------------------------------
 # Test Self-Check Verdict
 # ---------------------------------------------------------------------------
+
 
 class TestSelfCheckVerdict:
     """Tests for verdict computation."""
@@ -1019,22 +999,22 @@ class TestSelfCheckVerdict:
         validator = SelfCheckValidator(database=tmp_db)
         # Use ec2:DescribeInstances which has no companion rules
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['ec2:DescribeInstances'],
-                    resources=['arn:aws:ec2:us-east-1:123456789012:instance/i-abc'],
+                    effect="Allow",
+                    actions=["ec2:DescribeInstances"],
+                    resources=["arn:aws:ec2:us-east-1:123456789012:instance/i-abc"],
                 )
             ],
         )
         original = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['ec2:DescribeInstances'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["ec2:DescribeInstances"],
+                    resources=["*"],
                 )
             ],
         )
@@ -1050,12 +1030,12 @@ class TestSelfCheckVerdict:
         """ERROR finding produces FAIL verdict."""
         validator = SelfCheckValidator(database=tmp_db)
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 'badformat'],
-                    resources=['arn:aws:s3:::bucket/*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "badformat"],
+                    resources=["arn:aws:s3:::bucket/*"],
                 )
             ],
         )
@@ -1070,12 +1050,12 @@ class TestSelfCheckVerdict:
         """WARNING finding in normal mode produces WARNING verdict."""
         validator = SelfCheckValidator(database=tmp_db)
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
@@ -1096,12 +1076,12 @@ class TestSelfCheckVerdict:
         """WARNING finding in strict mode produces FAIL verdict."""
         validator = SelfCheckValidator(database=tmp_db)
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
@@ -1117,12 +1097,12 @@ class TestSelfCheckVerdict:
         """Mixed findings use highest severity for verdict."""
         validator = SelfCheckValidator(database=tmp_db)
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject', 'badformat'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject", "badformat"],
+                    resources=["*"],
                 )
             ],
         )
@@ -1138,6 +1118,7 @@ class TestSelfCheckVerdict:
 # ---------------------------------------------------------------------------
 # Test Completeness Score
 # ---------------------------------------------------------------------------
+
 
 class TestSelfCheckCompleteness:
     """Tests for completeness score computation."""
@@ -1155,22 +1136,22 @@ class TestSelfCheckCompleteness:
         """Well-covered policy gets a high completeness score."""
         validator = SelfCheckValidator(database=tmp_db)
         original = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["*"],
                 )
             ],
         )
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['s3:GetObject'],
-                    resources=['arn:aws:s3:::bucket/*'],
+                    effect="Allow",
+                    actions=["s3:GetObject"],
+                    resources=["arn:aws:s3:::bucket/*"],
                 )
             ],
         )
@@ -1186,22 +1167,22 @@ class TestSelfCheckCompleteness:
         """Missing companion permissions lower the completeness score."""
         validator = SelfCheckValidator(database=tmp_db)
         original = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['lambda:InvokeFunction'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["lambda:InvokeFunction"],
+                    resources=["*"],
                 )
             ],
         )
         rewritten = Policy(
-            version='2012-10-17',
+            version="2012-10-17",
             statements=[
                 Statement(
-                    effect='Allow',
-                    actions=['lambda:InvokeFunction'],
-                    resources=['*'],
+                    effect="Allow",
+                    actions=["lambda:InvokeFunction"],
+                    resources=["*"],
                 )
             ],
         )

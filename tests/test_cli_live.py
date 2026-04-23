@@ -25,15 +25,19 @@ pytestmark = pytest.mark.live
 SENTINEL_CLI = [sys.executable, "-m", "sentinel"]
 
 
-def _run(cli: list[str], env: dict[str, str] | None = None,
-         timeout: int = 60) -> subprocess.CompletedProcess:
+def _run(
+    cli: list[str], env: dict[str, str] | None = None, timeout: int = 60
+) -> subprocess.CompletedProcess:
     """Invoke sentinel with ``cli`` args; never shell=True for safety."""
     merged_env = os.environ.copy()
     if env:
         merged_env.update(env)
     return subprocess.run(
-        cli, capture_output=True, text=True,
-        timeout=timeout, env=merged_env,
+        cli,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env=merged_env,
     )
 
 
@@ -41,8 +45,11 @@ class TestLiveAwsSample:
     def test_fetch_aws_sample_readonly(self) -> None:
         """Fetch a well-known sample policy via aws-sample fetcher."""
         result = _run(
-            SENTINEL_CLI + [
-                "fetch", "aws-sample", "admin-access-required",
+            SENTINEL_CLI
+            + [
+                "fetch",
+                "aws-sample",
+                "admin-access-required",
                 "--json",
             ],
         )
@@ -71,22 +78,26 @@ class TestLiveCacheHitCycle:
         """Same URL fetched twice — second must show X-Sentinel-Cache: HIT."""
         env = {"SENTINEL_CACHE_DIR": str(tmp_path / "cache")}
         first = _run(
-            SENTINEL_CLI + [
-                "fetch", "aws-sample",
-                "admin-access-required", "--verbose",
+            SENTINEL_CLI
+            + [
+                "fetch",
+                "aws-sample",
+                "admin-access-required",
+                "--verbose",
             ],
             env=env,
         )
         if first.returncode != 0:
             pytest.skip("live AWS docs fetch unavailable")
         second = _run(
-            SENTINEL_CLI + [
-                "fetch", "aws-sample",
-                "admin-access-required", "--verbose",
+            SENTINEL_CLI
+            + [
+                "fetch",
+                "aws-sample",
+                "admin-access-required",
+                "--verbose",
             ],
             env=env,
         )
         combined = (second.stdout + second.stderr).lower()
-        assert (
-            "cache" in combined and ("hit" in combined or "cache_hit" in combined)
-        ), combined
+        assert "cache" in combined and ("hit" in combined or "cache_hit" in combined), combined

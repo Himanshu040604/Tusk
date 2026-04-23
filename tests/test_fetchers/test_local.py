@@ -46,7 +46,8 @@ class TestStdinFetcher:
         payload = b'{"Version":"2012-10-17","Statement":[]}'
         fake_stdin = io.BytesIO(payload)
         monkeypatch.setattr(
-            sys, "stdin",
+            sys,
+            "stdin",
             type("X", (), {"buffer": fake_stdin})(),
         )
         result = StdinFetcher().fetch("ignored")
@@ -54,12 +55,11 @@ class TestStdinFetcher:
         assert result.origin.source_spec == "<stdin>"
         assert result.body == payload
 
-    def test_empty_stdin_raises(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_empty_stdin_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake_stdin = io.BytesIO(b"   \n")
         monkeypatch.setattr(
-            sys, "stdin",
+            sys,
+            "stdin",
             type("X", (), {"buffer": fake_stdin})(),
         )
         with pytest.raises(PolicyNotFoundError, match="empty"):

@@ -65,11 +65,7 @@ def export_services_json(
         Path to the written JSON file.
     """
     if output_path is None:
-        output_path = (
-            Path(__file__).resolve().parent.parent.parent
-            / "data"
-            / "known_services.json"
-        )
+        output_path = Path(__file__).resolve().parent.parent.parent / "data" / "known_services.json"
 
     services = sorted(s.service_prefix for s in database.get_services())
 
@@ -80,9 +76,7 @@ def export_services_json(
     }
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        json.dumps(data, indent=2) + "\n", encoding="utf-8"
-    )
+    output_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
     return output_path
 
 
@@ -95,23 +89,27 @@ def build_parser() -> argparse.ArgumentParser:
     # Shared parent for common flags
     parent = argparse.ArgumentParser(add_help=False)
     parent.add_argument(
-        "-d", "--database",
+        "-d",
+        "--database",
         default=None,
         help="Path to IAM actions SQLite database",
     )
     parent.add_argument(
-        "-i", "--inventory",
+        "-i",
+        "--inventory",
         default=None,
         help="Path to resource inventory SQLite database",
     )
     parent.add_argument(
-        "-f", "--output-format",
+        "-f",
+        "--output-format",
         choices=["text", "json", "markdown"],
         default="text",
         help="Output format (default: text)",
     )
     parent.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         default=None,
         help="Write output to file instead of stdout",
     )
@@ -343,8 +341,10 @@ def build_parser() -> argparse.ArgumentParser:
     refresh_group.add_argument(
         "--source",
         choices=[
-            "policy-sentry", "aws-docs",
-            "managed-policies", "cloudsplaining",
+            "policy-sentry",
+            "aws-docs",
+            "managed-policies",
+            "cloudsplaining",
         ],
         help="Data source to refresh",
     )
@@ -356,10 +356,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_refresh.add_argument(
         "--data-path",
         default=None,
-        help=(
-            "Path to data file or directory (required for offline refresh; "
-            "ignored with --live)"
-        ),
+        help=("Path to data file or directory (required for offline refresh; ignored with --live)"),
     )
     p_refresh.add_argument(
         "--live",
@@ -406,18 +403,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Inspect and manage the on-disk HTTP response cache",
     )
     cache_sub = p_cache.add_subparsers(dest="cache_cmd", required=True)
-    cache_sub.add_parser("stats", parents=[parent],
-                         help="Show cache count + total size")
-    cache_sub.add_parser("ls", parents=[parent],
-                         help="List cached entries (metadata only)")
-    cache_sub.add_parser("purge", parents=[parent],
-                         help="Delete every cached entry")
+    cache_sub.add_parser("stats", parents=[parent], help="Show cache count + total size")
+    cache_sub.add_parser("ls", parents=[parent], help="List cached entries (metadata only)")
+    cache_sub.add_parser("purge", parents=[parent], help="Delete every cached entry")
     p_rotate = cache_sub.add_parser(
-        "rotate-key", parents=[parent],
+        "rotate-key",
+        parents=[parent],
         help="Regenerate the cache HMAC key (purges all entries)",
     )
     p_rotate.add_argument(
-        "--yes", action="store_true",
+        "--yes",
+        action="store_true",
         help="Skip the confirmation prompt",
     )
 
@@ -428,15 +424,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Access AWS managed policies stored in the local DB",
     )
     managed_sub = p_managed.add_subparsers(dest="managed_cmd", required=True)
-    managed_sub.add_parser("list", parents=[parent],
-                           help="List managed policy names")
+    managed_sub.add_parser("list", parents=[parent], help="List managed policy names")
     p_m_show = managed_sub.add_parser(
-        "show", parents=[parent],
+        "show",
+        parents=[parent],
         help="Print the policy_document for a managed policy",
     )
     p_m_show.add_argument("name", help="Managed policy name")
     p_m_analyze = managed_sub.add_parser(
-        "analyze", parents=[parent],
+        "analyze",
+        parents=[parent],
         help="Fetch + run the full pipeline on a managed policy",
     )
     p_m_analyze.add_argument("name", help="Managed policy name")
@@ -448,12 +445,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Inspect and scaffold Sentinel configuration",
     )
     config_sub = p_config.add_subparsers(dest="config_cmd", required=True)
-    config_sub.add_parser("show", parents=[parent],
-                          help="Dump resolved settings (secrets redacted)")
-    config_sub.add_parser("path", parents=[parent],
-                          help="Print resolved config file path")
-    config_sub.add_parser("init", parents=[parent],
-                          help="Scaffold a starter config.toml")
+    config_sub.add_parser(
+        "show", parents=[parent], help="Dump resolved settings (secrets redacted)"
+    )
+    config_sub.add_parser("path", parents=[parent], help="Print resolved config file path")
+    config_sub.add_parser("init", parents=[parent], help="Scaffold a starter config.toml")
 
     # fetch (Phase 5 Task 1)
     p_net_fetch = subparsers.add_parser(
@@ -464,16 +460,15 @@ def build_parser() -> argparse.ArgumentParser:
     source_group = p_net_fetch.add_mutually_exclusive_group(required=True)
     source_group.add_argument("--url", help="HTTPS URL to fetch")
     source_group.add_argument("--github", help="GitHub spec (owner/repo/path)")
-    source_group.add_argument("--aws-sample",
-                              help="AWS documentation sample policy name")
-    source_group.add_argument("--aws-managed",
-                              help="AWS managed policy name (DB-backed)")
-    source_group.add_argument("--cloudsplaining",
-                              help="Cloudsplaining example filename")
-    source_group.add_argument("--from-clipboard", action="store_true",
-                              help="Read policy JSON from clipboard")
+    source_group.add_argument("--aws-sample", help="AWS documentation sample policy name")
+    source_group.add_argument("--aws-managed", help="AWS managed policy name (DB-backed)")
+    source_group.add_argument("--cloudsplaining", help="Cloudsplaining example filename")
+    source_group.add_argument(
+        "--from-clipboard", action="store_true", help="Read policy JSON from clipboard"
+    )
     p_net_fetch.add_argument(
-        "--alert-on-new", action="store_true",
+        "--alert-on-new",
+        action="store_true",
         help="Hash-compare vs. last fetch; emit WARN on diff",
     )
     p_net_fetch.add_argument("--intent", default=None)
@@ -482,20 +477,23 @@ def build_parser() -> argparse.ArgumentParser:
 
     # watch (Phase 5 Task 2 — M6)
     p_watch = subparsers.add_parser(
-        "watch", parents=[parent],
+        "watch",
+        parents=[parent],
         help="Re-validate policy files on change via watchfiles",
     )
     p_watch.add_argument("path", help="File or directory to watch")
 
     # wizard (Phase 5 Task 3)
     subparsers.add_parser(
-        "wizard", parents=[parent],
+        "wizard",
+        parents=[parent],
         help="Interactive intent-to-policy builder",
     )
 
     # compare (Phase 5 Task 4)
     p_compare = subparsers.add_parser(
-        "compare", parents=[parent],
+        "compare",
+        parents=[parent],
         help="Diff two policies' risk profiles",
     )
     p_compare.add_argument("policy_a")
@@ -503,26 +501,34 @@ def build_parser() -> argparse.ArgumentParser:
 
     # search (Phase 5 Task 5)
     p_search = subparsers.add_parser(
-        "search", parents=[parent],
+        "search",
+        parents=[parent],
         help="Search GitHub for public IAM policies",
     )
     p_search.add_argument("query")
     p_search.add_argument(
-        "--on-github", action="store_true", default=True,
+        "--on-github",
+        action="store_true",
+        default=True,
         help="Run on GitHub (currently the only backend)",
     )
     p_search.add_argument(
-        "--limit", type=int, default=20,
+        "--limit",
+        type=int,
+        default=20,
         help="Max results to return (default: 20)",
     )
 
     # run --batch (Phase 5 Task 9) — extend p_run with batch flags
     p_run.add_argument(
-        "--batch", default=None, metavar="DIR",
+        "--batch",
+        default=None,
+        metavar="DIR",
         help="Run the pipeline over every policy under DIR",
     )
     p_run.add_argument(
-        "--fail-fast", action="store_true",
+        "--fail-fast",
+        action="store_true",
         help="Stop on first failure in batch mode (default: continue)",
     )
 
@@ -869,8 +875,8 @@ def cmd_rewrite(args: argparse.Namespace) -> int:
         region=args.region,
         add_companions=not args.no_companions,
         add_conditions=not args.no_conditions,
-        policy_type=getattr(args, 'policy_type', None),
-        condition_profile=getattr(args, 'condition_profile', 'moderate'),
+        policy_type=getattr(args, "policy_type", None),
+        condition_profile=getattr(args, "condition_profile", "moderate"),
     )
 
     try:
@@ -942,8 +948,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             import yaml
         except ImportError:
             print(
-                "Error: PyYAML is required for YAML input. "
-                "Install it with: pip install pyyaml",
+                "Error: PyYAML is required for YAML input. Install it with: pip install pyyaml",
                 file=sys.stderr,
             )
             return EXIT_INVALID_ARGS
@@ -954,8 +959,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             return EXIT_INVALID_ARGS
         if not isinstance(data, dict):
             print(
-                f"Error: YAML content must be a mapping, "
-                f"got {type(data).__name__}",
+                f"Error: YAML content must be a mapping, got {type(data).__name__}",
                 file=sys.stderr,
             )
             return EXIT_INVALID_ARGS
@@ -982,10 +986,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         add_companions=not args.no_companions,
         add_conditions=not args.no_conditions,
         interactive=args.interactive,
-        policy_type=getattr(args, 'policy_type', None),
-        condition_profile=getattr(args, 'condition_profile', 'moderate'),
-        allow_wildcard_actions=getattr(args, 'allow_wildcard_actions', False),
-        allow_wildcard_resources=getattr(args, 'allow_wildcard_resources', False),
+        policy_type=getattr(args, "policy_type", None),
+        condition_profile=getattr(args, "condition_profile", "moderate"),
+        allow_wildcard_actions=getattr(args, "allow_wildcard_actions", False),
+        allow_wildcard_resources=getattr(args, "allow_wildcard_resources", False),
     )
 
     try:
@@ -1008,9 +1012,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     output = formatter.format_pipeline_result(result)
     _write_output(args, output)
 
-    findings = list(result.risk_findings) + list(
-        getattr(result.self_check_result, "findings", [])
-    )
+    findings = list(result.risk_findings) + list(getattr(result.self_check_result, "findings", []))
     return _verdict_to_exit_code(findings)
 
 
@@ -1030,8 +1032,11 @@ def _cmd_run_batch(args: argparse.Namespace) -> int:
     db = resolve_database(args)
     inv = resolve_inventory(args)
     config = PipelineConfig(
-        intent=args.intent, account_id=args.account_id, region=args.region,
-        strict_mode=args.strict, max_self_check_retries=args.max_retries,
+        intent=args.intent,
+        account_id=args.account_id,
+        region=args.region,
+        strict_mode=args.strict,
+        max_self_check_retries=args.max_retries,
         add_companions=not args.no_companions,
         add_conditions=not args.no_conditions,
         interactive=False,
@@ -1059,10 +1064,13 @@ def _cmd_run_batch(args: argparse.Namespace) -> int:
             result = pipeline.run(policy_input, config=config)
         except Exception as exc:  # noqa: BLE001 — per-file resilience.
             print(f"[WARN] {fr.origin.source_spec}: {exc}", file=sys.stderr)
-            entries.append({
-                "source": fr.origin.source_spec, "error": str(exc),
-                "exit_code": EXIT_IO_ERROR,
-            })
+            entries.append(
+                {
+                    "source": fr.origin.source_spec,
+                    "error": str(exc),
+                    "exit_code": EXIT_IO_ERROR,
+                }
+            )
             worst = max(worst, EXIT_IO_ERROR)
             if getattr(args, "fail_fast", False):
                 break
@@ -1075,11 +1083,14 @@ def _cmd_run_batch(args: argparse.Namespace) -> int:
             if sev in tally:
                 tally[sev] += 1
         rc = _verdict_to_exit_code(findings)
-        entries.append({
-            "source": fr.origin.source_spec,
-            "sha256": fr.origin.sha256,
-            "findings": len(findings), "exit_code": rc,
-        })
+        entries.append(
+            {
+                "source": fr.origin.source_spec,
+                "sha256": fr.origin.sha256,
+                "findings": len(findings),
+                "exit_code": rc,
+            }
+        )
         if rc != EXIT_SUCCESS:
             worst = max(worst, rc)
             if getattr(args, "fail_fast", False):
@@ -1207,12 +1218,9 @@ def cmd_refresh(args: argparse.Namespace) -> int:
         changelog_lines = []
         for entry in changelog:
             changelog_lines.append(
-                f"[{entry.change_type}] {entry.entity_type}: "
-                f"{entry.entity_name} - {entry.detail}"
+                f"[{entry.change_type}] {entry.entity_type}: {entry.entity_name} - {entry.detail}"
             )
-        Path(args.changelog).write_text(
-            "\n".join(changelog_lines), encoding="utf-8"
-        )
+        Path(args.changelog).write_text("\n".join(changelog_lines), encoding="utf-8")
         print(f"Changelog written to {args.changelog}")
 
     # Auto-export known_services.json after successful refresh
@@ -1226,7 +1234,9 @@ def cmd_refresh(args: argparse.Namespace) -> int:
 
 
 def _cmd_refresh_new_source(
-    args: argparse.Namespace, source: str, db_path: str,
+    args: argparse.Namespace,
+    source: str,
+    db_path: str,
 ) -> int:
     """Dispatch Phase 4 refresh sources (managed-policies, cloudsplaining).
 
@@ -1249,8 +1259,8 @@ def _cmd_refresh_new_source(
 
     if args.data_path is None:
         print(
-            f"Error: --data-path is required for source {source!r} "
-            "(offline mode).", file=sys.stderr,
+            f"Error: --data-path is required for source {source!r} (offline mode).",
+            file=sys.stderr,
         )
         return EXIT_INVALID_ARGS
     data_path = Path(args.data_path)
@@ -1264,19 +1274,18 @@ def _cmd_refresh_new_source(
         loader = ManagedPoliciesLoader(db)
         stats = (
             loader.load_from_directory(data_path)
-            if data_path.is_dir() else loader.load_from_file(data_path)
+            if data_path.is_dir()
+            else loader.load_from_file(data_path)
         )
-        print(
-            f"Refresh complete: {stats.policies_added} added, "
-            f"{stats.policies_updated} updated."
-        )
+        print(f"Refresh complete: {stats.policies_added} added, {stats.policies_updated} updated.")
     else:  # cloudsplaining
         from ..refresh.cloudsplaining import CloudSplainingLoader
 
         loader = CloudSplainingLoader(db)
         stats = (
             loader.load_from_directory(data_path)
-            if data_path.is_dir() else loader.load_from_file(data_path)
+            if data_path.is_dir()
+            else loader.load_from_file(data_path)
         )
         print(
             f"Refresh complete: {stats.actions_added} dangerous actions, "
@@ -1316,6 +1325,7 @@ _CLOUDSPLAINING_RULESET_URL = (
 def _build_live_client():
     """Share one client builder between fetch and refresh paths."""
     from .cli_fetch import _build_http_client
+
     return _build_http_client()
 
 
@@ -1360,8 +1370,7 @@ def _refresh_live(db, source: str) -> int:
             stats = fetcher.fetch_and_load(_CLOUDSPLAINING_RULESET_URL)
         except Exception as exc:  # noqa: BLE001
             client.close()
-            print(f"Error: cloudsplaining live fetch failed: {exc}",
-                  file=sys.stderr)
+            print(f"Error: cloudsplaining live fetch failed: {exc}", file=sys.stderr)
             return EXIT_IO_ERROR
         client.close()
         print(
@@ -1373,8 +1382,7 @@ def _refresh_live(db, source: str) -> int:
             print(f"[WARN] {err}", file=sys.stderr)
         return EXIT_SUCCESS
 
-    print(f"Error: --live not supported for source {source!r}",
-          file=sys.stderr)
+    print(f"Error: --live not supported for source {source!r}", file=sys.stderr)
     return EXIT_INVALID_ARGS
 
 
@@ -1386,8 +1394,7 @@ def _cmd_refresh_all(args: argparse.Namespace) -> int:
     set on the parent call, it's propagated to every child; the per-source
     exit codes are aggregated and the worst is returned.
     """
-    all_sources = ("policy-sentry", "aws-docs",
-                   "managed-policies", "cloudsplaining")
+    all_sources = ("policy-sentry", "aws-docs", "managed-policies", "cloudsplaining")
     worst = EXIT_SUCCESS
     for src in all_sources:
         print(f"\n=== refresh: {src} ===", file=sys.stderr)
@@ -1397,9 +1404,11 @@ def _cmd_refresh_all(args: argparse.Namespace) -> int:
         # Legacy sources NEED --data-path; skip them when --live is on
         # without a fallback — operators should run them explicitly.
         if src in _LEGACY_SOURCES and not args.data_path:
-            print(f"[WARN] skipping {src}: --data-path required "
-                  "(legacy source has no live CLI wiring)",
-                  file=sys.stderr)
+            print(
+                f"[WARN] skipping {src}: --data-path required "
+                "(legacy source has no live CLI wiring)",
+                file=sys.stderr,
+            )
             continue
         try:
             rc = cmd_refresh(sub)
@@ -1529,9 +1538,7 @@ def cmd_fetch_examples(args: argparse.Namespace) -> int:
 
     report_path = getattr(args, "report", None)
     if report_path:
-        Path(report_path).write_text(
-            json.dumps(report, indent=2) + "\n", encoding="utf-8"
-        )
+        Path(report_path).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         print(f"Report written to {report_path}")
 
     return EXIT_SUCCESS

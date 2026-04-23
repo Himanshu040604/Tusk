@@ -234,9 +234,7 @@ class TestInMemoryFallback:
         """Simulate an OSError on mkdir and assert the fallback works."""
         bad = tmp_path / "unwritable"
 
-        with patch.object(
-            Path, "mkdir", side_effect=OSError("read-only")
-        ):
+        with patch.object(Path, "mkdir", side_effect=OSError("read-only")):
             cache = DiskCache(cache_dir=bad)
         # Should still function end-to-end via in-memory.
         cache.put("https://x.example/", "user_url", b"hello")
@@ -283,9 +281,7 @@ class TestTtlExpiry:
 
 
 class TestRotateKey:
-    def test_rotate_key_purges_and_old_entries_vanish(
-        self, tmp_path: Path
-    ) -> None:
+    def test_rotate_key_purges_and_old_entries_vanish(self, tmp_path: Path) -> None:
         cache = DiskCache(cache_dir=tmp_path)
         cache.put("https://r.example/", "user_url", b"pre-rotate")
         assert cache.get("https://r.example/", "user_url") is not None

@@ -17,6 +17,7 @@ Exit codes:
     1 — drift detected
     2 — file missing or malformed
 """
+
 from __future__ import annotations
 
 import sys

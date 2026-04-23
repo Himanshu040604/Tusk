@@ -79,9 +79,7 @@ class ClipboardFetcher:
             )
 
         if not text.strip():
-            raise ClipboardUnavailable(
-                "Clipboard is empty — copy a policy JSON first."
-            )
+            raise ClipboardUnavailable("Clipboard is empty — copy a policy JSON first.")
 
         body = text.encode("utf-8")
         origin = build_local_origin(
@@ -90,7 +88,10 @@ class ClipboardFetcher:
             body=body,
         )
         return FetchResult(
-            body=body, headers={}, cache_status="N/A", origin=origin,
+            body=body,
+            headers={},
+            cache_status="N/A",
+            origin=origin,
         )
 
     def _try_pyperclip(self) -> str | None:

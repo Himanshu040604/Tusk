@@ -52,6 +52,7 @@ class RewriteConfig:
         policy_type: Policy type hint (identity/resource/scp/boundary/None for auto-detect)
         condition_profile: Condition injection profile (strict/moderate/none)
     """
+
     intent: str | None = None
     account_id: str | None = None
     region: str | None = None
@@ -77,6 +78,7 @@ class RewriteChange:
         confidence: How confident the rewrite decision is (1.0=DB-backed, 0.7=intent, 0.5=placeholder)
         rationale: Explanation of why this specific rewrite choice was made
     """
+
     change_type: str
     description: str
     original_value: str
@@ -98,14 +100,13 @@ class RewriteResult:
         warnings: Warnings generated during rewriting
         companion_permissions_added: Companion permissions that were added
     """
+
     original_policy: Policy
     rewritten_policy: Policy
     changes: List[RewriteChange] = field(default_factory=list)
     assumptions: List[str] = field(default_factory=list)
     warnings: List[str] = field(default_factory=list)
-    companion_permissions_added: List[CompanionPermission] = field(
-        default_factory=list
-    )
+    companion_permissions_added: List[CompanionPermission] = field(default_factory=list)
 
 
 class PolicyRewriter:
@@ -184,8 +185,7 @@ class PolicyRewriter:
             return
         # dict constructor collapses duplicates; first-wins via reversed().
         self._action_resource_map = {
-            action_name: resource_type
-            for action_name, resource_type in reversed(rows)
+            action_name: resource_type for action_name, resource_type in reversed(rows)
         }
 
     def _bulk_load_arn_templates(self, database: Database) -> None:
@@ -200,14 +200,12 @@ class PolicyRewriter:
         try:
             with database.get_connection() as conn:
                 probe = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' "
-                    "AND name='arn_templates'"
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='arn_templates'"
                 ).fetchone()
                 if not probe:
                     return
                 rows = conn.execute(
-                    "SELECT service_prefix, resource_type, arn_template "
-                    "FROM arn_templates"
+                    "SELECT service_prefix, resource_type, arn_template FROM arn_templates"
                 ).fetchall()
         except Exception:
             return
@@ -232,26 +230,17 @@ class PolicyRewriter:
         Returns:
             One of 'identity', 'resource', 'scp'.
         """
-        has_principal = any(
-            stmt.principals is not None for stmt in policy.statements
-        )
+        has_principal = any(stmt.principals is not None for stmt in policy.statements)
         if has_principal:
             return "resource"
 
-        all_deny = (
-            policy.statements
-            and all(stmt.effect == 'Deny' for stmt in policy.statements)
-        )
+        all_deny = policy.statements and all(stmt.effect == "Deny" for stmt in policy.statements)
         if all_deny:
             return "scp"
 
         return "identity"
 
-    def rewrite_policy(
-        self,
-        policy: Policy,
-        config: RewriteConfig | None = None
-    ) -> RewriteResult:
+    def rewrite_policy(self, policy: Policy, config: RewriteConfig | None = None) -> RewriteResult:
         """Rewrite an IAM policy to enforce least privilege.
 
         Orchestrates all rewriting steps: wildcard replacement, resource
@@ -269,9 +258,7 @@ class PolicyRewriter:
             config = RewriteConfig()
 
         # Auto-detect policy type if not explicitly set
-        self._current_policy_type = (
-            config.policy_type or self.detect_policy_type(policy)
-        )
+        self._current_policy_type = config.policy_type or self.detect_policy_type(policy)
 
         all_changes: List[RewriteChange] = []
         assumptions: List[str] = []
@@ -283,23 +270,21 @@ class PolicyRewriter:
 
         for idx, stmt in enumerate(policy.statements):
             # Preserve Deny statements as-is
-            if config.preserve_deny_statements and stmt.effect == 'Deny':
+            if config.preserve_deny_statements and stmt.effect == "Deny":
                 new_statements.append(copy.deepcopy(stmt))
                 continue
 
             # Warn about NotAction / NotResource
             if stmt.not_actions:
                 warnings.append(
-                    f"Statement {idx}: NotAction preserved as-is. "
-                    "Manual review recommended."
+                    f"Statement {idx}: NotAction preserved as-is. Manual review recommended."
                 )
                 new_statements.append(copy.deepcopy(stmt))
                 continue
 
             if stmt.not_resources:
                 warnings.append(
-                    f"Statement {idx}: NotResource preserved as-is. "
-                    "Manual review recommended."
+                    f"Statement {idx}: NotResource preserved as-is. Manual review recommended."
                 )
                 new_statements.append(copy.deepcopy(stmt))
                 continue
@@ -316,17 +301,15 @@ class PolicyRewriter:
 
             # Step 3: Add condition keys
             if config.add_conditions:
-                working, changes = self._add_condition_keys(
-                    working, config, idx
-                )
+                working, changes = self._add_condition_keys(working, config, idx)
                 all_changes.extend(changes)
 
             new_statements.append(working)
 
         # Step 4: Add companion permissions
         if config.add_companions:
-            new_statements, changes, companions = (
-                self._add_companion_permissions(new_statements, config)
+            new_statements, changes, companions = self._add_companion_permissions(
+                new_statements, config
             )
             all_changes.extend(changes)
             companions_added.extend(companions)
@@ -348,9 +331,7 @@ class PolicyRewriter:
                 "Placeholder ARNs used instead of real resource ARNs."
             )
         if config.intent:
-            assumptions.append(
-                f"Developer intent interpreted as: '{config.intent}'"
-            )
+            assumptions.append(f"Developer intent interpreted as: '{config.intent}'")
 
         rewritten = Policy(
             version=policy.version,
@@ -389,25 +370,24 @@ class PolicyRewriter:
         new_actions: List[str] = []
 
         for action in statement.actions:
-            if '*' not in action:
+            if "*" not in action:
                 new_actions.append(action)
                 continue
 
             expanded = self._expand_wildcard_action(action, config)
 
             if expanded and expanded != [action]:
-                changes.append(RewriteChange(
-                    change_type="WILDCARD_REPLACED",
-                    description=(
-                        f"Replaced wildcard '{action}' with "
-                        f"{len(expanded)} specific actions"
-                    ),
-                    original_value=action,
-                    new_value=', '.join(expanded[:5]) + (
-                        '...' if len(expanded) > 5 else ''
-                    ),
-                    statement_index=stmt_index,
-                ))
+                changes.append(
+                    RewriteChange(
+                        change_type="WILDCARD_REPLACED",
+                        description=(
+                            f"Replaced wildcard '{action}' with {len(expanded)} specific actions"
+                        ),
+                        original_value=action,
+                        new_value=", ".join(expanded[:5]) + ("..." if len(expanded) > 5 else ""),
+                        statement_index=stmt_index,
+                    )
+                )
                 new_actions.extend(expanded)
             else:
                 # Keep original wildcard if no expansion possible
@@ -434,28 +414,26 @@ class PolicyRewriter:
             return [action]
 
         # Full wildcard: expand based on intent or return as-is
-        if action in ('*', '*:*'):
+        if action in ("*", "*:*"):
             if config.intent:
                 return self._intent_based_expansion(config.intent)
             return [action]
 
-        parts = action.split(':', 1)
+        parts = action.split(":", 1)
         if len(parts) != 2:
             return [action]
 
         service_prefix, action_pattern = parts
 
         # service:* -> all actions for service
-        if action_pattern == '*':
+        if action_pattern == "*":
             db_actions = self.database.get_actions_by_service(service_prefix)
             if db_actions:
-                return [
-                    f"{service_prefix}:{a.action_name}" for a in db_actions
-                ]
+                return [f"{service_prefix}:{a.action_name}" for a in db_actions]
             return [action]
 
         # service:Get* or service:*Object -> prefix/suffix matching
-        if action_pattern.endswith('*'):
+        if action_pattern.endswith("*"):
             prefix = action_pattern[:-1]
             db_actions = self.database.get_actions_by_service(service_prefix)
             matches = [
@@ -465,7 +443,7 @@ class PolicyRewriter:
             ]
             return matches if matches else [action]
 
-        if action_pattern.startswith('*'):
+        if action_pattern.startswith("*"):
             suffix = action_pattern[1:]
             db_actions = self.database.get_actions_by_service(service_prefix)
             matches = [
@@ -487,7 +465,7 @@ class PolicyRewriter:
             List of specific action names matching the intent
         """
         if not self.database:
-            return ['*']
+            return ["*"]
 
         intent_lower = intent.lower()
         actions: List[str] = []
@@ -495,18 +473,16 @@ class PolicyRewriter:
         # Extract service hints (word boundary to avoid e.g. "turkey" matching "key")
         target_services: List[str] = []
         for keyword, service in SERVICE_NAME_MAPPINGS.items():
-            if re.search(r'\b' + re.escape(keyword) + r'\b', intent_lower):
+            if re.search(r"\b" + re.escape(keyword) + r"\b", intent_lower):
                 if service not in target_services:
                     target_services.append(service)
 
         # Determine access level from intent (word boundary matching)
         is_read_only = any(
-            re.search(r'\b' + re.escape(kw) + r'\b', intent_lower)
-            for kw in READ_INTENT_KEYWORDS
+            re.search(r"\b" + re.escape(kw) + r"\b", intent_lower) for kw in READ_INTENT_KEYWORDS
         )
         is_write = any(
-            re.search(r'\b' + re.escape(kw) + r'\b', intent_lower)
-            for kw in WRITE_INTENT_KEYWORDS
+            re.search(r"\b" + re.escape(kw) + r"\b", intent_lower) for kw in WRITE_INTENT_KEYWORDS
         )
 
         for svc in target_services:
@@ -519,7 +495,7 @@ class PolicyRewriter:
                 elif not is_read_only and not is_write:
                     actions.append(f"{svc}:{a.action_name}")
 
-        return actions if actions else ['*']
+        return actions if actions else ["*"]
 
     def _scope_resources(
         self,
@@ -539,62 +515,58 @@ class PolicyRewriter:
         """
         changes: List[RewriteChange] = []
 
-        if not any(r == '*' for r in statement.resources):
+        if not any(r == "*" for r in statement.resources):
             return statement, changes
 
         # Determine which services are needed from the actions
         services_needed: Set[str] = set()
         for action in statement.actions:
-            parts = action.split(':', 1)
+            parts = action.split(":", 1)
             if len(parts) == 2:
                 services_needed.add(parts[0])
 
         new_resources: List[str] = []
 
         for resource in statement.resources:
-            if resource != '*':
+            if resource != "*":
                 new_resources.append(resource)
                 continue
 
             # Try to resolve real ARNs for each service
             resolved_any = False
             for service in sorted(services_needed):
-                arns = self._resolve_resource_arns_for_service(
-                    service, statement.actions, config
-                )
+                arns = self._resolve_resource_arns_for_service(service, statement.actions, config)
                 if arns:
                     new_resources.extend(arns)
                     resolved_any = True
-                    changes.append(RewriteChange(
-                        change_type="ARN_SCOPED",
-                        description=(
-                            f"Replaced wildcard resource with "
-                            f"{len(arns)} ARN(s) for {service}"
-                        ),
-                        original_value='*',
-                        new_value=', '.join(arns[:3]) + (
-                            '...' if len(arns) > 3 else ''
-                        ),
-                        statement_index=stmt_index,
-                    ))
+                    changes.append(
+                        RewriteChange(
+                            change_type="ARN_SCOPED",
+                            description=(
+                                f"Replaced wildcard resource with {len(arns)} ARN(s) for {service}"
+                            ),
+                            original_value="*",
+                            new_value=", ".join(arns[:3]) + ("..." if len(arns) > 3 else ""),
+                            statement_index=stmt_index,
+                        )
+                    )
 
             if not resolved_any:
                 # Generate placeholder ARNs
                 for service in sorted(services_needed):
-                    placeholder = self._generate_placeholder_arn(
-                        service, statement.actions, config
-                    )
+                    placeholder = self._generate_placeholder_arn(service, statement.actions, config)
                     new_resources.append(placeholder)
-                    changes.append(RewriteChange(
-                        change_type="ARN_SCOPED",
-                        description=(
-                            f"Generated placeholder ARN for {service} "
-                            "(replace with real ARN)"
-                        ),
-                        original_value='*',
-                        new_value=placeholder,
-                        statement_index=stmt_index,
-                    ))
+                    changes.append(
+                        RewriteChange(
+                            change_type="ARN_SCOPED",
+                            description=(
+                                f"Generated placeholder ARN for {service} (replace with real ARN)"
+                            ),
+                            original_value="*",
+                            new_value=placeholder,
+                            statement_index=stmt_index,
+                        )
+                    )
 
         # Deduplicate while preserving order
         seen: Set[str] = set()
@@ -604,7 +576,7 @@ class PolicyRewriter:
                 seen.add(r)
                 deduped.append(r)
 
-        statement.resources = deduped if deduped else ['*']
+        statement.resources = deduped if deduped else ["*"]
         return statement, changes
 
     def _resolve_resource_arns_for_service(
@@ -670,10 +642,9 @@ class PolicyRewriter:
         # tried first so future scoped templates override the base one.
         placeholder_name = f"PLACEHOLDER-{resource_type}-name"
         placeholder_id = f"PLACEHOLDER-{resource_type}-id"
-        template = (
-            self._arn_templates.get(f"{service_prefix}:{resource_type}")
-            or self._arn_templates.get(service_prefix)
-        )
+        template = self._arn_templates.get(
+            f"{service_prefix}:{resource_type}"
+        ) or self._arn_templates.get(service_prefix)
         if template:
             return template.format(
                 region=region,
@@ -718,18 +689,18 @@ class PolicyRewriter:
 
         # Default resource types by service
         defaults: Dict[str, str] = {
-            's3': 'bucket',
-            'ec2': 'instance',
-            'lambda': 'function',
-            'dynamodb': 'table',
-            'sqs': 'queue',
-            'sns': 'topic',
-            'kms': 'key',
-            'iam': 'role',
-            'rds': 'db',
-            'secretsmanager': 'secret',
+            "s3": "bucket",
+            "ec2": "instance",
+            "lambda": "function",
+            "dynamodb": "table",
+            "sqs": "queue",
+            "sns": "topic",
+            "kms": "key",
+            "iam": "role",
+            "rds": "db",
+            "secretsmanager": "secret",
         }
-        return defaults.get(service_prefix, 'resource')
+        return defaults.get(service_prefix, "resource")
 
     def _add_companion_permissions(
         self,
@@ -757,13 +728,11 @@ class PolicyRewriter:
         # Collect all Allow actions across all statements
         all_allow_actions: List[str] = []
         for stmt in statements:
-            if stmt.effect == 'Allow':
+            if stmt.effect == "Allow":
                 all_allow_actions.extend(stmt.actions)
 
         # Detect missing companions
-        missing = self.companion_detector.detect_missing_companions(
-            all_allow_actions
-        )
+        missing = self.companion_detector.detect_missing_companions(all_allow_actions)
 
         if not missing:
             return statements, changes, companions_added
@@ -771,33 +740,31 @@ class PolicyRewriter:
         # Group companion actions by creating new statements
         for companion in missing:
             companion_stmt = Statement(
-                effect='Allow',
+                effect="Allow",
                 actions=companion.companion_actions,
-                resources=['*'],
-                sid=self._generate_sid(
-                    companion.companion_actions, 'Allow'
-                ),
+                resources=["*"],
+                sid=self._generate_sid(companion.companion_actions, "Allow"),
             )
 
             # Always attempt to scope companion resources
-            companion_stmt, _ = self._scope_resources(
-                companion_stmt, config, len(statements)
-            )
+            companion_stmt, _ = self._scope_resources(companion_stmt, config, len(statements))
 
             statements.append(companion_stmt)
             companions_added.append(companion)
 
-            changes.append(RewriteChange(
-                change_type="COMPANION_ADDED",
-                description=(
-                    f"Added companion permissions for "
-                    f"{companion.primary_action}: "
-                    f"{', '.join(companion.companion_actions)}"
-                ),
-                original_value="(missing)",
-                new_value=', '.join(companion.companion_actions),
-                statement_index=len(statements) - 1,
-            ))
+            changes.append(
+                RewriteChange(
+                    change_type="COMPANION_ADDED",
+                    description=(
+                        f"Added companion permissions for "
+                        f"{companion.primary_action}: "
+                        f"{', '.join(companion.companion_actions)}"
+                    ),
+                    original_value="(missing)",
+                    new_value=", ".join(companion.companion_actions),
+                    statement_index=len(statements) - 1,
+                )
+            )
 
         return statements, changes, companions_added
 
@@ -822,7 +789,7 @@ class PolicyRewriter:
         """
         changes: List[RewriteChange] = []
 
-        if statement.effect != 'Allow':
+        if statement.effect != "Allow":
             return statement, changes
 
         # Respect condition_profile: 'none' skips all injection
@@ -831,7 +798,7 @@ class PolicyRewriter:
 
         # Resolve policy type (explicit or auto-detect)
         policy_type = config.policy_type
-        if policy_type is None and hasattr(self, '_current_policy_type'):
+        if policy_type is None and hasattr(self, "_current_policy_type"):
             policy_type = self._current_policy_type
 
         conditions = copy.deepcopy(statement.conditions) if statement.conditions else {}
@@ -839,86 +806,75 @@ class PolicyRewriter:
 
         # Add region restriction if region is specified
         if config.region:
-            services_in_stmt = {
-                a.split(':')[0] for a in statement.actions if ':' in a
-            }
+            services_in_stmt = {a.split(":")[0] for a in statement.actions if ":" in a}
             # Only add for regional services (not IAM, S3 buckets, etc.)
             regional_services = services_in_stmt - REGION_LESS_GLOBAL_SERVICES
 
             if regional_services:
-                if 'StringEquals' not in conditions:
-                    conditions['StringEquals'] = {}
-                if 'aws:RequestedRegion' not in conditions.get(
-                    'StringEquals', {}
-                ):
-                    conditions['StringEquals']['aws:RequestedRegion'] = (
-                        config.region
-                    )
+                if "StringEquals" not in conditions:
+                    conditions["StringEquals"] = {}
+                if "aws:RequestedRegion" not in conditions.get("StringEquals", {}):
+                    conditions["StringEquals"]["aws:RequestedRegion"] = config.region
                     added_any = True
-                    changes.append(RewriteChange(
-                        change_type="CONDITION_ADDED",
-                        description=(
-                            f"Added region restriction to {config.region}"
-                        ),
-                        original_value="(none)",
-                        new_value=(
-                            f"aws:RequestedRegion = {config.region}"
-                        ),
-                        statement_index=stmt_index,
-                    ))
+                    changes.append(
+                        RewriteChange(
+                            change_type="CONDITION_ADDED",
+                            description=(f"Added region restriction to {config.region}"),
+                            original_value="(none)",
+                            new_value=(f"aws:RequestedRegion = {config.region}"),
+                            statement_index=stmt_index,
+                        )
+                    )
 
         # Add encryption requirement for S3 writes
         s3_write_actions = {
-            's3:PutObject', 's3:CopyObject', 's3:CreateMultipartUpload',
+            "s3:PutObject",
+            "s3:CopyObject",
+            "s3:CreateMultipartUpload",
         }
         if any(a in s3_write_actions for a in statement.actions):
-            if 'StringEquals' not in conditions:
-                conditions['StringEquals'] = {}
-            if 's3:x-amz-server-side-encryption' not in conditions.get(
-                'StringEquals', {}
-            ):
-                conditions['StringEquals'][
-                    's3:x-amz-server-side-encryption'
-                ] = 'aws:kms'
+            if "StringEquals" not in conditions:
+                conditions["StringEquals"] = {}
+            if "s3:x-amz-server-side-encryption" not in conditions.get("StringEquals", {}):
+                conditions["StringEquals"]["s3:x-amz-server-side-encryption"] = "aws:kms"
                 added_any = True
-                changes.append(RewriteChange(
-                    change_type="CONDITION_ADDED",
-                    description="Added S3 server-side encryption requirement",
-                    original_value="(none)",
-                    new_value="s3:x-amz-server-side-encryption = aws:kms",
-                    statement_index=stmt_index,
-                ))
+                changes.append(
+                    RewriteChange(
+                        change_type="CONDITION_ADDED",
+                        description="Added S3 server-side encryption requirement",
+                        original_value="(none)",
+                        new_value="s3:x-amz-server-side-encryption = aws:kms",
+                        statement_index=stmt_index,
+                    )
+                )
 
         # Add source account condition for cross-service actions
         # aws:SourceAccount is meaningful in resource-based policies only,
         # not in identity policies where the caller IS the account.
-        skip_source_account = (policy_type == "identity")
+        skip_source_account = policy_type == "identity"
         if config.account_id and not skip_source_account:
             cross_service_actions = {
-                'lambda:InvokeFunction', 'sns:Publish', 'sqs:SendMessage',
+                "lambda:InvokeFunction",
+                "sns:Publish",
+                "sqs:SendMessage",
             }
             if any(a in cross_service_actions for a in statement.actions):
-                if 'StringEquals' not in conditions:
-                    conditions['StringEquals'] = {}
-                if 'aws:SourceAccount' not in conditions.get(
-                    'StringEquals', {}
-                ):
-                    conditions['StringEquals']['aws:SourceAccount'] = (
-                        config.account_id
-                    )
+                if "StringEquals" not in conditions:
+                    conditions["StringEquals"] = {}
+                if "aws:SourceAccount" not in conditions.get("StringEquals", {}):
+                    conditions["StringEquals"]["aws:SourceAccount"] = config.account_id
                     added_any = True
-                    changes.append(RewriteChange(
-                        change_type="CONDITION_ADDED",
-                        description=(
-                            "Added source account restriction for "
-                            "cross-service access"
-                        ),
-                        original_value="(none)",
-                        new_value=(
-                            f"aws:SourceAccount = {config.account_id}"
-                        ),
-                        statement_index=stmt_index,
-                    ))
+                    changes.append(
+                        RewriteChange(
+                            change_type="CONDITION_ADDED",
+                            description=(
+                                "Added source account restriction for cross-service access"
+                            ),
+                            original_value="(none)",
+                            new_value=(f"aws:SourceAccount = {config.account_id}"),
+                            statement_index=stmt_index,
+                        )
+                    )
 
         if added_any:
             statement.conditions = conditions
@@ -951,7 +907,7 @@ class PolicyRewriter:
                 continue
 
             # Preserve Deny and non-standard statements as-is
-            if stmt.effect == 'Deny' or stmt.not_actions or stmt.not_resources:
+            if stmt.effect == "Deny" or stmt.not_actions or stmt.not_resources:
                 if not stmt.sid:
                     stmt.sid = self._generate_unique_sid(
                         stmt.actions or stmt.not_actions or [],
@@ -966,16 +922,12 @@ class PolicyRewriter:
             if len(stmt.actions) > max_actions:
                 split_stmts = self._split_statement(stmt, max_actions)
                 for s in split_stmts:
-                    s.sid = self._generate_unique_sid(
-                        s.actions, s.effect, used_sids
-                    )
+                    s.sid = self._generate_unique_sid(s.actions, s.effect, used_sids)
                     used_sids.add(s.sid)
                 result.extend(split_stmts)
             else:
                 if not stmt.sid:
-                    stmt.sid = self._generate_unique_sid(
-                        stmt.actions, stmt.effect, used_sids
-                    )
+                    stmt.sid = self._generate_unique_sid(stmt.actions, stmt.effect, used_sids)
                 used_sids.add(stmt.sid)
                 result.append(stmt)
 
@@ -1004,7 +956,7 @@ class PolicyRewriter:
         other_actions: List[str] = []
 
         for action in statement.actions:
-            action_name = action.split(':')[-1] if ':' in action else action
+            action_name = action.split(":")[-1] if ":" in action else action
 
             if any(action_name.startswith(p) for p in self.READ_PREFIXES):
                 read_actions.append(action)
@@ -1018,20 +970,19 @@ class PolicyRewriter:
         result: List[Statement] = []
 
         for group_actions, label in [
-            (read_actions, 'Read'),
-            (write_actions, 'Write'),
-            (admin_actions, 'Admin'),
-            (other_actions, 'Other'),
+            (read_actions, "Read"),
+            (write_actions, "Write"),
+            (admin_actions, "Admin"),
+            (other_actions, "Other"),
         ]:
             if not group_actions:
                 continue
 
             # Further split if still too large
             for i in range(0, len(group_actions), max_actions):
-                chunk = group_actions[i:i + max_actions]
+                chunk = group_actions[i : i + max_actions]
                 part_suffix = (
-                    f"Part{i // max_actions + 1}"
-                    if len(group_actions) > max_actions else ""
+                    f"Part{i // max_actions + 1}" if len(group_actions) > max_actions else ""
                 )
 
                 new_stmt = Statement(
@@ -1040,12 +991,10 @@ class PolicyRewriter:
                     resources=list(statement.resources),
                     sid=None,  # Sid assigned by _reorganize_statements
                     conditions=(
-                        copy.deepcopy(statement.conditions)
-                        if statement.conditions else None
+                        copy.deepcopy(statement.conditions) if statement.conditions else None
                     ),
                     principals=(
-                        copy.deepcopy(statement.principals)
-                        if statement.principals else None
+                        copy.deepcopy(statement.principals) if statement.principals else None
                     ),
                 )
                 result.append(new_stmt)
@@ -1073,7 +1022,7 @@ class PolicyRewriter:
         action_verbs: Set[str] = set()
 
         for action in actions:
-            parts = action.split(':', 1)
+            parts = action.split(":", 1)
             if len(parts) == 2:
                 services.add(parts[0].capitalize())
                 verb = parts[1]
@@ -1084,7 +1033,7 @@ class PolicyRewriter:
                         break
 
         # Build Sid
-        service_part = ''.join(sorted(services)[:2])
+        service_part = "".join(sorted(services)[:2])
         if not service_part:
             service_part = "General"
 
@@ -1098,9 +1047,7 @@ class PolicyRewriter:
                 access_part = "Access"
         elif len(actions) == 1:
             # Single action - use the action name directly
-            action_name = actions[0].split(':')[-1] if ':' in actions[0] else (
-                actions[0]
-            )
+            action_name = actions[0].split(":")[-1] if ":" in actions[0] else (actions[0])
             access_part = action_name
         else:
             access_part = "Access"
@@ -1108,7 +1055,7 @@ class PolicyRewriter:
         sid = f"{effect}{service_part}{access_part}"
 
         # Clean up: remove invalid characters
-        sid = re.sub(r'[^A-Za-z0-9]', '', sid)
+        sid = re.sub(r"[^A-Za-z0-9]", "", sid)
 
         return sid
 
@@ -1174,11 +1121,11 @@ def serialize_policy(policy: Policy) -> Dict[str, Any]:
         Condition, Principal]).
     """
     result: Dict[str, Any] = {
-        'Version': policy.version,
+        "Version": policy.version,
     }
 
     if policy.id:
-        result['Id'] = policy.id
+        result["Id"] = policy.id
 
     statements: List[Dict[str, Any]] = []
     for stmt in policy.statements:
@@ -1188,39 +1135,33 @@ def serialize_policy(policy: Policy) -> Dict[str, Any]:
             continue
 
         stmt_dict: Dict[str, Any] = {
-            'Effect': stmt.effect,
+            "Effect": stmt.effect,
         }
 
         if stmt.sid:
-            stmt_dict['Sid'] = stmt.sid
+            stmt_dict["Sid"] = stmt.sid
 
         if stmt.not_actions:
-            stmt_dict['NotAction'] = stmt.not_actions
+            stmt_dict["NotAction"] = stmt.not_actions
         else:
-            stmt_dict['Action'] = (
-                stmt.actions[0]
-                if len(stmt.actions) == 1
-                else stmt.actions
-            )
+            stmt_dict["Action"] = stmt.actions[0] if len(stmt.actions) == 1 else stmt.actions
 
         if stmt.not_resources:
-            stmt_dict['NotResource'] = stmt.not_resources
+            stmt_dict["NotResource"] = stmt.not_resources
         elif stmt.resources:
-            stmt_dict['Resource'] = (
-                stmt.resources[0]
-                if len(stmt.resources) == 1
-                else stmt.resources
+            stmt_dict["Resource"] = (
+                stmt.resources[0] if len(stmt.resources) == 1 else stmt.resources
             )
         else:
-            stmt_dict['Resource'] = '*'
+            stmt_dict["Resource"] = "*"
 
         if stmt.conditions:
-            stmt_dict['Condition'] = stmt.conditions
+            stmt_dict["Condition"] = stmt.conditions
 
         if stmt.principals:
-            stmt_dict['Principal'] = stmt.principals
+            stmt_dict["Principal"] = stmt.principals
 
         statements.append(stmt_dict)
 
-    result['Statement'] = statements
+    result["Statement"] = statements
     return result

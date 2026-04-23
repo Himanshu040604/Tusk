@@ -34,74 +34,77 @@ def database(tmp_path):
     db = Database(db_path)
 
     # Add sample services
-    db.insert_service(Service(
-        service_prefix='s3',
-        service_name='Amazon S3'
-    ))
-    db.insert_service(Service(
-        service_prefix='lambda',
-        service_name='AWS Lambda'
-    ))
-    db.insert_service(Service(
-        service_prefix='iam',
-        service_name='AWS IAM'
-    ))
+    db.insert_service(Service(service_prefix="s3", service_name="Amazon S3"))
+    db.insert_service(Service(service_prefix="lambda", service_name="AWS Lambda"))
+    db.insert_service(Service(service_prefix="iam", service_name="AWS IAM"))
 
     # Add sample actions
-    db.insert_action(Action(
-        action_id=None,
-        service_prefix='s3',
-        action_name='GetObject',
-        full_action='s3:GetObject',
-        description='Read S3 objects',
-        access_level='Read',
-        is_read=True
-    ))
-    db.insert_action(Action(
-        action_id=None,
-        service_prefix='s3',
-        action_name='PutObject',
-        full_action='s3:PutObject',
-        description='Write S3 objects',
-        access_level='Write',
-        is_write=True
-    ))
-    db.insert_action(Action(
-        action_id=None,
-        service_prefix='s3',
-        action_name='ListBucket',
-        full_action='s3:ListBucket',
-        description='List S3 buckets',
-        access_level='List',
-        is_list=True
-    ))
-    db.insert_action(Action(
-        action_id=None,
-        service_prefix='lambda',
-        action_name='InvokeFunction',
-        full_action='lambda:InvokeFunction',
-        description='Invoke Lambda function',
-        access_level='Write',
-        is_write=True
-    ))
-    db.insert_action(Action(
-        action_id=None,
-        service_prefix='iam',
-        action_name='PassRole',
-        full_action='iam:PassRole',
-        description='Pass role to AWS service',
-        access_level='Write',
-        is_write=True
-    ))
-    db.insert_action(Action(
-        action_id=None,
-        service_prefix='iam',
-        action_name='CreatePolicyVersion',
-        full_action='iam:CreatePolicyVersion',
-        description='Create IAM policy version',
-        access_level='Permissions management',
-        is_permissions_management=True
-    ))
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="s3",
+            action_name="GetObject",
+            full_action="s3:GetObject",
+            description="Read S3 objects",
+            access_level="Read",
+            is_read=True,
+        )
+    )
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="s3",
+            action_name="PutObject",
+            full_action="s3:PutObject",
+            description="Write S3 objects",
+            access_level="Write",
+            is_write=True,
+        )
+    )
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="s3",
+            action_name="ListBucket",
+            full_action="s3:ListBucket",
+            description="List S3 buckets",
+            access_level="List",
+            is_list=True,
+        )
+    )
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="lambda",
+            action_name="InvokeFunction",
+            full_action="lambda:InvokeFunction",
+            description="Invoke Lambda function",
+            access_level="Write",
+            is_write=True,
+        )
+    )
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="iam",
+            action_name="PassRole",
+            full_action="iam:PassRole",
+            description="Pass role to AWS service",
+            access_level="Write",
+            is_write=True,
+        )
+    )
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="iam",
+            action_name="CreatePolicyVersion",
+            full_action="iam:CreatePolicyVersion",
+            description="Create IAM policy version",
+            access_level="Permissions management",
+            is_permissions_management=True,
+        )
+    )
 
     return db
 
@@ -122,7 +125,7 @@ class TestIntentMapper:
 
         assert AccessLevel.READ in result.access_levels
         assert AccessLevel.WRITE not in result.access_levels
-        assert 's3' in result.services
+        assert "s3" in result.services
         assert result.confidence > 0
 
     def test_map_read_write_intent(self, database):
@@ -150,7 +153,7 @@ class TestIntentMapper:
         result = mapper.map_intent("list S3 buckets")
 
         assert AccessLevel.LIST in result.access_levels
-        assert 's3' in result.services
+        assert "s3" in result.services
 
     def test_map_admin_intent(self, database):
         """Test mapping admin/full access intent."""
@@ -169,15 +172,15 @@ class TestIntentMapper:
 
         assert AccessLevel.WRITE in result.access_levels
         assert AccessLevel.TAGGING in result.access_levels
-        assert 'lambda' in result.services
+        assert "lambda" in result.services
 
     def test_map_with_database_actions(self, database):
         """Test intent mapping with database action lookup."""
         mapper = IntentMapper(database)
-        result = mapper.map_intent("read S3 objects", service_filter=['s3'])
+        result = mapper.map_intent("read S3 objects", service_filter=["s3"])
 
         assert len(result.actions) > 0
-        assert any('s3:' in action for action in result.actions)
+        assert any("s3:" in action for action in result.actions)
 
     def test_map_default_read_only(self, database):
         """Test default to read-only for unknown intent."""
@@ -193,8 +196,8 @@ class TestIntentMapper:
         mapper = IntentMapper(database)
         result = mapper.map_intent("read from S3 and Lambda")
 
-        assert 's3' in result.services
-        assert 'lambda' in result.services
+        assert "s3" in result.services
+        assert "lambda" in result.services
 
     def test_explanation_generation(self, database):
         """Test explanation string generation."""
@@ -202,7 +205,7 @@ class TestIntentMapper:
         result = mapper.map_intent("read-only S3 access")
 
         assert result.explanation
-        assert 'read-only' in result.explanation.lower()
+        assert "read-only" in result.explanation.lower()
 
 
 class TestRiskAnalyzer:
@@ -211,136 +214,132 @@ class TestRiskAnalyzer:
     def test_detect_full_wildcard(self, database):
         """Test detection of full wildcard."""
         analyzer = RiskAnalyzer(database)
-        findings = analyzer.analyze_actions(['*'])
+        findings = analyzer.analyze_actions(["*"])
 
         assert len(findings) > 0
-        assert any(f.risk_type == 'WILDCARD_ALL_ACTIONS' for f in findings)
+        assert any(f.risk_type == "WILDCARD_ALL_ACTIONS" for f in findings)
         assert any(f.severity == RiskSeverity.CRITICAL for f in findings)
 
     def test_detect_service_wildcard(self, database):
         """Test detection of service-level wildcard."""
         analyzer = RiskAnalyzer(database)
-        findings = analyzer.analyze_actions(['s3:*'])
+        findings = analyzer.analyze_actions(["s3:*"])
 
         assert len(findings) > 0
-        assert any(f.risk_type == 'WILDCARD_ACTION' for f in findings)
+        assert any(f.risk_type == "WILDCARD_ACTION" for f in findings)
 
     def test_detect_iam_wildcard_critical(self, database):
         """Test IAM wildcard gets CRITICAL severity."""
         analyzer = RiskAnalyzer(database)
-        findings = analyzer.analyze_actions(['iam:*'])
+        findings = analyzer.analyze_actions(["iam:*"])
 
-        wildcard_findings = [f for f in findings if f.risk_type == 'WILDCARD_ACTION']
+        wildcard_findings = [f for f in findings if f.risk_type == "WILDCARD_ACTION"]
         assert len(wildcard_findings) > 0
         assert wildcard_findings[0].severity == RiskSeverity.CRITICAL
 
     def test_detect_privilege_escalation(self, database):
         """Test detection of privilege escalation actions."""
         analyzer = RiskAnalyzer(database)
-        findings = analyzer.analyze_actions(['iam:PassRole'])
+        findings = analyzer.analyze_actions(["iam:PassRole"])
 
         assert len(findings) > 0
-        assert any(f.risk_type == 'PRIVILEGE_ESCALATION' for f in findings)
+        assert any(f.risk_type == "PRIVILEGE_ESCALATION" for f in findings)
         assert any(f.severity == RiskSeverity.HIGH for f in findings)
 
     def test_detect_multiple_escalation_actions(self, database):
         """Test detection of multiple privilege escalation actions."""
         analyzer = RiskAnalyzer(database)
-        actions = [
-            'iam:PassRole',
-            'iam:CreatePolicyVersion',
-            'iam:AttachRolePolicy'
-        ]
+        actions = ["iam:PassRole", "iam:CreatePolicyVersion", "iam:AttachRolePolicy"]
         findings = analyzer.analyze_actions(actions)
 
-        escalation_findings = [f for f in findings if f.risk_type == 'PRIVILEGE_ESCALATION']
+        escalation_findings = [f for f in findings if f.risk_type == "PRIVILEGE_ESCALATION"]
         assert len(escalation_findings) >= 3
 
     def test_detect_data_exfiltration(self, database):
         """Test detection of data exfiltration risks."""
         analyzer = RiskAnalyzer(database)
-        findings = analyzer.analyze_actions(['s3:GetObject'])
+        findings = analyzer.analyze_actions(["s3:GetObject"])
 
         assert len(findings) > 0
-        assert any(f.risk_type == 'DATA_EXFILTRATION_RISK' for f in findings)
+        assert any(f.risk_type == "DATA_EXFILTRATION_RISK" for f in findings)
 
     def test_detect_secrets_exfiltration(self, database):
         """Test detection of secrets access."""
         analyzer = RiskAnalyzer(database)
-        findings = analyzer.analyze_actions(['secretsmanager:GetSecretValue'])
+        findings = analyzer.analyze_actions(["secretsmanager:GetSecretValue"])
 
         assert len(findings) > 0
-        assert any(f.risk_type == 'DATA_EXFILTRATION_RISK' for f in findings)
+        assert any(f.risk_type == "DATA_EXFILTRATION_RISK" for f in findings)
 
     def test_detect_destruction_capability(self, database):
         """Test detection of destruction capabilities."""
         analyzer = RiskAnalyzer(database)
-        findings = analyzer.analyze_actions(['s3:DeleteBucket'])
+        findings = analyzer.analyze_actions(["s3:DeleteBucket"])
 
         assert len(findings) > 0
-        assert any(f.risk_type == 'DESTRUCTION_CAPABILITY' for f in findings)
+        assert any(f.risk_type == "DESTRUCTION_CAPABILITY" for f in findings)
 
     def test_detect_permissions_management(self, database):
         """Test detection of permissions management actions."""
         analyzer = RiskAnalyzer(database)
-        findings = analyzer.analyze_actions(['iam:PutUserPolicy'])
+        findings = analyzer.analyze_actions(["iam:PutUserPolicy"])
 
         assert len(findings) > 0
-        assert any(f.risk_type == 'PERMISSIONS_MANAGEMENT' for f in findings)
+        assert any(f.risk_type == "PERMISSIONS_MANAGEMENT" for f in findings)
 
     def test_detect_dangerous_combination_lambda(self, database):
         """Test detection of PassRole + Lambda combination."""
         analyzer = RiskAnalyzer(database)
-        actions = ['iam:PassRole', 'lambda:CreateFunction']
+        actions = ["iam:PassRole", "lambda:CreateFunction"]
         findings = analyzer.analyze_actions(actions)
 
-        dangerous_combos = [f for f in findings if f.risk_type == 'DANGEROUS_COMBINATION']
+        dangerous_combos = [f for f in findings if f.risk_type == "DANGEROUS_COMBINATION"]
         assert len(dangerous_combos) > 0
-        assert any('lambda' in f.description.lower() for f in dangerous_combos)
+        assert any("lambda" in f.description.lower() for f in dangerous_combos)
 
     def test_detect_dangerous_combination_ec2(self, database):
         """Test detection of PassRole + EC2 combination."""
         analyzer = RiskAnalyzer(database)
-        actions = ['iam:PassRole', 'ec2:RunInstances']
+        actions = ["iam:PassRole", "ec2:RunInstances"]
         findings = analyzer.analyze_actions(actions)
 
-        dangerous_combos = [f for f in findings if f.risk_type == 'DANGEROUS_COMBINATION']
+        dangerous_combos = [f for f in findings if f.risk_type == "DANGEROUS_COMBINATION"]
         assert len(dangerous_combos) > 0
-        assert any('ec2' in f.description.lower() for f in dangerous_combos)
+        assert any("ec2" in f.description.lower() for f in dangerous_combos)
 
     def test_detect_policy_takeover_combination(self, database):
         """Test detection of policy takeover combination."""
         analyzer = RiskAnalyzer(database)
-        actions = ['iam:CreatePolicyVersion', 'iam:SetDefaultPolicyVersion']
+        actions = ["iam:CreatePolicyVersion", "iam:SetDefaultPolicyVersion"]
         findings = analyzer.analyze_actions(actions)
 
-        dangerous_combos = [f for f in findings if f.risk_type == 'DANGEROUS_COMBINATION']
+        dangerous_combos = [f for f in findings if f.risk_type == "DANGEROUS_COMBINATION"]
         assert len(dangerous_combos) > 0
-        assert any('policy' in f.description.lower() for f in dangerous_combos)
+        assert any("policy" in f.description.lower() for f in dangerous_combos)
 
     def test_detect_redundancy_full_wildcard(self, database):
         """Test detection of redundancy with full wildcard."""
         analyzer = RiskAnalyzer(database)
-        actions = ['*', 's3:GetObject', 'lambda:InvokeFunction']
+        actions = ["*", "s3:GetObject", "lambda:InvokeFunction"]
         findings = analyzer.analyze_actions(actions)
 
-        redundancy_findings = [f for f in findings if f.risk_type == 'REDUNDANCY']
+        redundancy_findings = [f for f in findings if f.risk_type == "REDUNDANCY"]
         assert len(redundancy_findings) > 0
 
     def test_detect_redundancy_service_wildcard(self, database):
         """Test detection of redundancy with service wildcard."""
         analyzer = RiskAnalyzer(database)
-        actions = ['s3:*', 's3:GetObject', 's3:PutObject']
+        actions = ["s3:*", "s3:GetObject", "s3:PutObject"]
         findings = analyzer.analyze_actions(actions)
 
-        redundancy_findings = [f for f in findings if f.risk_type == 'REDUNDANCY']
+        redundancy_findings = [f for f in findings if f.risk_type == "REDUNDANCY"]
         assert len(redundancy_findings) > 0
-        assert any('s3' in f.description for f in redundancy_findings)
+        assert any("s3" in f.description for f in redundancy_findings)
 
     def test_no_findings_for_safe_actions(self, database):
         """Test no critical findings for safe actions."""
         analyzer = RiskAnalyzer(database)
-        findings = analyzer.analyze_actions(['s3:GetObject', 's3:ListBucket'])
+        findings = analyzer.analyze_actions(["s3:GetObject", "s3:ListBucket"])
 
         # Should have some findings but not CRITICAL
         critical_findings = [f for f in findings if f.severity == RiskSeverity.CRITICAL]
@@ -351,9 +350,9 @@ class TestRiskAnalyzer:
         analyzer = RiskAnalyzer(database)
 
         # Test different wildcard patterns
-        assert analyzer._assess_wildcard_severity('s3:*') == RiskSeverity.HIGH
-        assert analyzer._assess_wildcard_severity('s3:Get*') == RiskSeverity.MEDIUM
-        assert analyzer._assess_wildcard_severity('iam:*') == RiskSeverity.CRITICAL
+        assert analyzer._assess_wildcard_severity("s3:*") == RiskSeverity.HIGH
+        assert analyzer._assess_wildcard_severity("s3:Get*") == RiskSeverity.MEDIUM
+        assert analyzer._assess_wildcard_severity("iam:*") == RiskSeverity.CRITICAL
 
 
 class TestDangerousPermissionChecker:
@@ -362,18 +361,17 @@ class TestDangerousPermissionChecker:
     def test_check_action_with_wildcard_resource(self, database):
         """Test checking action with wildcard resource."""
         checker = DangerousPermissionChecker(database)
-        findings = checker.check_action('iam:PassRole', resource='*')
+        findings = checker.check_action("iam:PassRole", resource="*")
 
         assert len(findings) > 0
         # Severity should be escalated for wildcard resource
-        assert any('wildcard resource' in f.description for f in findings)
+        assert any("wildcard resource" in f.description for f in findings)
 
     def test_check_action_with_specific_resource(self, database):
         """Test checking action with specific resource."""
         checker = DangerousPermissionChecker(database)
         findings = checker.check_action(
-            'iam:PassRole',
-            resource='arn:aws:iam::123456789012:role/MyRole'
+            "iam:PassRole", resource="arn:aws:iam::123456789012:role/MyRole"
         )
 
         assert len(findings) > 0
@@ -395,95 +393,92 @@ class TestCompanionPermissionDetector:
     def test_detect_lambda_logs_missing(self, database):
         """Test detection of missing Lambda CloudWatch Logs permissions."""
         detector = CompanionPermissionDetector(database)
-        actions = ['lambda:InvokeFunction']
+        actions = ["lambda:InvokeFunction"]
         missing = detector.detect_missing_companions(actions)
 
         assert len(missing) > 0
-        assert any('logs:' in comp for m in missing for comp in m.companion_actions)
+        assert any("logs:" in comp for m in missing for comp in m.companion_actions)
 
     def test_detect_lambda_logs_present(self, database):
         """Test no missing companions when logs permissions present."""
         detector = CompanionPermissionDetector(database)
         actions = [
-            'lambda:InvokeFunction',
-            'logs:CreateLogGroup',
-            'logs:CreateLogStream',
-            'logs:PutLogEvents'
+            "lambda:InvokeFunction",
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents",
         ]
         missing = detector.detect_missing_companions(actions)
 
         # Should not flag lambda logs as missing
-        lambda_missing = [m for m in missing if m.primary_action == 'lambda:InvokeFunction']
+        lambda_missing = [m for m in missing if m.primary_action == "lambda:InvokeFunction"]
         if lambda_missing:
             # If any companions still missing, they should be the VPC ones
-            assert not any('logs:' in comp
-                          for m in lambda_missing
-                          for comp in m.companion_actions)
+            assert not any("logs:" in comp for m in lambda_missing for comp in m.companion_actions)
 
     def test_detect_sqs_consumer_missing(self, database):
         """Test detection of missing SQS consumer permissions."""
         detector = CompanionPermissionDetector(database)
-        actions = ['sqs:ReceiveMessage']
+        actions = ["sqs:ReceiveMessage"]
         missing = detector.detect_missing_companions(actions)
 
         assert len(missing) > 0
-        assert any(m.primary_action == 'sqs:ReceiveMessage' for m in missing)
+        assert any(m.primary_action == "sqs:ReceiveMessage" for m in missing)
         # Should include DeleteMessage and other lifecycle actions
-        sqs_missing = [m for m in missing if m.primary_action == 'sqs:ReceiveMessage']
-        assert any('sqs:DeleteMessage' in m.companion_actions for m in sqs_missing)
+        sqs_missing = [m for m in missing if m.primary_action == "sqs:ReceiveMessage"]
+        assert any("sqs:DeleteMessage" in m.companion_actions for m in sqs_missing)
 
     def test_detect_kms_decrypt_missing(self, database):
         """Test detection of missing KMS decrypt permission."""
         detector = CompanionPermissionDetector(database)
-        actions = ['s3:GetObject']
+        actions = ["s3:GetObject"]
         missing = detector.detect_missing_companions(actions)
 
         assert len(missing) > 0
         # Should suggest kms:Decrypt for encrypted objects
-        s3_missing = [m for m in missing if m.primary_action == 's3:GetObject']
-        assert any('kms:Decrypt' in m.companion_actions for m in s3_missing)
+        s3_missing = [m for m in missing if m.primary_action == "s3:GetObject"]
+        assert any("kms:Decrypt" in m.companion_actions for m in s3_missing)
 
     def test_suggest_companions_lambda(self, database):
         """Test suggesting companions for Lambda action."""
         detector = CompanionPermissionDetector(database)
-        companion = detector.suggest_companions('lambda:InvokeFunction')
+        companion = detector.suggest_companions("lambda:InvokeFunction")
 
         assert companion is not None
-        assert 'logs:CreateLogGroup' in companion.companion_actions
-        assert companion.primary_action == 'lambda:InvokeFunction'
+        assert "logs:CreateLogGroup" in companion.companion_actions
+        assert companion.primary_action == "lambda:InvokeFunction"
 
     def test_suggest_companions_unknown_action(self, database):
         """Test suggesting companions for unknown action."""
         detector = CompanionPermissionDetector(database)
-        companion = detector.suggest_companions('unknown:Action')
+        companion = detector.suggest_companions("unknown:Action")
 
         assert companion is None
 
     def test_detect_dynamodb_streams_missing(self, database):
         """Test detection of missing DynamoDB Streams permissions."""
         detector = CompanionPermissionDetector(database)
-        actions = ['dynamodb:GetRecords']
+        actions = ["dynamodb:GetRecords"]
         missing = detector.detect_missing_companions(actions)
 
         assert len(missing) > 0
-        streams_missing = [m for m in missing if m.primary_action == 'dynamodb:GetRecords']
+        streams_missing = [m for m in missing if m.primary_action == "dynamodb:GetRecords"]
         assert len(streams_missing) > 0
-        assert any('dynamodb:GetShardIterator' in m.companion_actions
-                  for m in streams_missing)
+        assert any("dynamodb:GetShardIterator" in m.companion_actions for m in streams_missing)
 
     def test_no_missing_when_all_present(self, database):
         """Test no missing companions when all are present."""
         detector = CompanionPermissionDetector(database)
         actions = [
-            'sqs:ReceiveMessage',
-            'sqs:DeleteMessage',
-            'sqs:GetQueueAttributes',
-            'sqs:ChangeMessageVisibility'
+            "sqs:ReceiveMessage",
+            "sqs:DeleteMessage",
+            "sqs:GetQueueAttributes",
+            "sqs:ChangeMessageVisibility",
         ]
         missing = detector.detect_missing_companions(actions)
 
         # No SQS companions should be missing
-        sqs_missing = [m for m in missing if m.primary_action == 'sqs:ReceiveMessage']
+        sqs_missing = [m for m in missing if m.primary_action == "sqs:ReceiveMessage"]
         assert len(sqs_missing) == 0
 
 
@@ -495,12 +490,12 @@ class TestHITLSystem:
         hitl = HITLSystem(interactive=False)
         assumptions = ["Action is for new AWS service", "Format looks correct"]
 
-        result = hitl.flag_tier2_action('newservice:GetData', assumptions)
+        result = hitl.flag_tier2_action("newservice:GetData", assumptions)
 
         assert result is True
         assert len(hitl.decisions) == 1
-        assert hitl.decisions[0].action == 'newservice:GetData'
-        assert hitl.decisions[0].tier == 'TIER_2_UNKNOWN'
+        assert hitl.decisions[0].action == "newservice:GetData"
+        assert hitl.decisions[0].tier == "TIER_2_UNKNOWN"
         assert hitl.decisions[0].user_approved is True
 
     def test_flag_tier2_default_non_interactive(self):
@@ -508,15 +503,15 @@ class TestHITLSystem:
         hitl = HITLSystem()
         assert hitl.interactive is False
 
-        result = hitl.flag_tier2_action('svc:Action', ['test'])
+        result = hitl.flag_tier2_action("svc:Action", ["test"])
         assert result is True
 
     def test_interactive_approve(self, monkeypatch):
         """Test interactive mode with user approving action."""
         hitl = HITLSystem(interactive=True)
-        monkeypatch.setattr('builtins.input', lambda _: 'a')
+        monkeypatch.setattr("builtins.input", lambda _: "a")
 
-        result = hitl.flag_tier2_action('newservice:GetData', ['New service'])
+        result = hitl.flag_tier2_action("newservice:GetData", ["New service"])
 
         assert result is True
         assert len(hitl.decisions) == 1
@@ -525,9 +520,9 @@ class TestHITLSystem:
     def test_interactive_reject(self, monkeypatch):
         """Test interactive mode with user rejecting action."""
         hitl = HITLSystem(interactive=True)
-        monkeypatch.setattr('builtins.input', lambda _: 'r')
+        monkeypatch.setattr("builtins.input", lambda _: "r")
 
-        result = hitl.flag_tier2_action('newservice:GetData', ['New service'])
+        result = hitl.flag_tier2_action("newservice:GetData", ["New service"])
 
         assert result is False
         assert len(hitl.decisions) == 1
@@ -542,28 +537,28 @@ class TestHITLSystem:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return 's'
+                return "s"
             raise AssertionError("Should not prompt again after skip")
 
-        monkeypatch.setattr('builtins.input', fake_input)
+        monkeypatch.setattr("builtins.input", fake_input)
 
-        r1 = hitl.flag_tier2_action('svc:Action1', ['assumption1'])
-        r2 = hitl.flag_tier2_action('svc:Action2', ['assumption2'])
+        r1 = hitl.flag_tier2_action("svc:Action1", ["assumption1"])
+        r2 = hitl.flag_tier2_action("svc:Action2", ["assumption2"])
 
         assert r1 is True
         assert r2 is True
         assert len(hitl.decisions) == 2
-        assert hitl.decisions[0].user_comment == 'Auto-approved (skip remaining)'
+        assert hitl.decisions[0].user_comment == "Auto-approved (skip remaining)"
         # Second call should not have prompted (skip_remaining is True)
         assert call_count == 1
 
     def test_interactive_invalid_then_approve(self, monkeypatch):
         """Test interactive mode re-prompts on invalid input."""
-        responses = iter(['x', 'invalid', 'a'])
-        monkeypatch.setattr('builtins.input', lambda _: next(responses))
+        responses = iter(["x", "invalid", "a"])
+        monkeypatch.setattr("builtins.input", lambda _: next(responses))
 
         hitl = HITLSystem(interactive=True)
-        result = hitl.flag_tier2_action('svc:Action', ['test'])
+        result = hitl.flag_tier2_action("svc:Action", ["test"])
 
         assert result is True
         assert hitl.decisions[0].user_approved is True
@@ -575,9 +570,9 @@ class TestHITLSystem:
         def raise_eof(_):
             raise EOFError()
 
-        monkeypatch.setattr('builtins.input', raise_eof)
+        monkeypatch.setattr("builtins.input", raise_eof)
 
-        result = hitl.flag_tier2_action('svc:Action', ['test'])
+        result = hitl.flag_tier2_action("svc:Action", ["test"])
         assert result is False
         assert hitl.decisions[0].user_approved is False
 
@@ -585,25 +580,22 @@ class TestHITLSystem:
         """Test recording approved decision."""
         hitl = HITLSystem()
         hitl.record_decision(
-            action='unknown:Action',
-            tier='TIER_2_UNKNOWN',
+            action="unknown:Action",
+            tier="TIER_2_UNKNOWN",
             approved=True,
-            comment='Looks good to me',
-            assumptions=['New service', 'Correct format']
+            comment="Looks good to me",
+            assumptions=["New service", "Correct format"],
         )
 
         assert len(hitl.decisions) == 1
         assert hitl.decisions[0].user_approved is True
-        assert hitl.decisions[0].user_comment == 'Looks good to me'
+        assert hitl.decisions[0].user_comment == "Looks good to me"
 
     def test_record_decision_rejected(self):
         """Test recording rejected decision."""
         hitl = HITLSystem()
         hitl.record_decision(
-            action='invalid:Action',
-            tier='TIER_3_INVALID',
-            approved=False,
-            comment='Invalid format'
+            action="invalid:Action", tier="TIER_3_INVALID", approved=False, comment="Invalid format"
         )
 
         assert len(hitl.decisions) == 1
@@ -612,44 +604,44 @@ class TestHITLSystem:
     def test_get_decision_history(self):
         """Test retrieving decision history."""
         hitl = HITLSystem()
-        hitl.record_decision('action1', 'TIER_2', True)
-        hitl.record_decision('action2', 'TIER_2', False)
+        hitl.record_decision("action1", "TIER_2", True)
+        hitl.record_decision("action2", "TIER_2", False)
 
         history = hitl.get_decision_history()
 
         assert len(history) == 2
-        assert history[0].action == 'action1'
-        assert history[1].action == 'action2'
+        assert history[0].action == "action1"
+        assert history[1].action == "action2"
 
     def test_get_approval_stats_empty(self):
         """Test approval statistics with no decisions."""
         hitl = HITLSystem()
         stats = hitl.get_approval_stats()
 
-        assert stats['total_reviews'] == 0
-        assert stats['approved'] == 0
-        assert stats['rejected'] == 0
-        assert stats['approval_rate'] == 0.0
+        assert stats["total_reviews"] == 0
+        assert stats["approved"] == 0
+        assert stats["rejected"] == 0
+        assert stats["approval_rate"] == 0.0
 
     def test_get_approval_stats_with_decisions(self):
         """Test approval statistics with decisions."""
         hitl = HITLSystem()
-        hitl.record_decision('action1', 'TIER_2', True)
-        hitl.record_decision('action2', 'TIER_2', True)
-        hitl.record_decision('action3', 'TIER_2', False)
+        hitl.record_decision("action1", "TIER_2", True)
+        hitl.record_decision("action2", "TIER_2", True)
+        hitl.record_decision("action3", "TIER_2", False)
 
         stats = hitl.get_approval_stats()
 
-        assert stats['total_reviews'] == 3
-        assert stats['approved'] == 2
-        assert stats['rejected'] == 1
-        assert stats['approval_rate'] == 2.0 / 3.0
+        assert stats["total_reviews"] == 3
+        assert stats["approved"] == 2
+        assert stats["rejected"] == 1
+        assert stats["approval_rate"] == 2.0 / 3.0
 
     def test_clear_history(self):
         """Test clearing decision history."""
         hitl = HITLSystem()
-        hitl.record_decision('action1', 'TIER_2', True)
-        hitl.record_decision('action2', 'TIER_2', True)
+        hitl.record_decision("action1", "TIER_2", True)
+        hitl.record_decision("action2", "TIER_2", True)
 
         assert len(hitl.decisions) == 2
 
@@ -657,18 +649,18 @@ class TestHITLSystem:
 
         assert len(hitl.decisions) == 0
         stats = hitl.get_approval_stats()
-        assert stats['total_reviews'] == 0
+        assert stats["total_reviews"] == 0
 
     def test_multiple_flag_calls_non_interactive(self):
         """Test multiple flag calls track separately in non-interactive mode."""
         hitl = HITLSystem()
 
-        hitl.flag_tier2_action('action1', ['assumption1'])
-        hitl.flag_tier2_action('action2', ['assumption2'])
+        hitl.flag_tier2_action("action1", ["assumption1"])
+        hitl.flag_tier2_action("action2", ["assumption2"])
 
         assert len(hitl.decisions) == 2
-        assert hitl.decisions[0].action == 'action1'
-        assert hitl.decisions[1].action == 'action2'
+        assert hitl.decisions[0].action == "action1"
+        assert hitl.decisions[1].action == "action2"
 
 
 class TestIntegration:
@@ -682,16 +674,16 @@ class TestIntegration:
 
         # Analyze risks
         analyzer = RiskAnalyzer(database)
-        test_actions = ['lambda:*', 's3:*', 'iam:PassRole']
+        test_actions = ["lambda:*", "s3:*", "iam:PassRole"]
         risk_findings = analyzer.analyze_actions(test_actions)
 
         # Check dangerous permissions
         checker = DangerousPermissionChecker(database)
-        dangerous_findings = checker.check_action('iam:PassRole', '*')
+        dangerous_findings = checker.check_action("iam:PassRole", "*")
 
         # Check companion permissions
         detector = CompanionPermissionDetector(database)
-        missing_companions = detector.detect_missing_companions(['lambda:InvokeFunction'])
+        missing_companions = detector.detect_missing_companions(["lambda:InvokeFunction"])
 
         # Verify pipeline results
         assert AccessLevel.PERMISSIONS_MANAGEMENT in intent_result.access_levels
@@ -722,7 +714,7 @@ class TestIntegration:
         intent = mapper.map_intent("invoke Lambda functions")
 
         # Check for missing companions
-        test_actions = ['lambda:InvokeFunction']
+        test_actions = ["lambda:InvokeFunction"]
         missing = detector.detect_missing_companions(test_actions)
 
         # Should detect missing CloudWatch Logs permissions
@@ -740,13 +732,10 @@ class TestIntegration:
         hitl = HITLSystem(interactive=False)
 
         # Analyze unknown action
-        findings = analyzer.analyze_actions(['newservice:GetData'])
+        findings = analyzer.analyze_actions(["newservice:GetData"])
 
         # Flag for HITL review (auto-approved in non-interactive mode)
-        approved = hitl.flag_tier2_action(
-            'newservice:GetData',
-            ['New service', 'Plausible format']
-        )
+        approved = hitl.flag_tier2_action("newservice:GetData", ["New service", "Plausible format"])
 
         assert approved is True
         assert len(hitl.decisions) == 1
@@ -755,11 +744,11 @@ class TestIntegration:
         """Test comprehensive analysis of a complete policy."""
         # Simulate a policy with various actions
         policy_actions = [
-            's3:*',
-            'lambda:InvokeFunction',
-            'iam:PassRole',
-            'dynamodb:GetItem',
-            'kms:Decrypt'
+            "s3:*",
+            "lambda:InvokeFunction",
+            "iam:PassRole",
+            "dynamodb:GetItem",
+            "kms:Decrypt",
         ]
 
         # Risk analysis
@@ -772,13 +761,12 @@ class TestIntegration:
 
         # Should find risks (wildcards, privilege escalation)
         assert len(risks) > 0
-        wildcard_risks = [r for r in risks if r.risk_type == 'WILDCARD_ACTION']
+        wildcard_risks = [r for r in risks if r.risk_type == "WILDCARD_ACTION"]
         assert len(wildcard_risks) > 0
 
-        escalation_risks = [r for r in risks if r.risk_type == 'PRIVILEGE_ESCALATION']
+        escalation_risks = [r for r in risks if r.risk_type == "PRIVILEGE_ESCALATION"]
         assert len(escalation_risks) > 0
 
         # Should find missing companions (Lambda logs)
-        lambda_missing = [m for m in missing
-                         if m.primary_action == 'lambda:InvokeFunction']
+        lambda_missing = [m for m in missing if m.primary_action == "lambda:InvokeFunction"]
         assert len(lambda_missing) > 0

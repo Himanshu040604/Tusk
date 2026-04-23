@@ -21,6 +21,7 @@ from src.sentinel.parser import _known_services
 # Fixtures
 # -----------------------------------------------------------------------
 
+
 @pytest.fixture
 def db_with_new_service(tmp_path):
     """Create a DB with a service NOT in the hardcoded or JSON set."""
@@ -29,26 +30,42 @@ def db_with_new_service(tmp_path):
 
     # Add a well-known service that IS in hardcoded set
     db.insert_service(Service(service_prefix="s3", service_name="Amazon S3"))
-    db.insert_action(Action(
-        action_id=None, service_prefix="s3", action_name="GetObject",
-        full_action="s3:GetObject", description="Read an object",
-        access_level="Read", is_read=True,
-    ))
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="s3",
+            action_name="GetObject",
+            full_action="s3:GetObject",
+            description="Read an object",
+            access_level="Read",
+            is_read=True,
+        )
+    )
 
     # Add a brand-new service NOT in hardcoded or JSON
-    db.insert_service(Service(
-        service_prefix="bedrock-agent", service_name="Amazon Bedrock Agents"
-    ))
-    db.insert_action(Action(
-        action_id=None, service_prefix="bedrock-agent", action_name="InvokeAgent",
-        full_action="bedrock-agent:InvokeAgent", description="Invoke a Bedrock agent",
-        access_level="Write", is_write=True,
-    ))
-    db.insert_action(Action(
-        action_id=None, service_prefix="bedrock-agent", action_name="GetAgent",
-        full_action="bedrock-agent:GetAgent", description="Get agent details",
-        access_level="Read", is_read=True,
-    ))
+    db.insert_service(Service(service_prefix="bedrock-agent", service_name="Amazon Bedrock Agents"))
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="bedrock-agent",
+            action_name="InvokeAgent",
+            full_action="bedrock-agent:InvokeAgent",
+            description="Invoke a Bedrock agent",
+            access_level="Write",
+            is_write=True,
+        )
+    )
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="bedrock-agent",
+            action_name="GetAgent",
+            full_action="bedrock-agent:GetAgent",
+            description="Get agent details",
+            access_level="Read",
+            is_read=True,
+        )
+    )
 
     return db
 
@@ -56,6 +73,7 @@ def db_with_new_service(tmp_path):
 # -----------------------------------------------------------------------
 # Tests
 # -----------------------------------------------------------------------
+
 
 class TestLayer3Merge:
     """Test that DB services merge into parser.known_services at init."""
@@ -85,14 +103,18 @@ class TestNewServiceValidation:
 
     def test_new_service_action_is_tier1(self, db_with_new_service):
         parser = PolicyParser(db_with_new_service)
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": "bedrock-agent:InvokeAgent",
-                "Resource": "*",
-            }],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": "bedrock-agent:InvokeAgent",
+                        "Resource": "*",
+                    }
+                ],
+            }
+        )
         policy = parser.parse_policy(policy_json)
         results = parser.validate_policy(policy)
 
@@ -102,14 +124,18 @@ class TestNewServiceValidation:
 
     def test_new_service_unknown_action_is_tier2(self, db_with_new_service):
         parser = PolicyParser(db_with_new_service)
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": "bedrock-agent:FutureNewAction",
-                "Resource": "*",
-            }],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": "bedrock-agent:FutureNewAction",
+                        "Resource": "*",
+                    }
+                ],
+            }
+        )
         policy = parser.parse_policy(policy_json)
         results = parser.validate_policy(policy)
 
@@ -120,22 +146,24 @@ class TestNewServiceValidation:
 
     def test_new_service_wildcard_expands_to_db_actions(self, db_with_new_service):
         parser = PolicyParser(db_with_new_service)
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": "bedrock-agent:*",
-                "Resource": "*",
-            }],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": "bedrock-agent:*",
+                        "Resource": "*",
+                    }
+                ],
+            }
+        )
         policy = parser.parse_policy(policy_json)
         results = parser.validate_policy(policy)
 
         # Wildcard gets expanded to specific actions from DB, so
         # we should see bedrock-agent actions validated as TIER_1
-        bedrock_results = [
-            r for r in results if r.action.startswith("bedrock-agent:")
-        ]
+        bedrock_results = [r for r in results if r.action.startswith("bedrock-agent:")]
         assert len(bedrock_results) >= 1
         # Expanded DB actions should be TIER_1_VALID
         for r in bedrock_results:
@@ -147,18 +175,22 @@ class TestNewServiceThroughPipeline:
 
     def test_pipeline_processes_new_service(self, db_with_new_service):
         pipeline = Pipeline(database=db_with_new_service)
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": [
-                    "bedrock-agent:InvokeAgent",
-                    "bedrock-agent:GetAgent",
-                    "s3:GetObject",
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": [
+                            "bedrock-agent:InvokeAgent",
+                            "bedrock-agent:GetAgent",
+                            "s3:GetObject",
+                        ],
+                        "Resource": "*",
+                    }
                 ],
-                "Resource": "*",
-            }],
-        })
+            }
+        )
         result = pipeline.run(policy_json)
 
         assert isinstance(result, PipelineResult)
@@ -175,14 +207,18 @@ class TestNewServiceThroughPipeline:
 
     def test_pipeline_with_new_service_and_intent(self, db_with_new_service):
         pipeline = Pipeline(database=db_with_new_service)
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": ["bedrock-agent:InvokeAgent", "s3:GetObject"],
-                "Resource": "*",
-            }],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": ["bedrock-agent:InvokeAgent", "s3:GetObject"],
+                        "Resource": "*",
+                    }
+                ],
+            }
+        )
         config = PipelineConfig(intent="invoke bedrock agent and read s3")
         result = pipeline.run(policy_json, config)
 
@@ -191,21 +227,23 @@ class TestNewServiceThroughPipeline:
 
     def test_mixed_known_and_db_services(self, db_with_new_service):
         pipeline = Pipeline(database=db_with_new_service)
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Action": "s3:GetObject",
-                    "Resource": "arn:aws:s3:::my-bucket/*",
-                },
-                {
-                    "Effect": "Allow",
-                    "Action": "bedrock-agent:InvokeAgent",
-                    "Resource": "*",
-                },
-            ],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": "s3:GetObject",
+                        "Resource": "arn:aws:s3:::my-bucket/*",
+                    },
+                    {
+                        "Effect": "Allow",
+                        "Action": "bedrock-agent:InvokeAgent",
+                        "Resource": "*",
+                    },
+                ],
+            }
+        )
         result = pipeline.run(policy_json)
 
         # Both services should be processed
@@ -213,16 +251,13 @@ class TestNewServiceThroughPipeline:
         assert len(result.validation_results) >= 2
 
         # s3:GetObject should be TIER_1_VALID
-        s3_results = [
-            r for r in result.validation_results if r.action == "s3:GetObject"
-        ]
+        s3_results = [r for r in result.validation_results if r.action == "s3:GetObject"]
         assert len(s3_results) == 1
         assert s3_results[0].tier == ValidationTier.TIER_1_VALID
 
         # bedrock-agent:InvokeAgent should also be TIER_1_VALID (in DB)
         bedrock_results = [
-            r for r in result.validation_results
-            if r.action == "bedrock-agent:InvokeAgent"
+            r for r in result.validation_results if r.action == "bedrock-agent:InvokeAgent"
         ]
         assert len(bedrock_results) == 1
         assert bedrock_results[0].tier == ValidationTier.TIER_1_VALID

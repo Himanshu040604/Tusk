@@ -27,6 +27,7 @@ class Resource:
         account_id: AWS account ID (12-digit number)
         metadata: JSON string with additional resource metadata
     """
+
     resource_id: int | None
     service_prefix: str
     resource_type: str
@@ -39,6 +40,7 @@ class Resource:
 
 class InventoryError(Exception):
     """Base exception for inventory operations."""
+
     pass
 
 
@@ -191,20 +193,23 @@ class ResourceInventory:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO resources
                 (service_prefix, resource_type, resource_arn, resource_name,
                  region, account_id, metadata, last_seen)
                 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (
-                resource.service_prefix,
-                resource.resource_type,
-                resource.resource_arn,
-                resource.resource_name,
-                resource.region,
-                resource.account_id,
-                resource.metadata
-            ))
+            """,
+                (
+                    resource.service_prefix,
+                    resource.resource_type,
+                    resource.resource_arn,
+                    resource.resource_name,
+                    resource.region,
+                    resource.account_id,
+                    resource.metadata,
+                ),
+            )
             return cursor.lastrowid
 
     def get_resource_by_arn(self, arn: str) -> Resource | None:
@@ -218,31 +223,32 @@ class ResourceInventory:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT resource_id, service_prefix, resource_type, resource_arn,
                        resource_name, region, account_id, metadata
                 FROM resources
                 WHERE resource_arn = ?
-            """, (arn,))
+            """,
+                (arn,),
+            )
 
             row = cursor.fetchone()
             if row:
                 return Resource(
-                    resource_id=row['resource_id'],
-                    service_prefix=row['service_prefix'],
-                    resource_type=row['resource_type'],
-                    resource_arn=row['resource_arn'],
-                    resource_name=row['resource_name'],
-                    region=row['region'],
-                    account_id=row['account_id'],
-                    metadata=row['metadata']
+                    resource_id=row["resource_id"],
+                    service_prefix=row["service_prefix"],
+                    resource_type=row["resource_type"],
+                    resource_arn=row["resource_arn"],
+                    resource_name=row["resource_name"],
+                    region=row["region"],
+                    account_id=row["account_id"],
+                    metadata=row["metadata"],
                 )
             return None
 
     def get_resources_by_service(
-        self,
-        service_prefix: str,
-        resource_type: str | None = None
+        self, service_prefix: str, resource_type: str | None = None
     ) -> List[Resource]:
         """Retrieve resources by service and optional type.
 
@@ -257,32 +263,38 @@ class ResourceInventory:
             cursor = conn.cursor()
 
             if resource_type:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT resource_id, service_prefix, resource_type, resource_arn,
                            resource_name, region, account_id, metadata
                     FROM resources
                     WHERE service_prefix = ? AND resource_type = ?
                     ORDER BY resource_name, resource_arn
-                """, (service_prefix, resource_type))
+                """,
+                    (service_prefix, resource_type),
+                )
             else:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT resource_id, service_prefix, resource_type, resource_arn,
                            resource_name, region, account_id, metadata
                     FROM resources
                     WHERE service_prefix = ?
                     ORDER BY resource_type, resource_name, resource_arn
-                """, (service_prefix,))
+                """,
+                    (service_prefix,),
+                )
 
             return [
                 Resource(
-                    resource_id=row['resource_id'],
-                    service_prefix=row['service_prefix'],
-                    resource_type=row['resource_type'],
-                    resource_arn=row['resource_arn'],
-                    resource_name=row['resource_name'],
-                    region=row['region'],
-                    account_id=row['account_id'],
-                    metadata=row['metadata']
+                    resource_id=row["resource_id"],
+                    service_prefix=row["service_prefix"],
+                    resource_type=row["resource_type"],
+                    resource_arn=row["resource_arn"],
+                    resource_name=row["resource_name"],
+                    region=row["region"],
+                    account_id=row["account_id"],
+                    metadata=row["metadata"],
                 )
                 for row in cursor.fetchall()
             ]
@@ -298,24 +310,27 @@ class ResourceInventory:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT resource_id, service_prefix, resource_type, resource_arn,
                        resource_name, region, account_id, metadata
                 FROM resources
                 WHERE account_id = ?
                 ORDER BY service_prefix, resource_type, resource_name
-            """, (account_id,))
+            """,
+                (account_id,),
+            )
 
             return [
                 Resource(
-                    resource_id=row['resource_id'],
-                    service_prefix=row['service_prefix'],
-                    resource_type=row['resource_type'],
-                    resource_arn=row['resource_arn'],
-                    resource_name=row['resource_name'],
-                    region=row['region'],
-                    account_id=row['account_id'],
-                    metadata=row['metadata']
+                    resource_id=row["resource_id"],
+                    service_prefix=row["service_prefix"],
+                    resource_type=row["resource_type"],
+                    resource_arn=row["resource_arn"],
+                    resource_name=row["resource_name"],
+                    region=row["region"],
+                    account_id=row["account_id"],
+                    metadata=row["metadata"],
                 )
                 for row in cursor.fetchall()
             ]
@@ -345,7 +360,7 @@ class ResourceInventory:
 
             # Total resources
             cursor.execute("SELECT COUNT(*) as total FROM resources")
-            total = cursor.fetchone()['total']
+            total = cursor.fetchone()["total"]
 
             # Resources by service
             cursor.execute("""
@@ -354,7 +369,7 @@ class ResourceInventory:
                 GROUP BY service_prefix
                 ORDER BY count DESC
             """)
-            by_service = {row['service_prefix']: row['count'] for row in cursor.fetchall()}
+            by_service = {row["service_prefix"]: row["count"] for row in cursor.fetchall()}
 
             # Resources by region
             cursor.execute("""
@@ -364,7 +379,7 @@ class ResourceInventory:
                 GROUP BY region
                 ORDER BY count DESC
             """)
-            by_region = {row['region']: row['count'] for row in cursor.fetchall()}
+            by_region = {row["region"]: row["count"] for row in cursor.fetchall()}
 
             # Resources by account
             cursor.execute("""
@@ -374,13 +389,13 @@ class ResourceInventory:
                 GROUP BY account_id
                 ORDER BY count DESC
             """)
-            by_account = {row['account_id']: row['count'] for row in cursor.fetchall()}
+            by_account = {row["account_id"]: row["count"] for row in cursor.fetchall()}
 
             return {
-                'total_resources': total,
-                'by_service': by_service,
-                'by_region': by_region,
-                'by_account': by_account
+                "total_resources": total,
+                "by_service": by_service,
+                "by_region": by_region,
+                "by_account": by_account,
             }
 
     def get_metadata(self, key: str) -> str | None:
@@ -394,12 +409,9 @@ class ResourceInventory:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT value FROM inventory_metadata WHERE key = ?",
-                (key,)
-            )
+            cursor.execute("SELECT value FROM inventory_metadata WHERE key = ?", (key,))
             row = cursor.fetchone()
-            return row['value'] if row else None
+            return row["value"] if row else None
 
     def set_metadata(self, key: str, value: str) -> None:
         """Set metadata value.
@@ -410,10 +422,13 @@ class ResourceInventory:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO inventory_metadata (key, value, updated_at)
                 VALUES (?, ?, CURRENT_TIMESTAMP)
-            """, (key, value))
+            """,
+                (key, value),
+            )
 
     def arn_exists(self, arn: str) -> bool:
         """Check if resource ARN exists in inventory.
@@ -427,9 +442,7 @@ class ResourceInventory:
         return self.get_resource_by_arn(arn) is not None
 
     def resolve_wildcard_resource(
-        self,
-        service_prefix: str,
-        resource_type: str | None = None
+        self, service_prefix: str, resource_type: str | None = None
     ) -> List[str]:
         """Look up real ARNs from inventory to replace wildcard resources.
 
@@ -461,7 +474,7 @@ class ResourceInventory:
         Returns:
             List of matching resource ARN strings.
         """
-        parts = action.split(':', 1)
+        parts = action.split(":", 1)
         if len(parts) != 2:
             return []
 
@@ -483,10 +496,10 @@ class ResourceInventory:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT COUNT(*) as count FROM resources WHERE service_prefix = ?",
-                (service_prefix,)
+                (service_prefix,),
             )
             row = cursor.fetchone()
-            return row['count'] > 0 if row else False
+            return row["count"] > 0 if row else False
 
     def generate_placeholder_arn(
         self,
@@ -516,10 +529,7 @@ class ResourceInventory:
             Placeholder ARN string with ``PLACEHOLDER`` markers.
         """
         placeholder_name = f"PLACEHOLDER-{resource_type}-name"
-        return (
-            f"arn:aws:{service_prefix}:{region}:{account_id}:"
-            f"{resource_type}/{placeholder_name}"
-        )
+        return f"arn:aws:{service_prefix}:{region}:{account_id}:{resource_type}/{placeholder_name}"
 
     def get_resource_types_for_service(self, service_prefix: str) -> List[str]:
         """Get distinct resource types available for a service.
@@ -532,13 +542,16 @@ class ResourceInventory:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT DISTINCT resource_type
                 FROM resources
                 WHERE service_prefix = ?
                 ORDER BY resource_type
-            """, (service_prefix,))
-            return [row['resource_type'] for row in cursor.fetchall()]
+            """,
+                (service_prefix,),
+            )
+            return [row["resource_type"] for row in cursor.fetchall()]
 
     def bulk_insert_resources(self, resources: List[Resource]) -> int:
         """Insert multiple resources efficiently in a single transaction.
@@ -566,10 +579,13 @@ class ResourceInventory:
                 )
                 for r in resources
             ]
-            cursor.executemany("""
+            cursor.executemany(
+                """
                 INSERT OR REPLACE INTO resources
                 (service_prefix, resource_type, resource_arn, resource_name,
                  region, account_id, metadata, last_seen)
                 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, data)
+            """,
+                data,
+            )
             return len(data)

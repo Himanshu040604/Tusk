@@ -46,19 +46,22 @@ class TestLoadKnownServices:
 
     def test_load_from_json(self, tmp_path: Path):
         json_file = tmp_path / "known_services.json"
-        json_file.write_text(json.dumps({
-            "_generated": "2026-01-01T00:00:00Z",
-            "_source": "test",
-            "services": ["s3", "ec2", "lambda", "custom-svc"],
-        }), encoding="utf-8")
+        json_file.write_text(
+            json.dumps(
+                {
+                    "_generated": "2026-01-01T00:00:00Z",
+                    "_source": "test",
+                    "services": ["s3", "ec2", "lambda", "custom-svc"],
+                }
+            ),
+            encoding="utf-8",
+        )
 
         result = load_known_services(json_path=json_file)
         assert result == {"s3", "ec2", "lambda", "custom-svc"}
 
     def test_empty_set_on_missing_json(self):
-        result = load_known_services(
-            json_path=Path("/nonexistent/path/known_services.json")
-        )
+        result = load_known_services(json_path=Path("/nonexistent/path/known_services.json"))
         assert result == set()
 
     def test_empty_set_on_corrupted_json(self, tmp_path: Path):
@@ -70,31 +73,46 @@ class TestLoadKnownServices:
 
     def test_empty_set_on_empty_services_array(self, tmp_path: Path):
         empty = tmp_path / "known_services.json"
-        empty.write_text(json.dumps({
-            "_generated": "2026-01-01T00:00:00Z",
-            "_source": "test",
-            "services": [],
-        }), encoding="utf-8")
+        empty.write_text(
+            json.dumps(
+                {
+                    "_generated": "2026-01-01T00:00:00Z",
+                    "_source": "test",
+                    "services": [],
+                }
+            ),
+            encoding="utf-8",
+        )
 
         result = load_known_services(json_path=empty)
         assert result == set()
 
     def test_empty_set_on_missing_services_key(self, tmp_path: Path):
         no_key = tmp_path / "known_services.json"
-        no_key.write_text(json.dumps({
-            "_generated": "2026-01-01T00:00:00Z",
-        }), encoding="utf-8")
+        no_key.write_text(
+            json.dumps(
+                {
+                    "_generated": "2026-01-01T00:00:00Z",
+                }
+            ),
+            encoding="utf-8",
+        )
 
         result = load_known_services(json_path=no_key)
         assert result == set()
 
     def test_load_returns_new_set_each_time(self, tmp_path: Path):
         json_file = tmp_path / "known_services.json"
-        json_file.write_text(json.dumps({
-            "_generated": "2026-01-01T00:00:00Z",
-            "_source": "test",
-            "services": ["s3", "ec2"],
-        }), encoding="utf-8")
+        json_file.write_text(
+            json.dumps(
+                {
+                    "_generated": "2026-01-01T00:00:00Z",
+                    "_source": "test",
+                    "services": ["s3", "ec2"],
+                }
+            ),
+            encoding="utf-8",
+        )
 
         result1 = load_known_services(json_path=json_file)
         result2 = load_known_services(json_path=json_file)
@@ -331,11 +349,15 @@ class TestCmdExportServices:
         output_file = tmp_path / "output.json"
 
         parser = build_parser()
-        args = parser.parse_args([
-            "export-services",
-            "-d", str(tmp_path / "test.db"),
-            "--export-output", str(output_file),
-        ])
+        args = parser.parse_args(
+            [
+                "export-services",
+                "-d",
+                str(tmp_path / "test.db"),
+                "--export-output",
+                str(output_file),
+            ]
+        )
         exit_code = cmd_export_services(args)
 
         assert exit_code == EXIT_SUCCESS
@@ -344,10 +366,13 @@ class TestCmdExportServices:
 
     def test_export_services_no_db(self, tmp_path: Path):
         parser = build_parser()
-        args = parser.parse_args([
-            "export-services",
-            "-d", str(tmp_path / "nonexistent.db"),
-        ])
+        args = parser.parse_args(
+            [
+                "export-services",
+                "-d",
+                str(tmp_path / "nonexistent.db"),
+            ]
+        )
         exit_code = cmd_export_services(args)
         assert exit_code == EXIT_IO_ERROR
 
@@ -376,12 +401,17 @@ class TestRefreshAutoExport:
         db_path = tmp_path / "test.db"
 
         parser = build_parser()
-        args = parser.parse_args([
-            "refresh",
-            "--source", "policy-sentry",
-            "--data-path", str(data_file),
-            "-d", str(db_path),
-        ])
+        args = parser.parse_args(
+            [
+                "refresh",
+                "--source",
+                "policy-sentry",
+                "--data-path",
+                str(data_file),
+                "-d",
+                str(db_path),
+            ]
+        )
 
         with patch("src.sentinel.cli.export_services_json") as mock_export:
             mock_export.return_value = Path("data/known_services.json")
@@ -406,13 +436,18 @@ class TestRefreshAutoExport:
         db_path = tmp_path / "test.db"
 
         parser = build_parser()
-        args = parser.parse_args([
-            "refresh",
-            "--source", "policy-sentry",
-            "--data-path", str(data_file),
-            "-d", str(db_path),
-            "--dry-run",
-        ])
+        args = parser.parse_args(
+            [
+                "refresh",
+                "--source",
+                "policy-sentry",
+                "--data-path",
+                str(data_file),
+                "-d",
+                str(db_path),
+                "--dry-run",
+            ]
+        )
 
         with patch("src.sentinel.cli.export_services_json") as mock_export:
             exit_code = cmd_refresh(args)

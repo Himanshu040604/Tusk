@@ -25,16 +25,12 @@ class TestBatchFetcher:
         for r in results:
             assert r.origin.source_type == "local"
 
-    def test_missing_directory_raises_policy_not_found(
-        self, tmp_path: Path
-    ) -> None:
+    def test_missing_directory_raises_policy_not_found(self, tmp_path: Path) -> None:
         fetcher = BatchFetcher()
         with pytest.raises(PolicyNotFoundError):
             list(fetcher.iter_fetch(str(tmp_path / "does-not-exist")))
 
-    def test_directory_with_no_accepted_suffixes_raises(
-        self, tmp_path: Path
-    ) -> None:
+    def test_directory_with_no_accepted_suffixes_raises(self, tmp_path: Path) -> None:
         (tmp_path / "not-a-policy.bin").write_text("x")
         fetcher = BatchFetcher()
         with pytest.raises(PolicyNotFoundError):

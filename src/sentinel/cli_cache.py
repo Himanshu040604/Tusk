@@ -32,10 +32,10 @@ def _build_cache() -> DiskCache:
     # but reads the values via the live Settings singleton so operator
     # overrides in config.toml are honoured.
     ttl = {
-        "aws_docs":      settings.cache.ttl_hours_aws_docs * 3600,
+        "aws_docs": settings.cache.ttl_hours_aws_docs * 3600,
         "policy_sentry": settings.cache.ttl_hours_policy_sentry * 3600,
-        "github":        settings.cache.ttl_hours_github * 3600,
-        "user_url":      settings.cache.ttl_hours_user_url * 3600,
+        "github": settings.cache.ttl_hours_github * 3600,
+        "user_url": settings.cache.ttl_hours_user_url * 3600,
     }
     return DiskCache(ttl_seconds_by_source=ttl)
 
@@ -65,8 +65,7 @@ def cmd_cache(args: argparse.Namespace) -> int:
             print(json.dumps(s, indent=2))
         else:
             print(f"entries      : {s['count']}")
-            print(f"total_bytes  : {s['total_bytes']} "
-                  f"({_human_bytes(s['total_bytes'])})")
+            print(f"total_bytes  : {s['total_bytes']} ({_human_bytes(s['total_bytes'])})")
         return EXIT_SUCCESS
 
     if sub == "ls":
@@ -94,10 +93,9 @@ def cmd_cache(args: argparse.Namespace) -> int:
     if sub == "rotate-key":
         if not getattr(args, "yes", False):
             try:
-                answer = input(
-                    "This will delete all cached entries. "
-                    "Continue? [y/N] "
-                ).strip().lower()
+                answer = (
+                    input("This will delete all cached entries. Continue? [y/N] ").strip().lower()
+                )
             except (EOFError, KeyboardInterrupt):
                 print("Aborted.", file=sys.stderr)
                 return EXIT_INVALID_ARGS

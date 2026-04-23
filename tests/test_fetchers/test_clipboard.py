@@ -13,9 +13,7 @@ from fetchers.clipboard import ClipboardFetcher
 
 
 class TestClipboardFetcher:
-    def test_reads_clipboard_text(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_reads_clipboard_text(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import pyperclip
 
         payload = '{"Version":"2012-10-17","Statement":[]}'
@@ -33,9 +31,7 @@ class TestClipboardFetcher:
 
         monkeypatch.setattr(pyperclip, "paste", lambda: "")
         # Force the WSL fallback to also return empty.
-        monkeypatch.setattr(
-            "fetchers.clipboard._is_wsl", lambda: False
-        )
+        monkeypatch.setattr("fetchers.clipboard._is_wsl", lambda: False)
         with pytest.raises(ClipboardUnavailable, match="empty"):
             ClipboardFetcher().fetch("")
 
@@ -50,8 +46,6 @@ class TestClipboardFetcher:
 
         monkeypatch.setattr(pyperclip, "paste", boom)
         # Disable the WSL fallback path so we can observe the "no backend" mapping.
-        monkeypatch.setattr(
-            "fetchers.clipboard._is_wsl", lambda: False
-        )
+        monkeypatch.setattr("fetchers.clipboard._is_wsl", lambda: False)
         with pytest.raises(ClipboardUnavailable, match="backend unavailable"):
             ClipboardFetcher().fetch("")

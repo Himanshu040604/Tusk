@@ -47,9 +47,7 @@ class CloudSplainingFetcher:
         if not clean.startswith(_PATH_PREFIX):
             clean = f"{_PATH_PREFIX}/{clean}"
 
-        github_spec = (
-            f"https://github.com/{_REPO}/blob/{_BRANCH}/{clean}"
-        )
+        github_spec = f"https://github.com/{_REPO}/blob/{_BRANCH}/{clean}"
         inner = self._github.fetch(github_spec)
         # Relabel the origin so downstream formatters render the
         # correct "Origin: cloudsplaining ..." badge.

@@ -128,8 +128,9 @@ def _default_ttl_by_source() -> dict[str, int]:
     }
 
 
-def _sign(key: bytes, url_hash: str, source: str, body: bytes,
-          etag: str | None, fetched_at: float) -> str:
+def _sign(
+    key: bytes, url_hash: str, source: str, body: bytes, etag: str | None, fetched_at: float
+) -> str:
     """Compute the HMAC-SHA256 hex digest for a cache entry.
 
     Input binds all forgery-sensitive fields: the URL hash (key),
@@ -139,14 +140,16 @@ def _sign(key: bytes, url_hash: str, source: str, body: bytes,
     later reuse the same key.
     """
     body_hash = hashlib.sha256(body).hexdigest()
-    msg = b"\x1e".join([
-        _SIG_LABEL,
-        url_hash.encode("ascii"),
-        source.encode("utf-8"),
-        body_hash.encode("ascii"),
-        (etag or "").encode("utf-8"),
-        f"{fetched_at:.6f}".encode("ascii"),
-    ])
+    msg = b"\x1e".join(
+        [
+            _SIG_LABEL,
+            url_hash.encode("ascii"),
+            source.encode("utf-8"),
+            body_hash.encode("ascii"),
+            (etag or "").encode("utf-8"),
+            f"{fetched_at:.6f}".encode("ascii"),
+        ]
+    )
     return hmac.new(key, msg, hashlib.sha256).hexdigest()
 
 
@@ -243,7 +246,8 @@ class DiskCache:
             # Write to a named temp file in the same directory so rename
             # is atomic on POSIX (and near-atomic on Windows).
             fd, tmp_name = tempfile.mkstemp(
-                prefix=".sentinel-cache-", suffix=".json.tmp",
+                prefix=".sentinel-cache-",
+                suffix=".json.tmp",
                 dir=str(self._cache_dir),
             )
             try:
@@ -290,16 +294,19 @@ class DiskCache:
             self.invalidate(url)
             return None
 
-        expected = _sign(self._derived_key(), url_key(url), stored_source,
-                         body, etag, fetched_at)
+        expected = _sign(self._derived_key(), url_key(url), stored_source, body, etag, fetched_at)
         if not hmac.compare_digest(expected, sig):
             self._log.warning("cache_hmac_mismatch", url=url, source=stored_source)
             self.invalidate(url)
             return None
 
         entry = CacheEntry(
-            url=canonical_url(url), source=stored_source, body=body,
-            headers=headers, etag=etag, fetched_at=fetched_at,
+            url=canonical_url(url),
+            source=stored_source,
+            body=body,
+            headers=headers,
+            etag=etag,
+            fetched_at=fetched_at,
             ttl_seconds=ttl,
         )
         if not entry.is_fresh():
@@ -324,8 +331,7 @@ class DiskCache:
         """
         fetched_at = time.time()
         ttl = ttl_seconds if ttl_seconds is not None else self.ttl_for(source)
-        sig = _sign(self._derived_key(), url_key(url), source, body,
-                    etag, fetched_at)
+        sig = _sign(self._derived_key(), url_key(url), source, body, etag, fetched_at)
         doc = {
             "version": _ENTRY_VERSION,
             "url": canonical_url(url),
@@ -350,8 +356,7 @@ class DiskCache:
         except FileNotFoundError:
             pass
         except OSError as exc:
-            self._log.warning("cache_invalidate_failed",
-                              path=str(path), error=str(exc))
+            self._log.warning("cache_invalidate_failed", path=str(path), error=str(exc))
 
     # ------------------------------------------------------------------ admin
 
@@ -362,7 +367,8 @@ class DiskCache:
         if not self._cache_dir.is_dir():
             return []
         return (
-            p for p in self._cache_dir.iterdir()
+            p
+            for p in self._cache_dir.iterdir()
             if p.is_file() and p.suffix == ".json" and not p.name.startswith(".")
         )
 
@@ -375,8 +381,7 @@ class DiskCache:
         count = 0
         total = 0
         if self._mem is not None:
-            return {"count": len(self._mem),
-                    "total_bytes": sum(len(v) for v in self._mem.values())}
+            return {"count": len(self._mem), "total_bytes": sum(len(v) for v in self._mem.values())}
         for p in self._iter_files():
             try:
                 total += p.stat().st_size
@@ -399,12 +404,16 @@ class DiskCache:
                     doc = json.loads(raw.decode("utf-8"))
                 except (UnicodeDecodeError, json.JSONDecodeError):
                     continue
-                out.append({
-                    "url": doc.get("url"), "source": doc.get("source"),
-                    "fetched_at": doc.get("fetched_at"),
-                    "ttl_seconds": doc.get("ttl_seconds"),
-                    "etag": doc.get("etag"), "size_bytes": len(raw),
-                })
+                out.append(
+                    {
+                        "url": doc.get("url"),
+                        "source": doc.get("source"),
+                        "fetched_at": doc.get("fetched_at"),
+                        "ttl_seconds": doc.get("ttl_seconds"),
+                        "etag": doc.get("etag"),
+                        "size_bytes": len(raw),
+                    }
+                )
             return out
         for p in self._iter_files():
             try:
@@ -412,12 +421,16 @@ class DiskCache:
                 doc = json.loads(raw.decode("utf-8"))
             except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 continue
-            out.append({
-                "url": doc.get("url"), "source": doc.get("source"),
-                "fetched_at": doc.get("fetched_at"),
-                "ttl_seconds": doc.get("ttl_seconds"),
-                "etag": doc.get("etag"), "size_bytes": len(raw),
-            })
+            out.append(
+                {
+                    "url": doc.get("url"),
+                    "source": doc.get("source"),
+                    "fetched_at": doc.get("fetched_at"),
+                    "ttl_seconds": doc.get("ttl_seconds"),
+                    "etag": doc.get("etag"),
+                    "size_bytes": len(raw),
+                }
+            )
         return out
 
     def purge(self) -> int:
@@ -432,8 +445,7 @@ class DiskCache:
                 p.unlink()
                 n += 1
             except OSError as exc:
-                self._log.warning("cache_purge_failed",
-                                  path=str(p), error=str(exc))
+                self._log.warning("cache_purge_failed", path=str(p), error=str(exc))
         return n
 
     def rotate_key(self) -> None:

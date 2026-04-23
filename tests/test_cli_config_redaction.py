@@ -32,7 +32,11 @@ def _run_config_show(
     if fmt:
         cmd.extend(["--format", fmt])
     return subprocess.run(
-        cmd, capture_output=True, text=True, env=env, timeout=30,
+        cmd,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=30,
     )
 
 
@@ -48,9 +52,7 @@ class TestConfigShowRedaction:
     def test_json_format_does_not_leak_token(self) -> None:
         result = _run_config_show(fmt="json")
         combined = result.stdout + result.stderr
-        assert FAKE_TOKEN not in combined, (
-            f"raw token leaked in JSON `config show`!\n\n{combined}"
-        )
+        assert FAKE_TOKEN not in combined, f"raw token leaked in JSON `config show`!\n\n{combined}"
 
     def test_redaction_marker_present(self) -> None:
         """At least one of the expected redaction markers must be emitted.

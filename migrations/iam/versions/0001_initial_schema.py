@@ -14,6 +14,7 @@ Downgrade mandate (Amendment 6 Theme E1): ``downgrade()`` drops every table
 and index created by ``upgrade()``.  This enables the dual-DB saga recovery
 path in § 14 (iam downgrades if inventory upgrade fails).
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
@@ -99,8 +100,7 @@ def upgrade() -> None:
         )
     """)
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_action_resources_action "
-        "ON action_resource_types(action_id)"
+        "CREATE INDEX IF NOT EXISTS idx_action_resources_action ON action_resource_types(action_id)"
     )
     op.execute(
         "CREATE INDEX IF NOT EXISTS idx_action_resources_resource "
@@ -224,12 +224,10 @@ def upgrade() -> None:
         )
     """)
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_validation_errors_policy "
-        "ON validation_errors(policy_id)"
+        "CREATE INDEX IF NOT EXISTS idx_validation_errors_policy ON validation_errors(policy_id)"
     )
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_validation_errors_severity "
-        "ON validation_errors(severity)"
+        "CREATE INDEX IF NOT EXISTS idx_validation_errors_severity ON validation_errors(severity)"
     )
 
 

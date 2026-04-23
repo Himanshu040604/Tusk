@@ -24,6 +24,7 @@ class Service:
         api_reference_url: URL to API reference documentation
         data_version: Version of the service data
     """
+
     service_prefix: str
     service_name: str
     service_authorization_url: str | None = None
@@ -49,6 +50,7 @@ class Action:
         is_tagging_only: Whether this only modifies tags
         reference_url: URL to action documentation
     """
+
     action_id: int | None
     service_prefix: str
     action_name: str
@@ -74,6 +76,7 @@ class ResourceType:
         arn_pattern: ARN pattern template
         reference_url: URL to resource documentation
     """
+
     resource_type_id: int | None
     service_prefix: str
     resource_name: str
@@ -95,6 +98,7 @@ class ConditionKey:
         is_global: Whether this is a global aws:* condition key
         reference_url: URL to condition key documentation
     """
+
     condition_key_id: int | None
     service_prefix: str
     condition_key_name: str
@@ -107,6 +111,7 @@ class ConditionKey:
 
 class DatabaseError(Exception):
     """Base exception for database operations."""
+
     pass
 
 
@@ -185,9 +190,7 @@ class Database:
             ).fetchone()
             if not probe:
                 return True
-            row = conn.execute(
-                f"SELECT 1 FROM {table} LIMIT 1"
-            ).fetchone()
+            row = conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone()
             return row is None
 
     def create_schema(self) -> None:
@@ -554,17 +557,20 @@ class Database:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO services
                 (service_prefix, service_name, service_authorization_url, api_reference_url, data_version)
                 VALUES (?, ?, ?, ?, ?)
-            """, (
-                service.service_prefix,
-                service.service_name,
-                service.service_authorization_url,
-                service.api_reference_url,
-                service.data_version
-            ))
+            """,
+                (
+                    service.service_prefix,
+                    service.service_name,
+                    service.service_authorization_url,
+                    service.api_reference_url,
+                    service.data_version,
+                ),
+            )
 
     def insert_action(self, action: Action) -> int:
         """Insert an action record.
@@ -580,23 +586,26 @@ class Database:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO actions
                 (service_prefix, action_name, description, access_level, reference_url,
                  is_list, is_read, is_write, is_permissions_management, is_tagging_only)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                action.service_prefix,
-                action.action_name,
-                action.description,
-                action.access_level,
-                action.reference_url,
-                action.is_list,
-                action.is_read,
-                action.is_write,
-                action.is_permissions_management,
-                action.is_tagging_only
-            ))
+            """,
+                (
+                    action.service_prefix,
+                    action.action_name,
+                    action.description,
+                    action.access_level,
+                    action.reference_url,
+                    action.is_list,
+                    action.is_read,
+                    action.is_write,
+                    action.is_permissions_management,
+                    action.is_tagging_only,
+                ),
+            )
             return cursor.lastrowid
 
     def get_action(self, service_prefix: str, action_name: str) -> Action | None:
@@ -611,30 +620,33 @@ class Database:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT action_id, service_prefix, action_name,
                        service_prefix || ':' || action_name as full_action,
                        description, access_level, is_list, is_read, is_write,
                        is_permissions_management, is_tagging_only, reference_url
                 FROM actions
                 WHERE service_prefix = ? AND action_name = ?
-            """, (service_prefix, action_name))
+            """,
+                (service_prefix, action_name),
+            )
 
             row = cursor.fetchone()
             if row:
                 return Action(
-                    action_id=row['action_id'],
-                    service_prefix=row['service_prefix'],
-                    action_name=row['action_name'],
-                    full_action=row['full_action'],
-                    description=row['description'],
-                    access_level=row['access_level'],
-                    is_list=bool(row['is_list']),
-                    is_read=bool(row['is_read']),
-                    is_write=bool(row['is_write']),
-                    is_permissions_management=bool(row['is_permissions_management']),
-                    is_tagging_only=bool(row['is_tagging_only']),
-                    reference_url=row['reference_url']
+                    action_id=row["action_id"],
+                    service_prefix=row["service_prefix"],
+                    action_name=row["action_name"],
+                    full_action=row["full_action"],
+                    description=row["description"],
+                    access_level=row["access_level"],
+                    is_list=bool(row["is_list"]),
+                    is_read=bool(row["is_read"]),
+                    is_write=bool(row["is_write"]),
+                    is_permissions_management=bool(row["is_permissions_management"]),
+                    is_tagging_only=bool(row["is_tagging_only"]),
+                    reference_url=row["reference_url"],
                 )
             return None
 
@@ -649,7 +661,8 @@ class Database:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT action_id, service_prefix, action_name,
                        service_prefix || ':' || action_name as full_action,
                        description, access_level, is_list, is_read, is_write,
@@ -657,22 +670,24 @@ class Database:
                 FROM actions
                 WHERE service_prefix = ?
                 ORDER BY action_name
-            """, (service_prefix,))
+            """,
+                (service_prefix,),
+            )
 
             return [
                 Action(
-                    action_id=row['action_id'],
-                    service_prefix=row['service_prefix'],
-                    action_name=row['action_name'],
-                    full_action=row['full_action'],
-                    description=row['description'],
-                    access_level=row['access_level'],
-                    is_list=bool(row['is_list']),
-                    is_read=bool(row['is_read']),
-                    is_write=bool(row['is_write']),
-                    is_permissions_management=bool(row['is_permissions_management']),
-                    is_tagging_only=bool(row['is_tagging_only']),
-                    reference_url=row['reference_url']
+                    action_id=row["action_id"],
+                    service_prefix=row["service_prefix"],
+                    action_name=row["action_name"],
+                    full_action=row["full_action"],
+                    description=row["description"],
+                    access_level=row["access_level"],
+                    is_list=bool(row["is_list"]),
+                    is_read=bool(row["is_read"]),
+                    is_write=bool(row["is_write"]),
+                    is_permissions_management=bool(row["is_permissions_management"]),
+                    is_tagging_only=bool(row["is_tagging_only"]),
+                    reference_url=row["reference_url"],
                 )
                 for row in cursor.fetchall()
             ]
@@ -694,11 +709,11 @@ class Database:
 
             return [
                 Service(
-                    service_prefix=row['service_prefix'],
-                    service_name=row['service_name'],
-                    service_authorization_url=row['service_authorization_url'],
-                    api_reference_url=row['api_reference_url'],
-                    data_version=row['data_version']
+                    service_prefix=row["service_prefix"],
+                    service_name=row["service_name"],
+                    service_authorization_url=row["service_authorization_url"],
+                    api_reference_url=row["api_reference_url"],
+                    data_version=row["data_version"],
                 )
                 for row in cursor.fetchall()
             ]
@@ -716,7 +731,7 @@ class Database:
             cursor = conn.cursor()
             cursor.execute("SELECT value FROM metadata WHERE key = ?", (key,))
             row = cursor.fetchone()
-            return row['value'] if row else None
+            return row["value"] if row else None
 
     def set_metadata(self, key: str, value: str) -> None:
         """Set metadata value.
@@ -727,10 +742,13 @@ class Database:
         """
         with self.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT OR REPLACE INTO metadata (key, value, updated_at)
                 VALUES (?, ?, CURRENT_TIMESTAMP)
-            """, (key, value))
+            """,
+                (key, value),
+            )
 
     def action_exists(self, full_action: str) -> bool:
         """Check if action exists in database.
@@ -741,7 +759,7 @@ class Database:
         Returns:
             True if action exists, False otherwise
         """
-        parts = full_action.split(':', 1)
+        parts = full_action.split(":", 1)
         if len(parts) != 2:
             return False
 
@@ -760,8 +778,7 @@ class Database:
         with self.get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT COUNT(*) as count FROM services WHERE service_prefix = ?",
-                (service_prefix,)
+                "SELECT COUNT(*) as count FROM services WHERE service_prefix = ?", (service_prefix,)
             )
             row = cursor.fetchone()
-            return row['count'] > 0 if row else False
+            return row["count"] > 0 if row else False

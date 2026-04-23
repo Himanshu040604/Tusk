@@ -55,9 +55,7 @@ class TestDeeplyNestedJson:
         with pytest.raises(PolicyParserError):
             parser.parse_policy(s)
 
-    def test_depth_exactly_at_limit_passes_depth_check(
-        self, parser: PolicyParser
-    ) -> None:
+    def test_depth_exactly_at_limit_passes_depth_check(self, parser: PolicyParser) -> None:
         # Depth-15 object is safely below the default 32-depth limit; the
         # parse may fail on policy-shape validation but the nesting check
         # must not trigger.
@@ -96,12 +94,10 @@ class TestMalformedInputs:
     @pytest.mark.parametrize(
         "payload",
         [
-            '{"\\uD83D\\uDCA9":"pile"}',   # valid surrogate pair — should parse
+            '{"\\uD83D\\uDCA9":"pile"}',  # valid surrogate pair — should parse
         ],
     )
-    def test_weird_but_valid_unicode(
-        self, parser: PolicyParser, payload: str
-    ) -> None:
+    def test_weird_but_valid_unicode(self, parser: PolicyParser, payload: str) -> None:
         # These do not form a valid POLICY but must not crash the parser.
         # Expect PolicyParserError (shape), not some lower-level exception.
         try:
@@ -121,9 +117,7 @@ class TestHugeStrings:
         doc = json.dumps(
             {
                 "Version": "2012-10-17",
-                "Statement": [
-                    {"Effect": "Allow", "Action": giant, "Resource": "*"}
-                ],
+                "Statement": [{"Effect": "Allow", "Action": giant, "Resource": "*"}],
             }
         )
         # Either parses (invalid action) or raises PolicyParserError;
@@ -153,8 +147,10 @@ class TestHypothesis:
     @given(
         st.recursive(
             st.none() | st.booleans() | st.integers() | st.text(max_size=10),
-            lambda children: st.lists(children, max_size=5)
-            | st.dictionaries(st.text(max_size=5), children, max_size=5),
+            lambda children: (
+                st.lists(children, max_size=5)
+                | st.dictionaries(st.text(max_size=5), children, max_size=5)
+            ),
             max_leaves=30,
         )
     )

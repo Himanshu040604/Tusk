@@ -67,11 +67,19 @@ def db(tmp_path):
         ("GetBucketLocation", "Read", False, True, False),
         ("HeadObject", "Read", False, True, False),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="s3", action_name=name,
-            full_action=f"s3:{name}", description=f"S3 {name}",
-            access_level=level, is_list=is_list, is_read=is_read, is_write=is_write,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="s3",
+                action_name=name,
+                full_action=f"s3:{name}",
+                description=f"S3 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     # EC2 actions
     for name, level, is_list, is_read, is_write in [
@@ -79,37 +87,62 @@ def db(tmp_path):
         ("RunInstances", "Write", False, False, True),
         ("TerminateInstances", "Write", False, False, True),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="ec2", action_name=name,
-            full_action=f"ec2:{name}", description=f"EC2 {name}",
-            access_level=level, is_list=is_list, is_read=is_read, is_write=is_write,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="ec2",
+                action_name=name,
+                full_action=f"ec2:{name}",
+                description=f"EC2 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     # Lambda actions
     for name in ["InvokeFunction", "CreateFunction", "UpdateFunctionCode"]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="lambda", action_name=name,
-            full_action=f"lambda:{name}", description=f"Lambda {name}",
-            access_level="Write", is_write=True,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="lambda",
+                action_name=name,
+                full_action=f"lambda:{name}",
+                description=f"Lambda {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     # CloudWatch Logs actions
     for name in ["CreateLogGroup", "CreateLogStream", "PutLogEvents", "GetLogEvents"]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="logs", action_name=name,
-            full_action=f"logs:{name}", description=f"Logs {name}",
-            access_level="Write" if "Put" in name or "Create" in name else "Read",
-            is_write="Put" in name or "Create" in name,
-            is_read="Get" in name,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="logs",
+                action_name=name,
+                full_action=f"logs:{name}",
+                description=f"Logs {name}",
+                access_level="Write" if "Put" in name or "Create" in name else "Read",
+                is_write="Put" in name or "Create" in name,
+                is_read="Get" in name,
+            )
+        )
 
     # KMS actions
     for name in ["Decrypt", "Encrypt", "GenerateDataKey"]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="kms", action_name=name,
-            full_action=f"kms:{name}", description=f"KMS {name}",
-            access_level="Write", is_write=True,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="kms",
+                action_name=name,
+                full_action=f"kms:{name}",
+                description=f"KMS {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     # IAM actions
     for name, level, is_perms in [
@@ -119,14 +152,19 @@ def db(tmp_path):
         ("CreateUser", "Write", False),
         ("GetUser", "Read", False),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="iam", action_name=name,
-            full_action=f"iam:{name}", description=f"IAM {name}",
-            access_level=level,
-            is_write=level == "Write",
-            is_read=level == "Read",
-            is_permissions_management=is_perms,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="iam",
+                action_name=name,
+                full_action=f"iam:{name}",
+                description=f"IAM {name}",
+                access_level=level,
+                is_write=level == "Write",
+                is_read=level == "Read",
+                is_permissions_management=is_perms,
+            )
+        )
 
     # SQS actions
     for name, level, is_read, is_write in [
@@ -136,11 +174,18 @@ def db(tmp_path):
         ("GetQueueAttributes", "Read", True, False),
         ("ChangeMessageVisibility", "Write", False, True),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="sqs", action_name=name,
-            full_action=f"sqs:{name}", description=f"SQS {name}",
-            access_level=level, is_read=is_read, is_write=is_write,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="sqs",
+                action_name=name,
+                full_action=f"sqs:{name}",
+                description=f"SQS {name}",
+                access_level=level,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     # DynamoDB actions
     for name, level, is_read, is_write in [
@@ -149,11 +194,18 @@ def db(tmp_path):
         ("Query", "Read", True, False),
         ("Scan", "Read", True, False),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="dynamodb", action_name=name,
-            full_action=f"dynamodb:{name}", description=f"DynamoDB {name}",
-            access_level=level, is_read=is_read, is_write=is_write,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="dynamodb",
+                action_name=name,
+                full_action=f"dynamodb:{name}",
+                description=f"DynamoDB {name}",
+                access_level=level,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     # Seed Phase 2 baseline (dangerous_actions, companion_rules, etc.)
     # so the RiskAnalyzer / CompanionPermissionDetector bulk-load path
@@ -173,18 +225,42 @@ def inventory(tmp_path):
     inv = ResourceInventory(tmp_path / "inventory.db")
     inv.create_schema()
     for r in [
-        Resource(resource_id=None, service_prefix="s3", resource_type="bucket",
-                 resource_arn="arn:aws:s3:::my-app-data", resource_name="my-app-data",
-                 region=None, account_id="123456789012"),
-        Resource(resource_id=None, service_prefix="s3", resource_type="bucket",
-                 resource_arn="arn:aws:s3:::my-app-logs", resource_name="my-app-logs",
-                 region=None, account_id="123456789012"),
-        Resource(resource_id=None, service_prefix="lambda", resource_type="function",
-                 resource_arn="arn:aws:lambda:us-east-1:123456789012:function:my-func",
-                 resource_name="my-func", region="us-east-1", account_id="123456789012"),
-        Resource(resource_id=None, service_prefix="ec2", resource_type="instance",
-                 resource_arn="arn:aws:ec2:us-east-1:123456789012:instance/i-abc123",
-                 resource_name="web-server", region="us-east-1", account_id="123456789012"),
+        Resource(
+            resource_id=None,
+            service_prefix="s3",
+            resource_type="bucket",
+            resource_arn="arn:aws:s3:::my-app-data",
+            resource_name="my-app-data",
+            region=None,
+            account_id="123456789012",
+        ),
+        Resource(
+            resource_id=None,
+            service_prefix="s3",
+            resource_type="bucket",
+            resource_arn="arn:aws:s3:::my-app-logs",
+            resource_name="my-app-logs",
+            region=None,
+            account_id="123456789012",
+        ),
+        Resource(
+            resource_id=None,
+            service_prefix="lambda",
+            resource_type="function",
+            resource_arn="arn:aws:lambda:us-east-1:123456789012:function:my-func",
+            resource_name="my-func",
+            region="us-east-1",
+            account_id="123456789012",
+        ),
+        Resource(
+            resource_id=None,
+            service_prefix="ec2",
+            resource_type="instance",
+            resource_arn="arn:aws:ec2:us-east-1:123456789012:instance/i-abc123",
+            resource_name="web-server",
+            region="us-east-1",
+            account_id="123456789012",
+        ),
     ]:
         inv.insert_resource(r)
     return inv
@@ -217,9 +293,7 @@ class TestOverPermissivePolicies:
             if stmt.effect == "Allow":
                 all_actions.extend(stmt.actions)
         # Should have specific actions, not just "*"
-        has_specific = any(
-            ":" in a and a != "*" for a in all_actions
-        )
+        has_specific = any(":" in a and a != "*" for a in all_actions)
         assert has_specific or "*" in all_actions  # At minimum, pipeline ran
 
     def test_service_wildcard_gets_expanded(self, db):
@@ -228,10 +302,7 @@ class TestOverPermissivePolicies:
         result = pipeline.run(policy_json)
 
         # Risk findings should flag wildcards
-        wildcard_findings = [
-            f for f in result.risk_findings
-            if "WILDCARD" in f.risk_type
-        ]
+        wildcard_findings = [f for f in result.risk_findings if "WILDCARD" in f.risk_type]
         assert len(wildcard_findings) >= 1
 
     def test_wildcard_policy_pipeline_result_complete(self, db):
@@ -283,7 +354,9 @@ class TestHallucinatedActions:
         storage_action = [r for r in results if r.action == "storage:GetItem"]
         assert len(storage_action) == 1
         assert storage_action[0].tier == ValidationTier.TIER_3_INVALID
-        assert "Unknown" in storage_action[0].reason or "unknown" in storage_action[0].reason.lower()
+        assert (
+            "Unknown" in storage_action[0].reason or "unknown" in storage_action[0].reason.lower()
+        )
 
     def test_wrong_case_action_classified(self, db):
         parser = PolicyParser(db)
@@ -350,22 +423,24 @@ class TestPrivilegeEscalation:
 
         # Should detect privilege escalation
         escalation_findings = [
-            f for f in result.risk_findings
+            f
+            for f in result.risk_findings
             if "ESCALATION" in f.risk_type or "DANGEROUS" in f.risk_type
         ]
         assert len(escalation_findings) >= 1
 
     def test_policy_version_escalation_detected(self, db):
         risk_analyzer = RiskAnalyzer(db)
-        findings = risk_analyzer.analyze_actions([
-            "iam:CreatePolicyVersion",
-            "iam:AttachRolePolicy",
-        ])
+        findings = risk_analyzer.analyze_actions(
+            [
+                "iam:CreatePolicyVersion",
+                "iam:AttachRolePolicy",
+            ]
+        )
 
         # Should detect permissions management risk
         perms_findings = [
-            f for f in findings
-            if "PERMISSIONS" in f.risk_type or "ESCALATION" in f.risk_type
+            f for f in findings if "PERMISSIONS" in f.risk_type or "ESCALATION" in f.risk_type
         ]
         assert len(perms_findings) >= 1
 
@@ -409,10 +484,7 @@ class TestMissingCompanions:
         detector = CompanionPermissionDetector(db)
         missing = detector.detect_missing_companions(["s3:GetObject"])
 
-        kms_companions = [
-            m for m in missing
-            if any("kms:" in c for c in m.companion_actions)
-        ]
+        kms_companions = [m for m in missing if any("kms:" in c for c in m.companion_actions)]
         assert len(kms_companions) >= 1
 
     def test_sqs_without_lifecycle_detected(self, db):
@@ -461,13 +533,17 @@ class TestStructuralIssues:
         from src.sentinel.parser import PolicyParserError
 
         parser = PolicyParser(db)
-        no_version = json.dumps({
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": "s3:GetObject",
-                "Resource": "*",
-            }]
-        })
+        no_version = json.dumps(
+            {
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": "s3:GetObject",
+                        "Resource": "*",
+                    }
+                ]
+            }
+        )
         # Parser requires Version field
         with pytest.raises(PolicyParserError, match="Version"):
             parser.parse_policy(no_version)
@@ -481,10 +557,12 @@ class TestStructuralIssues:
 
     def test_empty_statement_array_parses(self, db):
         parser = PolicyParser(db)
-        empty = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [],
-        })
+        empty = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [],
+            }
+        )
         # Empty statements parse but produce an empty policy
         policy = parser.parse_policy(empty)
         assert len(policy.statements) == 0
@@ -493,30 +571,39 @@ class TestStructuralIssues:
         from src.sentinel.parser import PolicyParserError
 
         parser = PolicyParser(db)
-        no_resource = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": "s3:GetObject",
-            }],
-        })
+        no_resource = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": "s3:GetObject",
+                    }
+                ],
+            }
+        )
         with pytest.raises(PolicyParserError, match="Resource"):
             parser.parse_policy(no_resource)
 
     def test_invalid_arn_format_detected_by_selfcheck(self, db):
         pipeline = Pipeline(database=db)
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": "ec2:DescribeInstances",
-                "Resource": "not-an-arn",
-            }],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": "ec2:DescribeInstances",
+                        "Resource": "not-an-arn",
+                    }
+                ],
+            }
+        )
         result = pipeline.run(policy_json)
         # Self-check should flag invalid ARN format
         arn_findings = [
-            f for f in result.self_check_result.findings
+            f
+            for f in result.self_check_result.findings
             if "ARN" in f.message.upper() or "arn" in f.check_name.lower()
         ]
         assert len(arn_findings) >= 0  # Pipeline completes even with bad ARNs
@@ -608,20 +695,24 @@ class TestIntentMismatches:
                 allow_actions.extend(stmt.actions)
 
         # Write actions should be removed or flagged
-        write_actions = [a for a in allow_actions
-                         if any(w in a for w in ["Put", "Delete", "Create"])]
-        read_actions = [a for a in allow_actions
-                        if any(r in a for r in ["Get", "List", "Head", "Describe"])]
+        write_actions = [
+            a for a in allow_actions if any(w in a for w in ["Put", "Delete", "Create"])
+        ]
+        read_actions = [
+            a for a in allow_actions if any(r in a for r in ["Get", "List", "Head", "Describe"])
+        ]
 
         # Should have more read than write actions after rewrite
         assert len(read_actions) >= 1
 
     def test_admin_actions_flagged_as_risk(self, db):
         risk_analyzer = RiskAnalyzer(db)
-        findings = risk_analyzer.analyze_actions([
-            "iam:CreateUser",
-            "iam:AttachRolePolicy",
-        ])
+        findings = risk_analyzer.analyze_actions(
+            [
+                "iam:CreateUser",
+                "iam:AttachRolePolicy",
+            ]
+        )
 
         # Should have risk findings for IAM admin actions
         assert len(findings) >= 1

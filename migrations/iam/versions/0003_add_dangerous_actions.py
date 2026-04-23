@@ -13,6 +13,7 @@ Revision ID: 0003_add_dangerous_actions
 Revises: 0002_add_verb_prefixes
 Create Date: 2026-04-22
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union

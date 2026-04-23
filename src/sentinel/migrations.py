@@ -232,16 +232,14 @@ def _upgrade_locked(db_path: Path, config_section: str) -> None:
 
     try:
         print(
-            f"[INFO] Upgrading database from revision "
-            f"{current or '<empty>'} to {head}: {db_path}",
+            f"[INFO] Upgrading database from revision {current or '<empty>'} to {head}: {db_path}",
             file=sys.stderr,
         )
         command.upgrade(cfg, "head")
     except Exception:
         if bak is not None:
             print(
-                f"[ERROR] Migration failed.  Restore via:\n"
-                f"        cp {bak} {db_path}",
+                f"[ERROR] Migration failed.  Restore via:\n        cp {bak} {db_path}",
                 file=sys.stderr,
             )
         raise
@@ -278,8 +276,7 @@ def check_and_upgrade_all_dbs(
     if skip or env_skip:
         reason = "SENTINEL_SKIP_MIGRATIONS=1" if env_skip else "--skip-migrations"
         print(
-            f"[WARN] Skipping Alembic auto-upgrade ({reason}).  "
-            f"Schema may be behind HEAD.",
+            f"[WARN] Skipping Alembic auto-upgrade ({reason}).  Schema may be behind HEAD.",
             file=sys.stderr,
         )
         return

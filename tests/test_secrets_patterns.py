@@ -87,9 +87,7 @@ class TestRedactEventDict:
         assert out["Authorization"] == REDACT_PLACEHOLDER
 
     def test_redacts_by_regex_in_string_value(self) -> None:
-        out = redact_event_dict(
-            None, "info", {"msg": f"PAT is {GH_CLASSIC_PAT} today"}
-        )
+        out = redact_event_dict(None, "info", {"msg": f"PAT is {GH_CLASSIC_PAT} today"})
         assert GH_CLASSIC_PAT not in out["msg"]
         assert REDACT_PLACEHOLDER in out["msg"]
 
@@ -141,9 +139,7 @@ class TestGrepSources:
     def test_silently_skips_missing_path(self) -> None:
         assert grep_sources(["/nonexistent/path/xyz"]) == []
 
-    def test_one_hit_per_line_even_on_multiple_patterns(
-        self, tmp_path: Path
-    ) -> None:
+    def test_one_hit_per_line_even_on_multiple_patterns(self, tmp_path: Path) -> None:
         f = tmp_path / "double.txt"
         # Put two secrets on the same line; we only report one hit per line.
         f.write_text(f"{GH_CLASSIC_PAT} {AWS_ACCESS_KEY}\n")
@@ -189,13 +185,12 @@ class TestSingleSourceOfTruth:
             if "SECRET_PATTERNS" not in text:
                 continue
             # Must have an import from secrets_patterns nearby.
-            if not re.search(
-                r"from\s+[\w.]*secrets_patterns\s+import", text
-            ) and not re.search(r"import\s+[\w.]*secrets_patterns", text):
+            if not re.search(r"from\s+[\w.]*secrets_patterns\s+import", text) and not re.search(
+                r"import\s+[\w.]*secrets_patterns", text
+            ):
                 offenders.append(str(py))
         assert not offenders, (
-            f"Files reference SECRET_PATTERNS without importing from "
-            f"secrets_patterns: {offenders}"
+            f"Files reference SECRET_PATTERNS without importing from secrets_patterns: {offenders}"
         )
 
 

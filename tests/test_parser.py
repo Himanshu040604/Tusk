@@ -20,7 +20,7 @@ from src.sentinel.database import Database, Service, Action
 @pytest.fixture
 def temp_db():
     """Create temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = Path(f.name)
 
     db = Database(db_path)
@@ -28,25 +28,51 @@ def temp_db():
 
     # Insert test services and actions
     services = [
-        Service(service_prefix='s3', service_name='Amazon S3'),
-        Service(service_prefix='ec2', service_name='Amazon EC2'),
-        Service(service_prefix='iam', service_name='AWS IAM'),
-        Service(service_prefix='lambda', service_name='AWS Lambda'),
+        Service(service_prefix="s3", service_name="Amazon S3"),
+        Service(service_prefix="ec2", service_name="Amazon EC2"),
+        Service(service_prefix="iam", service_name="AWS IAM"),
+        Service(service_prefix="lambda", service_name="AWS Lambda"),
     ]
 
     for service in services:
         db.insert_service(service)
 
     actions = [
-        Action(None, 's3', 'GetObject', 's3:GetObject', 'Get object', 'Read', is_read=True),
-        Action(None, 's3', 'PutObject', 's3:PutObject', 'Put object', 'Write', is_write=True),
-        Action(None, 's3', 'ListBuckets', 's3:ListBuckets', 'List buckets', 'List', is_list=True),
-        Action(None, 's3', 'PutBucketPolicy', 's3:PutBucketPolicy', 'Put policy', 'Permissions management', is_permissions_management=True),
-        Action(None, 'ec2', 'RunInstances', 'ec2:RunInstances', 'Run instances', 'Write', is_write=True),
-        Action(None, 'ec2', 'DescribeInstances', 'ec2:DescribeInstances', 'Describe instances', 'List', is_list=True),
-        Action(None, 'iam', 'ListUsers', 'iam:ListUsers', 'List users', 'List', is_list=True),
-        Action(None, 'iam', 'CreateUser', 'iam:CreateUser', 'Create user', 'Write', is_write=True),
-        Action(None, 'lambda', 'InvokeFunction', 'lambda:InvokeFunction', 'Invoke function', 'Write', is_write=True),
+        Action(None, "s3", "GetObject", "s3:GetObject", "Get object", "Read", is_read=True),
+        Action(None, "s3", "PutObject", "s3:PutObject", "Put object", "Write", is_write=True),
+        Action(None, "s3", "ListBuckets", "s3:ListBuckets", "List buckets", "List", is_list=True),
+        Action(
+            None,
+            "s3",
+            "PutBucketPolicy",
+            "s3:PutBucketPolicy",
+            "Put policy",
+            "Permissions management",
+            is_permissions_management=True,
+        ),
+        Action(
+            None, "ec2", "RunInstances", "ec2:RunInstances", "Run instances", "Write", is_write=True
+        ),
+        Action(
+            None,
+            "ec2",
+            "DescribeInstances",
+            "ec2:DescribeInstances",
+            "Describe instances",
+            "List",
+            is_list=True,
+        ),
+        Action(None, "iam", "ListUsers", "iam:ListUsers", "List users", "List", is_list=True),
+        Action(None, "iam", "CreateUser", "iam:CreateUser", "Create user", "Write", is_write=True),
+        Action(
+            None,
+            "lambda",
+            "InvokeFunction",
+            "lambda:InvokeFunction",
+            "Invoke function",
+            "Write",
+            is_write=True,
+        ),
     ]
 
     for action in actions:
@@ -309,7 +335,7 @@ class TestPolicyParsing:
         }
         """
 
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             f.write(policy_json)
             temp_file = Path(f.name)
 
@@ -331,16 +357,16 @@ class TestActionClassification:
 
     def test_classify_tier1_valid_action(self, parser_with_db):
         """Test Tier 1 classification for valid action."""
-        result = parser_with_db.classify_action('s3:GetObject')
+        result = parser_with_db.classify_action("s3:GetObject")
 
         assert result.tier == ValidationTier.TIER_1_VALID
-        assert result.action == 's3:GetObject'
-        assert result.access_level == 'Read'
-        assert 'found in IAM database' in result.reason
+        assert result.action == "s3:GetObject"
+        assert result.access_level == "Read"
+        assert "found in IAM database" in result.reason
 
     def test_classify_tier1_multiple_actions(self, parser_with_db):
         """Test multiple Tier 1 actions."""
-        actions = ['s3:PutObject', 'ec2:RunInstances', 'iam:ListUsers']
+        actions = ["s3:PutObject", "ec2:RunInstances", "iam:ListUsers"]
 
         for action in actions:
             result = parser_with_db.classify_action(action)
@@ -348,14 +374,14 @@ class TestActionClassification:
 
     def test_classify_tier2_plausible_action(self, parser_with_db):
         """Test Tier 2 classification for plausible unknown action."""
-        result = parser_with_db.classify_action('s3:NewAction')
+        result = parser_with_db.classify_action("s3:NewAction")
 
         assert result.tier == ValidationTier.TIER_2_UNKNOWN
-        assert 'plausible' in result.reason.lower()
+        assert "plausible" in result.reason.lower()
 
     def test_classify_tier2_wildcard(self, parser_with_db):
         """Test Tier 2 classification for wildcards."""
-        wildcards = ['*', 's3:*', 's3:Get*', 'ec2:Describe*']
+        wildcards = ["*", "s3:*", "s3:Get*", "ec2:Describe*"]
 
         for wildcard in wildcards:
             result = parser_with_db.classify_action(wildcard)
@@ -364,11 +390,11 @@ class TestActionClassification:
     def test_classify_tier3_invalid_format(self, parser):
         """Test Tier 3 classification for invalid format."""
         invalid_actions = [
-            'invalid',  # No colon
-            's3',  # No action name
-            's3:',  # Empty action name
-            's3:get-object',  # Lowercase start
-            's3:Get Object',  # Space in name
+            "invalid",  # No colon
+            "s3",  # No action name
+            "s3:",  # Empty action name
+            "s3:get-object",  # Lowercase start
+            "s3:Get Object",  # Space in name
         ]
 
         for action in invalid_actions:
@@ -377,19 +403,19 @@ class TestActionClassification:
 
     def test_classify_tier3_unknown_service(self, parser):
         """Test Tier 3 classification for unknown service."""
-        result = parser.classify_action('unknownservice:GetObject')
+        result = parser.classify_action("unknownservice:GetObject")
 
         assert result.tier == ValidationTier.TIER_3_INVALID
-        assert 'Unknown' in result.reason or 'unknown' in result.reason
+        assert "Unknown" in result.reason or "unknown" in result.reason
 
     def test_classify_with_suggestions(self, parser):
         """Test classification includes suggestions."""
-        result = parser.classify_action('s4:GetObject')
+        result = parser.classify_action("s4:GetObject")
 
         assert result.tier == ValidationTier.TIER_3_INVALID
         assert len(result.suggestions) > 0
         # Should suggest s3
-        assert any('s3' in s for s in result.suggestions)
+        assert any("s3" in s for s in result.suggestions)
 
 
 class TestWildcardHandling:
@@ -398,11 +424,11 @@ class TestWildcardHandling:
     def test_valid_wildcard_patterns(self, parser):
         """Test valid wildcard patterns."""
         valid_wildcards = [
-            '*',
-            '*:*',
-            's3:*',
-            's3:Get*',
-            's3:*Object',
+            "*",
+            "*:*",
+            "s3:*",
+            "s3:Get*",
+            "s3:*Object",
         ]
 
         for wildcard in valid_wildcards:
@@ -412,9 +438,9 @@ class TestWildcardHandling:
     def test_invalid_wildcard_patterns(self, parser):
         """Test invalid wildcard patterns."""
         invalid_wildcards = [
-            's3:Get*Put',  # Multiple wildcards
-            's3:*Get*',  # Wildcard in middle
-            's3:**',  # Multiple consecutive wildcards
+            "s3:Get*Put",  # Multiple wildcards
+            "s3:*Get*",  # Wildcard in middle
+            "s3:**",  # Multiple consecutive wildcards
         ]
 
         for wildcard in invalid_wildcards:
@@ -423,33 +449,33 @@ class TestWildcardHandling:
 
     def test_expand_service_wildcard(self, parser_with_db):
         """Test expanding service:* wildcard."""
-        expanded = parser_with_db._expand_action_wildcard('s3:*')
+        expanded = parser_with_db._expand_action_wildcard("s3:*")
 
         assert len(expanded) > 0
-        assert 's3:GetObject' in expanded
-        assert 's3:PutObject' in expanded
-        assert 's3:ListBuckets' in expanded
+        assert "s3:GetObject" in expanded
+        assert "s3:PutObject" in expanded
+        assert "s3:ListBuckets" in expanded
 
     def test_expand_prefix_wildcard(self, parser_with_db):
         """Test expanding prefix wildcard (Get*)."""
-        expanded = parser_with_db._expand_action_wildcard('s3:Get*')
+        expanded = parser_with_db._expand_action_wildcard("s3:Get*")
 
         assert len(expanded) >= 1
-        assert 's3:GetObject' in expanded
-        assert 's3:PutObject' not in expanded
+        assert "s3:GetObject" in expanded
+        assert "s3:PutObject" not in expanded
 
     def test_expand_suffix_wildcard(self, parser_with_db):
         """Test expanding suffix wildcard (*Object)."""
-        expanded = parser_with_db._expand_action_wildcard('s3:*Object')
+        expanded = parser_with_db._expand_action_wildcard("s3:*Object")
 
-        assert 's3:GetObject' in expanded
-        assert 's3:PutObject' in expanded
+        assert "s3:GetObject" in expanded
+        assert "s3:PutObject" in expanded
 
     def test_expand_without_database(self, parser):
         """Test wildcard expansion without database returns original."""
-        expanded = parser._expand_action_wildcard('s3:*')
+        expanded = parser._expand_action_wildcard("s3:*")
 
-        assert expanded == ['s3:*']
+        assert expanded == ["s3:*"]
 
 
 class TestPolicyValidation:
@@ -528,12 +554,12 @@ class TestPolicySummary:
         policy = parser_with_db.parse_policy(policy_json)
         summary = parser_with_db.get_policy_summary(policy)
 
-        assert summary['version'] == '2012-10-17'
-        assert summary['statement_count'] == 1
-        assert summary['total_actions'] == 3
-        assert summary['valid_actions'] >= 2
-        assert summary['invalid_actions'] >= 1
-        assert summary['has_wildcards'] is False
+        assert summary["version"] == "2012-10-17"
+        assert summary["statement_count"] == 1
+        assert summary["total_actions"] == 3
+        assert summary["valid_actions"] >= 2
+        assert summary["invalid_actions"] >= 1
+        assert summary["has_wildcards"] is False
 
     def test_summary_detects_wildcards(self, parser_with_db):
         """Test summary detects wildcard usage."""
@@ -551,7 +577,7 @@ class TestPolicySummary:
         policy = parser_with_db.parse_policy(policy_json)
         summary = parser_with_db.get_policy_summary(policy)
 
-        assert summary['has_wildcards'] is True
+        assert summary["has_wildcards"] is True
 
     def test_summary_detects_deny_statements(self, parser_with_db):
         """Test summary detects deny statements."""
@@ -569,7 +595,7 @@ class TestPolicySummary:
         policy = parser_with_db.parse_policy(policy_json)
         summary = parser_with_db.get_policy_summary(policy)
 
-        assert summary['has_deny_statements'] is True
+        assert summary["has_deny_statements"] is True
 
 
 class TestActionExtraction:
@@ -599,8 +625,8 @@ class TestActionExtraction:
         actions = parser.extract_actions(policy)
 
         assert len(actions) == 2  # Deduplicated
-        assert 's3:GetObject' in actions
-        assert 's3:PutObject' in actions
+        assert "s3:GetObject" in actions
+        assert "s3:PutObject" in actions
 
 
 class TestSuggestions:
@@ -608,30 +634,30 @@ class TestSuggestions:
 
     def test_suggest_service_corrections(self, parser):
         """Test service name correction suggestions."""
-        result = parser.classify_action('s4:GetObject')
+        result = parser.classify_action("s4:GetObject")
 
         assert len(result.suggestions) > 0
         # Should suggest s3 (similar prefix)
-        assert any('s3:' in s for s in result.suggestions)
+        assert any("s3:" in s for s in result.suggestions)
 
     def test_suggest_action_name_capitalization(self, parser):
         """Test action name capitalization suggestions."""
-        result = parser.classify_action('s3:getObject')
+        result = parser.classify_action("s3:getObject")
 
         assert result.tier == ValidationTier.TIER_3_INVALID
-        assert any('GetObject' in s for s in result.suggestions)
+        assert any("GetObject" in s for s in result.suggestions)
 
     def test_find_similar_services(self, parser_with_db):
         """Test finding similar service prefixes."""
-        similar = parser_with_db._find_similar_services('s')
+        similar = parser_with_db._find_similar_services("s")
 
-        assert 's3' in similar
+        assert "s3" in similar
 
     def test_find_similar_services_with_prefix(self, parser_with_db):
         """Test finding services with common prefix."""
-        similar = parser_with_db._find_similar_services('ec')
+        similar = parser_with_db._find_similar_services("ec")
 
-        assert 'ec2' in similar
+        assert "ec2" in similar
 
 
 class TestYAMLParsing:
@@ -641,9 +667,9 @@ class TestYAMLParsing:
         """Test parsing a valid YAML policy string."""
         yaml_str = (
             'Version: "2012-10-17"\n'
-            'Statement:\n'
-            '  - Effect: Allow\n'
-            '    Action: s3:GetObject\n'
+            "Statement:\n"
+            "  - Effect: Allow\n"
+            "    Action: s3:GetObject\n"
             '    Resource: "*"\n'
         )
         policy = parser.parse_policy_yaml(yaml_str)
@@ -657,12 +683,12 @@ class TestYAMLParsing:
         """Test YAML anchors and aliases parse correctly."""
         yaml_str = (
             'Version: "2012-10-17"\n'
-            'Statement:\n'
-            '  - &base\n'
-            '    Effect: Allow\n'
-            '    Action: s3:GetObject\n'
+            "Statement:\n"
+            "  - &base\n"
+            "    Effect: Allow\n"
+            "    Action: s3:GetObject\n"
             '    Resource: "arn:aws:s3:::bucket-a/*"\n'
-            '  - <<: *base\n'
+            "  - <<: *base\n"
             '    Resource: "arn:aws:s3:::bucket-b/*"\n'
         )
         policy = parser.parse_policy_yaml(yaml_str)
@@ -685,14 +711,18 @@ class TestYAMLParsing:
 
     def test_parse_policy_auto_json(self, parser):
         """Test parse_policy_auto dispatches JSON correctly."""
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": "s3:GetObject",
-                "Resource": "*",
-            }],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": "s3:GetObject",
+                        "Resource": "*",
+                    }
+                ],
+            }
+        )
         policy = parser.parse_policy_auto(policy_json, "json")
         assert policy.version == "2012-10-17"
 
@@ -700,9 +730,9 @@ class TestYAMLParsing:
         """Test parse_policy_auto dispatches YAML correctly."""
         yaml_str = (
             'Version: "2012-10-17"\n'
-            'Statement:\n'
-            '  - Effect: Allow\n'
-            '    Action: s3:GetObject\n'
+            "Statement:\n"
+            "  - Effect: Allow\n"
+            "    Action: s3:GetObject\n"
             '    Resource: "*"\n'
         )
         policy = parser.parse_policy_auto(yaml_str, "yaml")

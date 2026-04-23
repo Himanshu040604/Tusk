@@ -10,6 +10,7 @@ Revision ID: 0001_initial_inventory
 Revises:
 Create Date: 2026-04-22
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
@@ -37,21 +38,11 @@ def upgrade() -> None:
             last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_resources_service ON resources(service_prefix)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_resources_arn ON resources(resource_arn)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_resources_account ON resources(account_id)"
-    )
-    op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_resources_region ON resources(region)"
-    )
+    op.execute("CREATE INDEX IF NOT EXISTS idx_resources_service ON resources(service_prefix)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(resource_type)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_resources_arn ON resources(resource_arn)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_resources_account ON resources(account_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS idx_resources_region ON resources(region)")
     op.execute(
         "CREATE INDEX IF NOT EXISTS idx_resources_service_type "
         "ON resources(service_prefix, resource_type)"

@@ -112,12 +112,10 @@ class TextFormatter:
             lines.append(f"    Reason: {r.reason}")
             if r.access_level:
                 lines.append(f"    Access level: {r.access_level}")
-            if hasattr(r, 'confidence') and r.confidence < 1.0:
+            if hasattr(r, "confidence") and r.confidence < 1.0:
                 lines.append(f"    Confidence: {r.confidence:.1f}")
             if r.suggestions:
-                lines.append(
-                    f"    Suggestions: {', '.join(r.suggestions)}"
-                )
+                lines.append(f"    Suggestions: {', '.join(r.suggestions)}")
 
         return "\n".join(lines)
 
@@ -159,9 +157,7 @@ class TextFormatter:
         """
         lines = ["=== Rewrite Result ===", ""]
         lines.append(f"Changes applied: {len(result.changes)}")
-        lines.append(
-            f"Companions added: {len(result.companion_permissions_added)}"
-        )
+        lines.append(f"Companions added: {len(result.companion_permissions_added)}")
         lines.append("")
 
         if result.changes:
@@ -222,15 +218,12 @@ class TextFormatter:
         )
 
         # Tier 2 actions kept for review
-        tier2_kept = [
-            r for r in result.validation_results
-            if r.tier.value == "UNKNOWN"
-        ]
+        tier2_kept = [r for r in result.validation_results if r.tier.value == "UNKNOWN"]
         if tier2_kept:
             lines.append("")
             lines.append("--- Tier 2 Actions Kept For Review ---")
             for r in tier2_kept:
-                conf = getattr(r, 'confidence', 'N/A')
+                conf = getattr(r, "confidence", "N/A")
                 lines.append(f"  [REVIEW] {r.action} (confidence: {conf})")
                 lines.append(f"    {r.reason}")
             lines.append("")
@@ -240,10 +233,7 @@ class TextFormatter:
 
         # Self-check summary
         sc = result.self_check_result
-        lines.append(
-            f"Self-check: {sc.verdict.value} "
-            f"(completeness {sc.completeness_score:.0%})"
-        )
+        lines.append(f"Self-check: {sc.verdict.value} (completeness {sc.completeness_score:.0%})")
         lines.append("")
 
         # Rewritten policy
@@ -309,7 +299,7 @@ class JsonFormatter:
                     "reason": r.reason,
                     "access_level": r.access_level,
                     "suggestions": r.suggestions or [],
-                    "confidence": getattr(r, 'confidence', 1.0),
+                    "confidence": getattr(r, "confidence", 1.0),
                 }
                 for r in results
             ],
@@ -370,9 +360,7 @@ class JsonFormatter:
                 }
                 for cp in result.companion_permissions_added
             ],
-            "rewritten_policy": serialize_policy(
-                result.rewritten_policy
-            ),
+            "rewritten_policy": serialize_policy(result.rewritten_policy),
         }
         return json.dumps(data, indent=2)
 
@@ -395,7 +383,7 @@ class JsonFormatter:
                     "tier": r.tier.value,
                     "reason": r.reason,
                     "access_level": r.access_level,
-                    "confidence": getattr(r, 'confidence', 1.0),
+                    "confidence": getattr(r, "confidence", 1.0),
                 }
                 for r in result.validation_results
             ],
@@ -403,7 +391,7 @@ class JsonFormatter:
                 {
                     "action": r.action,
                     "reason": r.reason,
-                    "confidence": getattr(r, 'confidence', 0.6),
+                    "confidence": getattr(r, "confidence", 0.6),
                 }
                 for r in result.validation_results
                 if r.tier.value == "UNKNOWN"
@@ -423,9 +411,7 @@ class JsonFormatter:
                 "completeness_score": result.self_check_result.completeness_score,
                 "findings_count": len(result.self_check_result.findings),
             },
-            "rewritten_policy": serialize_policy(
-                result.rewritten_policy
-            ),
+            "rewritten_policy": serialize_policy(result.rewritten_policy),
         }
         origin_sub = _origin_json(getattr(result, "origin", None))
         if origin_sub is not None:
@@ -486,7 +472,7 @@ class MarkdownFormatter:
         lines.append("|--------|------|------------|--------|")
         for r in results:
             reason_escaped = r.reason.replace("|", "\\|")
-            conf = getattr(r, 'confidence', 1.0)
+            conf = getattr(r, "confidence", 1.0)
             lines.append(f"| `{r.action}` | {r.tier.value} | {conf:.1f} | {reason_escaped} |")
 
         return "\n".join(lines)
@@ -513,8 +499,7 @@ class MarkdownFormatter:
         for i, f in enumerate(findings, 1):
             desc_escaped = f.description.replace("|", "\\|")
             lines.append(
-                f"| {i} | {f.severity.value} | {f.risk_type} "
-                f"| `{f.action}` | {desc_escaped} |"
+                f"| {i} | {f.severity.value} | {f.risk_type} | `{f.action}` | {desc_escaped} |"
             )
 
         return "\n".join(lines)
@@ -530,10 +515,7 @@ class MarkdownFormatter:
         """
         lines = ["# Rewrite Result", ""]
         lines.append(f"- **Changes:** {len(result.changes)}")
-        lines.append(
-            f"- **Companions added:** "
-            f"{len(result.companion_permissions_added)}"
-        )
+        lines.append(f"- **Companions added:** {len(result.companion_permissions_added)}")
         lines.append("")
 
         if result.changes:
@@ -603,17 +585,14 @@ class MarkdownFormatter:
         lines.append("")
 
         # Tier 2 actions kept for review
-        tier2_kept = [
-            r for r in result.validation_results
-            if r.tier.value == "UNKNOWN"
-        ]
+        tier2_kept = [r for r in result.validation_results if r.tier.value == "UNKNOWN"]
         if tier2_kept:
             lines.append("## Tier 2 Actions Kept For Review")
             lines.append("")
             lines.append("| Action | Confidence | Reason |")
             lines.append("|--------|------------|--------|")
             for r in tier2_kept:
-                conf = getattr(r, 'confidence', 'N/A')
+                conf = getattr(r, "confidence", "N/A")
                 reason_esc = r.reason.replace("|", "\\|")
                 lines.append(f"| `{r.action}` | {conf} | {reason_esc} |")
             lines.append("")
@@ -623,9 +602,7 @@ class MarkdownFormatter:
             lines.append(f"## Risk Findings ({len(result.risk_findings)})")
             lines.append("")
             for f in result.risk_findings:
-                lines.append(
-                    f"- **[{f.severity.value}]** {f.action}: {f.description}"
-                )
+                lines.append(f"- **[{f.severity.value}]** {f.action}: {f.description}")
             lines.append("")
 
         # Self-check

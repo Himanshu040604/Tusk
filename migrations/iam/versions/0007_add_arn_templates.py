@@ -7,6 +7,7 @@ Revision ID: 0007_add_arn_templates
 Revises: 0006_add_action_resource_map
 Create Date: 2026-04-22
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union

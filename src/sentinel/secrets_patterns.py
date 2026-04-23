@@ -55,9 +55,7 @@ SECRET_PATTERNS: list[re.Pattern[str]] = [
     # RFC 6750 bearer tokens
     re.compile(r"Bearer\s+[A-Za-z0-9\-._~+/]+=*"),
     # JWT triplet (base64url.base64url.base64url)
-    re.compile(
-        r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]+"
-    ),
+    re.compile(r"eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]+"),
 ]
 
 

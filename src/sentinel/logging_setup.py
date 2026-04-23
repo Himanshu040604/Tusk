@@ -81,9 +81,7 @@ def configure(
             redact_event_dict,
             _pick_renderer(fmt),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            getattr(logging, level, logging.INFO)
-        ),
+        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, level, logging.INFO)),
         context_class=dict,
         logger_factory=structlog.PrintLoggerFactory(file=stream),
         # H23: False during Phase 1 so reconfigure actually reshapes bound
@@ -101,9 +99,7 @@ def ssl_cert_file_audit() -> None:
     """
     import hashlib
 
-    bundle_path = os.environ.get("SSL_CERT_FILE") or os.environ.get(
-        "REQUESTS_CA_BUNDLE"
-    )
+    bundle_path = os.environ.get("SSL_CERT_FILE") or os.environ.get("REQUESTS_CA_BUNDLE")
     if not bundle_path:
         return
 
@@ -113,11 +109,7 @@ def ssl_cert_file_audit() -> None:
         logger.warning(
             "ssl_cert_file_set_but_missing",
             path=str(path),
-            env_var=(
-                "SSL_CERT_FILE"
-                if os.environ.get("SSL_CERT_FILE")
-                else "REQUESTS_CA_BUNDLE"
-            ),
+            env_var=("SSL_CERT_FILE" if os.environ.get("SSL_CERT_FILE") else "REQUESTS_CA_BUNDLE"),
         )
         return
 
@@ -135,15 +127,8 @@ def ssl_cert_file_audit() -> None:
         "ssl_cert_file_override_active",
         path=str(path),
         sha256=digest,
-        env_var=(
-            "SSL_CERT_FILE"
-            if os.environ.get("SSL_CERT_FILE")
-            else "REQUESTS_CA_BUNDLE"
-        ),
-        note=(
-            "Corporate MITM bundle swap surface — audit hash against a "
-            "trusted reference."
-        ),
+        env_var=("SSL_CERT_FILE" if os.environ.get("SSL_CERT_FILE") else "REQUESTS_CA_BUNDLE"),
+        note=("Corporate MITM bundle swap surface — audit hash against a trusted reference."),
     )
 
 

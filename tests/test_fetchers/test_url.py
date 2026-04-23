@@ -60,8 +60,6 @@ class TestURLFetcher:
         assert result.origin.source_spec == spec
 
     @pytest.mark.vcr
-    @pytest.mark.skip(
-        reason="VCR cassette recorded during M21 nightly live-tests run"
-    )
+    @pytest.mark.skip(reason="VCR cassette recorded during M21 nightly live-tests run")
     def test_live_recorded_fetch(self) -> None:
         """Placeholder — populated once live-tests workflow records cassette."""

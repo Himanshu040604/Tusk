@@ -53,9 +53,7 @@ def _sqlite_master_snapshot(db_path: Path) -> list[tuple]:
             "  AND name != 'alembic_version' "
             "ORDER BY type, name"
         )
-        rows = [
-            (t, n, tn, _normalize_sql(s)) for (t, n, tn, s) in cur.fetchall()
-        ]
+        rows = [(t, n, tn, _normalize_sql(s)) for (t, n, tn, s) in cur.fetchall()]
         return sorted(rows)
     finally:
         conn.close()
@@ -67,9 +65,7 @@ def _sqlite_master_snapshot(db_path: Path) -> list[tuple]:
 
 
 class TestIamDbRoundtrip:
-    def test_upgrade_downgrade_upgrade_idempotent(
-        self, tmp_path: Path
-    ) -> None:
+    def test_upgrade_downgrade_upgrade_idempotent(self, tmp_path: Path) -> None:
         db = tmp_path / "iam.db"
 
         # First upgrade — fresh empty DB.
@@ -102,9 +98,7 @@ class TestIamDbRoundtrip:
 
 
 class TestInventoryDbRoundtrip:
-    def test_upgrade_downgrade_upgrade_idempotent(
-        self, tmp_path: Path
-    ) -> None:
+    def test_upgrade_downgrade_upgrade_idempotent(self, tmp_path: Path) -> None:
         iam_db = tmp_path / "iam.db"
         inv_db = tmp_path / "inventory.db"
         # Touch the inventory file so check_and_upgrade_all_dbs handles it.
@@ -117,16 +111,12 @@ class TestInventoryDbRoundtrip:
         cfg = _make_config(inv_db, "inventory")
         command.downgrade(cfg, "base")
         snap_down = _sqlite_master_snapshot(inv_db)
-        assert snap_down == [], (
-            f"inventory downgrade left residual objects: {snap_down}"
-        )
+        assert snap_down == [], f"inventory downgrade left residual objects: {snap_down}"
 
         command.upgrade(cfg, "head")
         snap_second = _sqlite_master_snapshot(inv_db)
 
-        assert snap_first == snap_second, (
-            "inventory upgrade->downgrade->upgrade drifted"
-        )
+        assert snap_first == snap_second, "inventory upgrade->downgrade->upgrade drifted"
 
 
 # ---------------------------------------------------------------------------
@@ -141,9 +131,7 @@ class TestSchemaDrift:
     only runs the round-trip test still catches schema divergence.
     """
 
-    def test_create_schema_matches_alembic_head_iam(
-        self, tmp_path: Path
-    ) -> None:
+    def test_create_schema_matches_alembic_head_iam(self, tmp_path: Path) -> None:
         # Path A: Database(path).create_schema()
         from sentinel.database import Database
 

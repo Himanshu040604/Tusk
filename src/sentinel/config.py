@@ -374,11 +374,7 @@ def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]
     """Recursively merge ``overlay`` into ``base``.  Overlay wins on leaves."""
     out = dict(base)
     for k, v in overlay.items():
-        if (
-            k in out
-            and isinstance(out[k], dict)
-            and isinstance(v, dict)
-        ):
+        if k in out and isinstance(out[k], dict) and isinstance(v, dict):
             out[k] = _deep_merge(out[k], v)
         else:
             out[k] = v
@@ -508,12 +504,8 @@ def load_settings(
     # Explicit --config override takes precedence over the three TOML tiers.
     if config_path_override is not None:
         if not config_path_override.is_file():
-            raise ConfigError(
-                f"ConfigError: --config path {config_path_override} not found"
-            )
-        merged = _deep_merge(
-            merged, load_toml_with_ephemeral_guard(config_path_override)
-        )
+            raise ConfigError(f"ConfigError: --config path {config_path_override} not found")
+        merged = _deep_merge(merged, load_toml_with_ephemeral_guard(config_path_override))
         merged["config_path"] = str(config_path_override)
 
     # Layer 5 — environment.

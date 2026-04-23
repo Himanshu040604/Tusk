@@ -26,6 +26,7 @@ from tests.conftest import make_test_db
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def tmp_db(tmp_path):
     """Create a migrated + seeded IAM actions DB with sample actions.
@@ -39,108 +40,120 @@ def tmp_db(tmp_path):
     db = Database(db_path)
 
     for svc in [
-        Service(service_prefix='s3', service_name='Amazon S3'),
-        Service(service_prefix='ec2', service_name='Amazon EC2'),
-        Service(service_prefix='lambda', service_name='AWS Lambda'),
-        Service(service_prefix='iam', service_name='AWS IAM'),
-        Service(service_prefix='logs', service_name='CloudWatch Logs'),
-        Service(service_prefix='kms', service_name='AWS KMS'),
-        Service(service_prefix='sqs', service_name='Amazon SQS'),
+        Service(service_prefix="s3", service_name="Amazon S3"),
+        Service(service_prefix="ec2", service_name="Amazon EC2"),
+        Service(service_prefix="lambda", service_name="AWS Lambda"),
+        Service(service_prefix="iam", service_name="AWS IAM"),
+        Service(service_prefix="logs", service_name="CloudWatch Logs"),
+        Service(service_prefix="kms", service_name="AWS KMS"),
+        Service(service_prefix="sqs", service_name="Amazon SQS"),
     ]:
         db.insert_service(svc)
 
     s3_actions = [
-        ('GetObject', 'Read', False, True, False),
-        ('PutObject', 'Write', False, False, True),
-        ('DeleteObject', 'Write', False, False, True),
-        ('ListBucket', 'List', True, False, False),
-        ('GetBucketPolicy', 'Read', False, True, False),
-        ('GetBucketLocation', 'Read', False, True, False),
-        ('HeadObject', 'Read', False, True, False),
+        ("GetObject", "Read", False, True, False),
+        ("PutObject", "Write", False, False, True),
+        ("DeleteObject", "Write", False, False, True),
+        ("ListBucket", "List", True, False, False),
+        ("GetBucketPolicy", "Read", False, True, False),
+        ("GetBucketLocation", "Read", False, True, False),
+        ("HeadObject", "Read", False, True, False),
     ]
     for name, level, is_list, is_read, is_write in s3_actions:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='s3',
-            action_name=name,
-            full_action=f's3:{name}',
-            description=f'S3 {name}',
-            access_level=level,
-            is_list=is_list,
-            is_read=is_read,
-            is_write=is_write,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="s3",
+                action_name=name,
+                full_action=f"s3:{name}",
+                description=f"S3 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     ec2_actions = [
-        ('DescribeInstances', 'List', True, False, False),
-        ('RunInstances', 'Write', False, False, True),
-        ('TerminateInstances', 'Write', False, False, True),
+        ("DescribeInstances", "List", True, False, False),
+        ("RunInstances", "Write", False, False, True),
+        ("TerminateInstances", "Write", False, False, True),
     ]
     for name, level, is_list, is_read, is_write in ec2_actions:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='ec2',
-            action_name=name,
-            full_action=f'ec2:{name}',
-            description=f'EC2 {name}',
-            access_level=level,
-            is_list=is_list,
-            is_read=is_read,
-            is_write=is_write,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="ec2",
+                action_name=name,
+                full_action=f"ec2:{name}",
+                description=f"EC2 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
-    for name in ['InvokeFunction', 'CreateFunction', 'UpdateFunctionCode']:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='lambda',
-            action_name=name,
-            full_action=f'lambda:{name}',
-            description=f'Lambda {name}',
-            access_level='Write',
-            is_write=True,
-        ))
+    for name in ["InvokeFunction", "CreateFunction", "UpdateFunctionCode"]:
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="lambda",
+                action_name=name,
+                full_action=f"lambda:{name}",
+                description=f"Lambda {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
-    for name in ['CreateLogGroup', 'CreateLogStream', 'PutLogEvents']:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='logs',
-            action_name=name,
-            full_action=f'logs:{name}',
-            description=f'Logs {name}',
-            access_level='Write',
-            is_write=True,
-        ))
+    for name in ["CreateLogGroup", "CreateLogStream", "PutLogEvents"]:
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="logs",
+                action_name=name,
+                full_action=f"logs:{name}",
+                description=f"Logs {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
-    for name in ['Decrypt', 'Encrypt', 'GenerateDataKey']:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='kms',
-            action_name=name,
-            full_action=f'kms:{name}',
-            description=f'KMS {name}',
-            access_level='Write',
-            is_write=True,
-        ))
+    for name in ["Decrypt", "Encrypt", "GenerateDataKey"]:
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="kms",
+                action_name=name,
+                full_action=f"kms:{name}",
+                description=f"KMS {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     iam_actions = [
-        ('PassRole', 'Permissions management', False, False, False, True),
-        ('CreatePolicyVersion', 'Permissions management', False, False, False, True),
-        ('AttachRolePolicy', 'Permissions management', False, False, False, True),
-        ('GetUser', 'Read', False, True, False, False),
+        ("PassRole", "Permissions management", False, False, False, True),
+        ("CreatePolicyVersion", "Permissions management", False, False, False, True),
+        ("AttachRolePolicy", "Permissions management", False, False, False, True),
+        ("GetUser", "Read", False, True, False, False),
     ]
     for name, level, is_list, is_read, is_write, is_perms in iam_actions:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix='iam',
-            action_name=name,
-            full_action=f'iam:{name}',
-            description=f'IAM {name}',
-            access_level=level,
-            is_list=is_list,
-            is_read=is_read,
-            is_write=is_write,
-            is_permissions_management=is_perms,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="iam",
+                action_name=name,
+                full_action=f"iam:{name}",
+                description=f"IAM {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+                is_permissions_management=is_perms,
+            )
+        )
 
     return db
 
@@ -155,39 +168,39 @@ def tmp_inventory(tmp_path):
     resources = [
         Resource(
             resource_id=None,
-            service_prefix='s3',
-            resource_type='bucket',
-            resource_arn='arn:aws:s3:::my-app-data',
-            resource_name='my-app-data',
+            service_prefix="s3",
+            resource_type="bucket",
+            resource_arn="arn:aws:s3:::my-app-data",
+            resource_name="my-app-data",
             region=None,
-            account_id='123456789012',
+            account_id="123456789012",
         ),
         Resource(
             resource_id=None,
-            service_prefix='s3',
-            resource_type='bucket',
-            resource_arn='arn:aws:s3:::my-app-logs',
-            resource_name='my-app-logs',
+            service_prefix="s3",
+            resource_type="bucket",
+            resource_arn="arn:aws:s3:::my-app-logs",
+            resource_name="my-app-logs",
             region=None,
-            account_id='123456789012',
+            account_id="123456789012",
         ),
         Resource(
             resource_id=None,
-            service_prefix='lambda',
-            resource_type='function',
-            resource_arn='arn:aws:lambda:us-east-1:123456789012:function:my-func',
-            resource_name='my-func',
-            region='us-east-1',
-            account_id='123456789012',
+            service_prefix="lambda",
+            resource_type="function",
+            resource_arn="arn:aws:lambda:us-east-1:123456789012:function:my-func",
+            resource_name="my-func",
+            region="us-east-1",
+            account_id="123456789012",
         ),
         Resource(
             resource_id=None,
-            service_prefix='ec2',
-            resource_type='instance',
-            resource_arn='arn:aws:ec2:us-east-1:123456789012:instance/i-abc123',
-            resource_name='web-server',
-            region='us-east-1',
-            account_id='123456789012',
+            service_prefix="ec2",
+            resource_type="instance",
+            resource_arn="arn:aws:ec2:us-east-1:123456789012:instance/i-abc123",
+            resource_name="web-server",
+            region="us-east-1",
+            account_id="123456789012",
         ),
     ]
     for r in resources:
@@ -209,17 +222,20 @@ def _make_policy_json(**overrides):
         ],
     }
     if "deny_actions" in overrides:
-        policy["Statement"].append({
-            "Effect": "Deny",
-            "Action": overrides["deny_actions"],
-            "Resource": overrides.get("deny_resources", ["*"]),
-        })
+        policy["Statement"].append(
+            {
+                "Effect": "Deny",
+                "Action": overrides["deny_actions"],
+                "Resource": overrides.get("deny_resources", ["*"]),
+            }
+        )
     return json.dumps(policy)
 
 
 # ---------------------------------------------------------------------------
 # Test Pipeline Initialization
 # ---------------------------------------------------------------------------
+
 
 class TestPipelineInit:
     """Tests for Pipeline initialization."""
@@ -253,6 +269,7 @@ class TestPipelineInit:
 # Test Pipeline Basic Flow
 # ---------------------------------------------------------------------------
 
+
 class TestPipelineBasicFlow:
     """Tests for basic pipeline flow through all 4 steps."""
 
@@ -277,8 +294,8 @@ class TestPipelineBasicFlow:
         all_actions = []
         for stmt in result.rewritten_policy.statements:
             all_actions.extend(stmt.actions)
-        assert 's3:GetObject' in all_actions
-        assert 's3:PutObject' in all_actions
+        assert "s3:GetObject" in all_actions
+        assert "s3:PutObject" in all_actions
 
     def test_deny_only_policy_passes_through(self, tmp_db):
         """Deny-only policy passes through the pipeline."""
@@ -295,10 +312,7 @@ class TestPipelineBasicFlow:
         pipeline = Pipeline(database=tmp_db)
         result = pipeline.run(json.dumps(policy))
         assert result.rewritten_policy is not None
-        deny_stmts = [
-            s for s in result.rewritten_policy.statements
-            if s.effect == 'Deny'
-        ]
+        deny_stmts = [s for s in result.rewritten_policy.statements if s.effect == "Deny"]
         assert len(deny_stmts) >= 1
 
     def test_policy_with_intent(self, tmp_db):
@@ -309,10 +323,10 @@ class TestPipelineBasicFlow:
         result = pipeline.run(policy_json, config)
         all_actions = []
         for stmt in result.rewritten_policy.statements:
-            if stmt.effect == 'Allow':
+            if stmt.effect == "Allow":
                 all_actions.extend(stmt.actions)
         # Should have read actions
-        assert any('Get' in a or 'List' in a or 'Head' in a for a in all_actions)
+        assert any("Get" in a or "List" in a or "Head" in a for a in all_actions)
 
     def test_pipeline_result_all_fields_populated(self, tmp_db):
         """PipelineResult has all fields populated."""
@@ -334,6 +348,7 @@ class TestPipelineBasicFlow:
 # ---------------------------------------------------------------------------
 # Test Pipeline Loop-Back
 # ---------------------------------------------------------------------------
+
 
 class TestPipelineLoopBack:
     """Tests for the self-check loop-back mechanism."""
@@ -376,7 +391,7 @@ class TestPipelineLoopBack:
         all_actions = []
         for stmt in result.rewritten_policy.statements:
             all_actions.extend(stmt.actions)
-        assert 'invalidformat' not in all_actions
+        assert "invalidformat" not in all_actions
 
     def test_max_retries_respected(self, tmp_db):
         """Pipeline stops after max_self_check_retries iterations."""
@@ -399,6 +414,7 @@ class TestPipelineLoopBack:
 # ---------------------------------------------------------------------------
 # Test Pipeline Configuration
 # ---------------------------------------------------------------------------
+
 
 class TestPipelineConfig:
     """Tests for pipeline configuration options."""
@@ -423,8 +439,7 @@ class TestPipelineConfig:
         # Wildcard resource produces WARNING, strict mode -> FAIL
         if result.self_check_result.findings:
             has_warning = any(
-                f.severity.value == "WARNING"
-                for f in result.self_check_result.findings
+                f.severity.value == "WARNING" for f in result.self_check_result.findings
             )
             if has_warning:
                 assert result.final_verdict == CheckVerdict.FAIL
@@ -442,6 +457,7 @@ class TestPipelineConfig:
 # Test Pipeline End-to-End
 # ---------------------------------------------------------------------------
 
+
 class TestPipelineEndToEnd:
     """End-to-end pipeline scenario tests."""
 
@@ -453,29 +469,26 @@ class TestPipelineEndToEnd:
         result = pipeline.run(policy_json, config)
         all_actions = []
         for stmt in result.rewritten_policy.statements:
-            if stmt.effect == 'Allow':
+            if stmt.effect == "Allow":
                 all_actions.extend(stmt.actions)
         # Should have read/list actions
         read_actions = [
-            a for a in all_actions
-            if any(kw in a for kw in ['Get', 'List', 'Head', 'Describe'])
+            a for a in all_actions if any(kw in a for kw in ["Get", "List", "Head", "Describe"])
         ]
         assert len(read_actions) > 0
 
     def test_lambda_policy_gets_companions(self, tmp_db):
         """Lambda policy gets companion permissions through the pipeline."""
         pipeline = Pipeline(database=tmp_db)
-        policy_json = _make_policy_json(
-            actions=["lambda:InvokeFunction"]
-        )
+        policy_json = _make_policy_json(actions=["lambda:InvokeFunction"])
         result = pipeline.run(policy_json)
         all_actions = []
         for stmt in result.rewritten_policy.statements:
             all_actions.extend(stmt.actions)
         # Should have CloudWatch Logs companion actions
-        assert 'logs:CreateLogGroup' in all_actions
-        assert 'logs:CreateLogStream' in all_actions
-        assert 'logs:PutLogEvents' in all_actions
+        assert "logs:CreateLogGroup" in all_actions
+        assert "logs:CreateLogStream" in all_actions
+        assert "logs:PutLogEvents" in all_actions
 
     def test_full_wildcard_with_intent_gets_scoped(self, tmp_db):
         """Full wildcard with intent gets scoped to specific actions."""
@@ -485,23 +498,22 @@ class TestPipelineEndToEnd:
         result = pipeline.run(policy_json, config)
         all_actions = []
         for stmt in result.rewritten_policy.statements:
-            if stmt.effect == 'Allow':
+            if stmt.effect == "Allow":
                 all_actions.extend(stmt.actions)
         # Full wildcard should be expanded based on intent
-        if '*' not in all_actions:
+        if "*" not in all_actions:
             # If expanded, should have s3 read actions
-            assert any(a.startswith('s3:') for a in all_actions)
+            assert any(a.startswith("s3:") for a in all_actions)
 
     def test_privilege_escalation_detected(self, tmp_db):
         """Privilege escalation actions are detected in risk findings."""
         pipeline = Pipeline(database=tmp_db)
-        policy_json = _make_policy_json(
-            actions=["iam:PassRole", "lambda:CreateFunction"]
-        )
+        policy_json = _make_policy_json(actions=["iam:PassRole", "lambda:CreateFunction"])
         result = pipeline.run(policy_json)
         escalation_findings = [
-            f for f in result.risk_findings
-            if 'ESCALATION' in f.risk_type or 'DANGEROUS' in f.risk_type
+            f
+            for f in result.risk_findings
+            if "ESCALATION" in f.risk_type or "DANGEROUS" in f.risk_type
         ]
         assert len(escalation_findings) >= 1
 
@@ -516,6 +528,7 @@ class TestPipelineEndToEnd:
 # ---------------------------------------------------------------------------
 # Test Pipeline HITL Interactive Mode
 # ---------------------------------------------------------------------------
+
 
 class TestPipelineHITL:
     """Tests for HITL interactive prompting within the pipeline."""
@@ -559,7 +572,7 @@ class TestPipelineHITL:
         config = PipelineConfig(interactive=True)
 
         # Approve all Tier 2 actions
-        monkeypatch.setattr('builtins.input', lambda _: 'a')
+        monkeypatch.setattr("builtins.input", lambda _: "a")
 
         result = pipeline.run(policy_json, config)
 
@@ -567,7 +580,7 @@ class TestPipelineHITL:
         assert len(result.hitl_decisions) >= 1
         assert all(d.user_approved for d in result.hitl_decisions)
         # Summary should mention HITL
-        assert 'HITL' in result.pipeline_summary
+        assert "HITL" in result.pipeline_summary
 
     def test_interactive_reject_tier2(self, tmp_db, monkeypatch):
         """Interactive mode: rejected Tier 2 action removed before rewriting."""
@@ -576,7 +589,7 @@ class TestPipelineHITL:
         config = PipelineConfig(interactive=True)
 
         # Reject all Tier 2 actions
-        monkeypatch.setattr('builtins.input', lambda _: 'r')
+        monkeypatch.setattr("builtins.input", lambda _: "r")
 
         result = pipeline.run(policy_json, config)
 
@@ -613,7 +626,7 @@ class TestPipelineHITL:
         config = PipelineConfig(interactive=True)
 
         # Skip on first prompt -- auto-approve all
-        monkeypatch.setattr('builtins.input', lambda _: 's')
+        monkeypatch.setattr("builtins.input", lambda _: "s")
 
         result = pipeline.run(policy_json, config)
 

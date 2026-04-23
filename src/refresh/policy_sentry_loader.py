@@ -27,6 +27,7 @@ class RefreshStats:
         condition_keys_added: Number of condition keys inserted or updated.
         errors: List of non-fatal error messages.
     """
+
     services_added: int = 0
     actions_added: int = 0
     resource_types_added: int = 0
@@ -44,6 +45,7 @@ class ChangelogEntry:
         entity_name: Identifier of the entity.
         detail: Human-readable description of the change.
     """
+
     change_type: str
     entity_type: str
     entity_name: str
@@ -89,7 +91,8 @@ class PolicySentryLoader:
         self.database = database
 
     def load_from_directory(
-        self, data_dir: Path,
+        self,
+        data_dir: Path,
     ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
         """Load all ``*.json`` files from a directory.
 
@@ -121,7 +124,8 @@ class PolicySentryLoader:
         return stats, changelog
 
     def load_from_file(
-        self, data_file: Path,
+        self,
+        data_file: Path,
     ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
         """Load from a single JSON file.
 
@@ -193,9 +197,7 @@ class PolicySentryLoader:
                 elif isinstance(data, dict):
                     for key, value in data.items():
                         if isinstance(value, dict):
-                            self._validate_service_data(
-                                value, f"{data_path.name}:{key}", errors
-                            )
+                            self._validate_service_data(value, f"{data_path.name}:{key}", errors)
             except json.JSONDecodeError as e:
                 errors.append(f"{data_path.name}: Invalid JSON - {e}")
 
@@ -206,7 +208,8 @@ class PolicySentryLoader:
     # ------------------------------------------------------------------
 
     def _process_service_data(
-        self, data: Dict[str, Any],
+        self,
+        data: Dict[str, Any],
     ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
         """Process a single service data object.
 
@@ -229,16 +232,16 @@ class PolicySentryLoader:
         # Insert service
         from src.sentinel.database import Service
 
-        self.database.insert_service(
-            Service(service_prefix=prefix, service_name=service_name)
-        )
+        self.database.insert_service(Service(service_prefix=prefix, service_name=service_name))
         stats.services_added += 1
-        changelog.append(ChangelogEntry(
-            change_type="ADD",
-            entity_type="service",
-            entity_name=prefix,
-            detail=f"Service '{service_name}'",
-        ))
+        changelog.append(
+            ChangelogEntry(
+                change_type="ADD",
+                entity_type="service",
+                entity_name=prefix,
+                detail=f"Service '{service_name}'",
+            )
+        )
 
         # Insert privileges (actions)
         for priv in data.get("privileges", []):
@@ -311,12 +314,14 @@ class PolicySentryLoader:
         )
         self.database.insert_action(action)
         stats.actions_added += 1
-        changelog.append(ChangelogEntry(
-            change_type="ADD",
-            entity_type="action",
-            entity_name=f"{service_prefix}:{action_name}",
-            detail=f"Access level: {access_level}",
-        ))
+        changelog.append(
+            ChangelogEntry(
+                change_type="ADD",
+                entity_type="action",
+                entity_name=f"{service_prefix}:{action_name}",
+                detail=f"Access level: {access_level}",
+            )
+        )
 
     def _insert_resource_type(
         self,
@@ -348,12 +353,14 @@ class PolicySentryLoader:
             )
 
         stats.resource_types_added += 1
-        changelog.append(ChangelogEntry(
-            change_type="ADD",
-            entity_type="resource_type",
-            entity_name=f"{service_prefix}/{resource_name}",
-            detail=f"ARN: {arn_pattern}",
-        ))
+        changelog.append(
+            ChangelogEntry(
+                change_type="ADD",
+                entity_type="resource_type",
+                entity_name=f"{service_prefix}/{resource_name}",
+                detail=f"ARN: {arn_pattern}",
+            )
+        )
 
     def _insert_condition_key(
         self,
@@ -398,12 +405,14 @@ class PolicySentryLoader:
             )
 
         stats.condition_keys_added += 1
-        changelog.append(ChangelogEntry(
-            change_type="ADD",
-            entity_type="condition_key",
-            entity_name=condition_name,
-            detail=f"Type: {condition_type}",
-        ))
+        changelog.append(
+            ChangelogEntry(
+                change_type="ADD",
+                entity_type="condition_key",
+                entity_name=condition_name,
+                detail=f"Type: {condition_type}",
+            )
+        )
 
     def _update_metadata(self) -> None:
         """Update database metadata timestamps."""
@@ -438,12 +447,9 @@ class PolicySentryLoader:
 
         for priv in data.get("privileges", []):
             if not priv.get("privilege"):
-                errors.append(
-                    f"{source_name}: Privilege entry missing 'privilege' field"
-                )
+                errors.append(f"{source_name}: Privilege entry missing 'privilege' field")
             al = priv.get("access_level", "")
             if al and al not in _ACCESS_LEVEL_MAP:
                 errors.append(
-                    f"{source_name}: Unknown access_level '{al}' "
-                    f"for {priv.get('privilege', '?')}"
+                    f"{source_name}: Unknown access_level '{al}' for {priv.get('privilege', '?')}"
                 )

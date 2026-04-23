@@ -49,8 +49,7 @@ def validate_scheme(url: str) -> str:
     scheme = (parsed.scheme or "").lower()
     if scheme not in ALLOWED_SCHEMES:
         raise SSRFBlockedError(
-            f"scheme {scheme!r} not in allowed set {sorted(ALLOWED_SCHEMES)} "
-            f"(url={url!r})"
+            f"scheme {scheme!r} not in allowed set {sorted(ALLOWED_SCHEMES)} (url={url!r})"
         )
     return scheme
 
@@ -148,9 +147,7 @@ def block_private_ipv6(addr: str) -> None:
         try:
             block_private_ipv4(str(embedded))
         except SSRFBlockedError as exc:
-            raise SSRFBlockedError(
-                f"IPv6 {addr} embeds blocked IPv4 {embedded}: {exc}"
-            ) from exc
+            raise SSRFBlockedError(f"IPv6 {addr} embeds blocked IPv4 {embedded}: {exc}") from exc
         # Non-embedded-blocked but still a tunnel — reject as surface:
         raise SSRFBlockedError(
             f"IPv6 {addr} uses a tunneling prefix ({embedded}) — rejected "
@@ -198,9 +195,7 @@ def _validate_literal_or_hostname(host: str) -> list[str]:
         elif family == socket.AF_INET6:
             block_private_ipv6(addr_str)
         else:
-            raise SSRFBlockedError(
-                f"unexpected address family {family} for {host!r}"
-            )
+            raise SSRFBlockedError(f"unexpected address family {family} for {host!r}")
         resolved.append(addr_str)
 
     if not resolved:

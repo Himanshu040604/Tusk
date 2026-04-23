@@ -7,6 +7,7 @@ Revision ID: 0004_add_companion_rules
 Revises: 0003_add_dangerous_actions
 Create Date: 2026-04-22
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union

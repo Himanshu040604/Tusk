@@ -46,8 +46,13 @@ def _insert_managed_policy(
             "version, fetched_at, policy_document_hmac) "
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (
-                name, arn, document, description,
-                version, fetched_at, hmac_hex,
+                name,
+                arn,
+                document,
+                description,
+                version,
+                fetched_at,
+                hmac_hex,
             ),
         )
         conn.commit()

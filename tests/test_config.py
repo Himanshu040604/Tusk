@@ -96,17 +96,13 @@ class TestEphemeralTomlGuard:
 
     def test_nested_profile_insecure_rejected(self, tmp_path: Path) -> None:
         f = tmp_path / "bad.toml"
-        f.write_text(
-            "[profiles.dev]\ninsecure = true\n", encoding="utf-8"
-        )
+        f.write_text("[profiles.dev]\ninsecure = true\n", encoding="utf-8")
         with pytest.raises(ConfigError, match="insecure"):
             load_toml_with_ephemeral_guard(f)
 
     def test_deeply_nested_rejected(self, tmp_path: Path) -> None:
         f = tmp_path / "bad.toml"
-        f.write_text(
-            "[profiles.dev.stuff]\nallow_domain = ['x']\n", encoding="utf-8"
-        )
+        f.write_text("[profiles.dev.stuff]\nallow_domain = ['x']\n", encoding="utf-8")
         with pytest.raises(ConfigError):
             load_toml_with_ephemeral_guard(f)
 
@@ -150,9 +146,7 @@ class TestEphemeralEnvGuard:
 
 
 class TestSkipMigrationsCarveOut:
-    def test_unset_returns_false(
-        self, clean_env: None, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_unset_returns_false(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv("SENTINEL_SKIP_MIGRATIONS", raising=False)
         assert warn_if_skip_migrations_env() is False
 
@@ -214,9 +208,7 @@ class TestGithubTokenSecretStr:
 class TestPrecedenceChain:
     """CLI overrides beat env; env beats TOML; TOML beats shipped defaults."""
 
-    def test_cli_overrides_win(
-        self, clean_env: None, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cli_overrides_win(self, clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("SENTINEL_LOG_LEVEL", "WARNING")
         s = load_settings(cli_overrides={"logging": {"level": "ERROR"}})
         assert s.logging.level == "ERROR"
@@ -228,24 +220,18 @@ class TestPrecedenceChain:
         tmp_path: Path,
     ) -> None:
         toml = tmp_path / "c.toml"
-        toml.write_text(
-            "[logging]\nlevel = 'DEBUG'\n", encoding="utf-8"
-        )
+        toml.write_text("[logging]\nlevel = 'DEBUG'\n", encoding="utf-8")
         monkeypatch.setenv("SENTINEL_LOG_LEVEL", "ERROR")
         s = load_settings(config_path_override=toml)
         assert s.logging.level == "ERROR"
 
-    def test_explicit_config_path_loads(
-        self, clean_env: None, tmp_path: Path
-    ) -> None:
+    def test_explicit_config_path_loads(self, clean_env: None, tmp_path: Path) -> None:
         toml = tmp_path / "c.toml"
         toml.write_text('account_id = "111111111111"\n', encoding="utf-8")
         s = load_settings(config_path_override=toml)
         assert s.account_id == "111111111111"
 
-    def test_missing_config_path_raises(
-        self, clean_env: None, tmp_path: Path
-    ) -> None:
+    def test_missing_config_path_raises(self, clean_env: None, tmp_path: Path) -> None:
         with pytest.raises(ConfigError, match="not found"):
             load_settings(config_path_override=tmp_path / "missing.toml")
 
@@ -256,9 +242,7 @@ class TestPrecedenceChain:
 
 
 class TestProfileOverlay:
-    def test_profile_override_applies(
-        self, clean_env: None, tmp_path: Path
-    ) -> None:
+    def test_profile_override_applies(self, clean_env: None, tmp_path: Path) -> None:
         toml = tmp_path / "c.toml"
         toml.write_text(
             "account_id = '000000000000'\n"
@@ -267,24 +251,16 @@ class TestProfileOverlay:
             "log_level = 'DEBUG'\n",
             encoding="utf-8",
         )
-        s = load_settings(
-            config_path_override=toml, profile_override="dev"
-        )
+        s = load_settings(config_path_override=toml, profile_override="dev")
         assert s.account_id == "222222222222"
         assert s.logging.level == "DEBUG"
         assert s.profile == "dev"
 
-    def test_unknown_profile_raises(
-        self, clean_env: None, tmp_path: Path
-    ) -> None:
+    def test_unknown_profile_raises(self, clean_env: None, tmp_path: Path) -> None:
         toml = tmp_path / "c.toml"
-        toml.write_text(
-            "account_id = '000000000000'\n", encoding="utf-8"
-        )
+        toml.write_text("account_id = '000000000000'\n", encoding="utf-8")
         with pytest.raises(ConfigError, match="not defined"):
-            load_settings(
-                config_path_override=toml, profile_override="nope"
-            )
+            load_settings(config_path_override=toml, profile_override="nope")
 
 
 # ---------------------------------------------------------------------------

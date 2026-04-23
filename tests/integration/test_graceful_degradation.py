@@ -57,11 +57,19 @@ def db(tmp_path):
         ("GetBucketLocation", "Read", False, True, False),
         ("HeadObject", "Read", False, True, False),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="s3", action_name=name,
-            full_action=f"s3:{name}", description=f"S3 {name}",
-            access_level=level, is_list=is_list, is_read=is_read, is_write=is_write,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="s3",
+                action_name=name,
+                full_action=f"s3:{name}",
+                description=f"S3 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     # EC2 actions
     for name, level, is_list, is_read, is_write in [
@@ -69,37 +77,62 @@ def db(tmp_path):
         ("RunInstances", "Write", False, False, True),
         ("TerminateInstances", "Write", False, False, True),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="ec2", action_name=name,
-            full_action=f"ec2:{name}", description=f"EC2 {name}",
-            access_level=level, is_list=is_list, is_read=is_read, is_write=is_write,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="ec2",
+                action_name=name,
+                full_action=f"ec2:{name}",
+                description=f"EC2 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     # Lambda actions
     for name in ["InvokeFunction", "CreateFunction", "UpdateFunctionCode"]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="lambda", action_name=name,
-            full_action=f"lambda:{name}", description=f"Lambda {name}",
-            access_level="Write", is_write=True,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="lambda",
+                action_name=name,
+                full_action=f"lambda:{name}",
+                description=f"Lambda {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     # CloudWatch Logs actions
     for name in ["CreateLogGroup", "CreateLogStream", "PutLogEvents", "GetLogEvents"]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="logs", action_name=name,
-            full_action=f"logs:{name}", description=f"Logs {name}",
-            access_level="Write" if "Put" in name or "Create" in name else "Read",
-            is_write="Put" in name or "Create" in name,
-            is_read="Get" in name,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="logs",
+                action_name=name,
+                full_action=f"logs:{name}",
+                description=f"Logs {name}",
+                access_level="Write" if "Put" in name or "Create" in name else "Read",
+                is_write="Put" in name or "Create" in name,
+                is_read="Get" in name,
+            )
+        )
 
     # KMS actions
     for name in ["Decrypt", "Encrypt", "GenerateDataKey"]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="kms", action_name=name,
-            full_action=f"kms:{name}", description=f"KMS {name}",
-            access_level="Write", is_write=True,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="kms",
+                action_name=name,
+                full_action=f"kms:{name}",
+                description=f"KMS {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     # IAM actions
     for name, level, is_perms in [
@@ -109,14 +142,19 @@ def db(tmp_path):
         ("CreateUser", "Write", False),
         ("GetUser", "Read", False),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="iam", action_name=name,
-            full_action=f"iam:{name}", description=f"IAM {name}",
-            access_level=level,
-            is_write=level == "Write",
-            is_read=level == "Read",
-            is_permissions_management=is_perms,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="iam",
+                action_name=name,
+                full_action=f"iam:{name}",
+                description=f"IAM {name}",
+                access_level=level,
+                is_write=level == "Write",
+                is_read=level == "Read",
+                is_permissions_management=is_perms,
+            )
+        )
 
     # SQS actions
     for name, level, is_read, is_write in [
@@ -126,11 +164,18 @@ def db(tmp_path):
         ("GetQueueAttributes", "Read", True, False),
         ("ChangeMessageVisibility", "Write", False, True),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="sqs", action_name=name,
-            full_action=f"sqs:{name}", description=f"SQS {name}",
-            access_level=level, is_read=is_read, is_write=is_write,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="sqs",
+                action_name=name,
+                full_action=f"sqs:{name}",
+                description=f"SQS {name}",
+                access_level=level,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     # DynamoDB actions
     for name, level, is_read, is_write in [
@@ -139,11 +184,18 @@ def db(tmp_path):
         ("Query", "Read", True, False),
         ("Scan", "Read", True, False),
     ]:
-        database.insert_action(Action(
-            action_id=None, service_prefix="dynamodb", action_name=name,
-            full_action=f"dynamodb:{name}", description=f"DynamoDB {name}",
-            access_level=level, is_read=is_read, is_write=is_write,
-        ))
+        database.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="dynamodb",
+                action_name=name,
+                full_action=f"dynamodb:{name}",
+                description=f"DynamoDB {name}",
+                access_level=level,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     return database
 
@@ -154,18 +206,42 @@ def inventory(tmp_path):
     inv = ResourceInventory(tmp_path / "inventory.db")
     inv.create_schema()
     for r in [
-        Resource(resource_id=None, service_prefix="s3", resource_type="bucket",
-                 resource_arn="arn:aws:s3:::my-app-data", resource_name="my-app-data",
-                 region=None, account_id="123456789012"),
-        Resource(resource_id=None, service_prefix="s3", resource_type="bucket",
-                 resource_arn="arn:aws:s3:::my-app-logs", resource_name="my-app-logs",
-                 region=None, account_id="123456789012"),
-        Resource(resource_id=None, service_prefix="lambda", resource_type="function",
-                 resource_arn="arn:aws:lambda:us-east-1:123456789012:function:my-func",
-                 resource_name="my-func", region="us-east-1", account_id="123456789012"),
-        Resource(resource_id=None, service_prefix="ec2", resource_type="instance",
-                 resource_arn="arn:aws:ec2:us-east-1:123456789012:instance/i-abc123",
-                 resource_name="web-server", region="us-east-1", account_id="123456789012"),
+        Resource(
+            resource_id=None,
+            service_prefix="s3",
+            resource_type="bucket",
+            resource_arn="arn:aws:s3:::my-app-data",
+            resource_name="my-app-data",
+            region=None,
+            account_id="123456789012",
+        ),
+        Resource(
+            resource_id=None,
+            service_prefix="s3",
+            resource_type="bucket",
+            resource_arn="arn:aws:s3:::my-app-logs",
+            resource_name="my-app-logs",
+            region=None,
+            account_id="123456789012",
+        ),
+        Resource(
+            resource_id=None,
+            service_prefix="lambda",
+            resource_type="function",
+            resource_arn="arn:aws:lambda:us-east-1:123456789012:function:my-func",
+            resource_name="my-func",
+            region="us-east-1",
+            account_id="123456789012",
+        ),
+        Resource(
+            resource_id=None,
+            service_prefix="ec2",
+            resource_type="instance",
+            resource_arn="arn:aws:ec2:us-east-1:123456789012:instance/i-abc123",
+            resource_name="web-server",
+            region="us-east-1",
+            account_id="123456789012",
+        ),
     ]:
         inv.insert_resource(r)
     return inv
@@ -283,9 +359,7 @@ class TestMissingInventory:
 
         assumptions = result.rewrite_result.assumptions
         assert len(assumptions) > 0, "Expected at least one assumption"
-        inventory_mentioned = any(
-            "inventory" in a.lower() for a in assumptions
-        )
+        inventory_mentioned = any("inventory" in a.lower() for a in assumptions)
         assert inventory_mentioned, (
             f"Expected an assumption about missing inventory, got: {assumptions}"
         )
@@ -321,36 +395,34 @@ class TestOutdatedDatabase:
         partial_db.create_schema()
 
         # Only insert S3 service and actions
-        partial_db.insert_service(
-            Service(service_prefix="s3", service_name="Amazon S3")
+        partial_db.insert_service(Service(service_prefix="s3", service_name="Amazon S3"))
+        partial_db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="s3",
+                action_name="GetObject",
+                full_action="s3:GetObject",
+                description="S3 GetObject",
+                access_level="Read",
+                is_read=True,
+            )
         )
-        partial_db.insert_action(Action(
-            action_id=None, service_prefix="s3", action_name="GetObject",
-            full_action="s3:GetObject", description="S3 GetObject",
-            access_level="Read", is_read=True,
-        ))
 
         pipeline = Pipeline(database=partial_db)
         # Policy references both s3 (in DB) and lambda (not in DB)
-        policy_json = _make_policy_json(
-            actions=["s3:GetObject", "lambda:InvokeFunction"]
-        )
+        policy_json = _make_policy_json(actions=["s3:GetObject", "lambda:InvokeFunction"])
         result = pipeline.run(policy_json)
 
         assert isinstance(result, PipelineResult)
         # s3:GetObject should be validated as TIER_1_VALID
-        s3_results = [
-            r for r in result.validation_results
-            if r.action == "s3:GetObject"
-        ]
+        s3_results = [r for r in result.validation_results if r.action == "s3:GetObject"]
         assert len(s3_results) == 1
         assert s3_results[0].tier == ValidationTier.TIER_1_VALID
 
         # lambda:InvokeFunction should be TIER_2_UNKNOWN (known service
         # prefix from JSON cache, but action not in partial DB)
         lambda_results = [
-            r for r in result.validation_results
-            if r.action == "lambda:InvokeFunction"
+            r for r in result.validation_results if r.action == "lambda:InvokeFunction"
         ]
         assert len(lambda_results) == 1
         assert lambda_results[0].tier == ValidationTier.TIER_2_UNKNOWN
@@ -362,27 +434,28 @@ class TestOutdatedDatabase:
         known_db.create_schema()
 
         # Only insert S3
-        known_db.insert_service(
-            Service(service_prefix="s3", service_name="Amazon S3")
+        known_db.insert_service(Service(service_prefix="s3", service_name="Amazon S3"))
+        known_db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="s3",
+                action_name="GetObject",
+                full_action="s3:GetObject",
+                description="S3 GetObject",
+                access_level="Read",
+                is_read=True,
+            )
         )
-        known_db.insert_action(Action(
-            action_id=None, service_prefix="s3", action_name="GetObject",
-            full_action="s3:GetObject", description="S3 GetObject",
-            access_level="Read", is_read=True,
-        ))
 
         pipeline = Pipeline(database=known_db)
         # Use a completely unknown service prefix
-        policy_json = _make_policy_json(
-            actions=["s3:GetObject", "madeupservice:DoSomething"]
-        )
+        policy_json = _make_policy_json(actions=["s3:GetObject", "madeupservice:DoSomething"])
         result = pipeline.run(policy_json)
 
         assert isinstance(result, PipelineResult)
         # Unknown service action should be classified as TIER_3_INVALID
         unknown_results = [
-            r for r in result.validation_results
-            if r.action == "madeupservice:DoSomething"
+            r for r in result.validation_results if r.action == "madeupservice:DoSomething"
         ]
         assert len(unknown_results) == 1
         assert unknown_results[0].tier == ValidationTier.TIER_3_INVALID
@@ -435,9 +508,7 @@ class TestVagueIntent:
         """Intent says 'read-only' but config adds write permissions -- no crash."""
         pipeline = Pipeline(database=db)
         # Policy has write actions
-        policy_json = _make_policy_json(
-            actions=["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-        )
+        policy_json = _make_policy_json(actions=["s3:GetObject", "s3:PutObject", "s3:DeleteObject"])
         # Intent says read-only, contradicting the write actions present
         config = PipelineConfig(intent="read-only s3")
         result = pipeline.run(policy_json, config)
@@ -462,9 +533,7 @@ class TestCorruptedInput:
         """Action with 500 character name does not crash."""
         pipeline = Pipeline(database=db)
         long_action = "s3:" + "A" * 497  # 500 characters total
-        policy_json = _make_policy_json(
-            actions=["s3:GetObject", long_action]
-        )
+        policy_json = _make_policy_json(actions=["s3:GetObject", long_action])
         result = pipeline.run(policy_json)
 
         assert isinstance(result, PipelineResult)
@@ -473,10 +542,7 @@ class TestCorruptedInput:
 
         # The long action should be classified (likely TIER_2_UNKNOWN
         # since it has valid format but is not in DB)
-        long_results = [
-            r for r in result.validation_results
-            if r.action == long_action
-        ]
+        long_results = [r for r in result.validation_results if r.action == long_action]
         assert len(long_results) == 1
 
     def test_unicode_in_policy(self, db):

@@ -92,7 +92,8 @@ class CloudSplainingLoader:
                         "(action_a, action_b, severity, reason, source) "
                         "VALUES (?, ?, ?, ?, 'cloudsplaining')",
                         (
-                            entry["action_a"], entry["action_b"],
+                            entry["action_a"],
+                            entry["action_b"],
                             entry.get("severity", "WARNING"),
                             entry.get("reason", "CloudSplaining combination"),
                         ),

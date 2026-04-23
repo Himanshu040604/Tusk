@@ -63,9 +63,7 @@ def _parse_spec(spec: str) -> tuple[str, str]:
     # owner/repo/path... form.
     parts = spec.split("/", 2)
     if len(parts) < 3 or not all(parts[:2]):
-        raise InvalidSpecError(
-            f"expected 'owner/repo/path' or a github.com URL, got {spec!r}"
-        )
+        raise InvalidSpecError(f"expected 'owner/repo/path' or a github.com URL, got {spec!r}")
     owner, repo, path = parts
     raw = f"https://{_RAW_HOST}/{owner}/{repo}/{_DEFAULT_BRANCH}/{path}"
     return raw, f"{owner}/{repo}@{_DEFAULT_BRANCH}/{path}"
@@ -103,7 +101,9 @@ class GitHubFetcher:
     def fetch(self, spec: str) -> FetchResult:
         raw_url, canonical = _parse_spec(spec)
         response = self._client.get(
-            raw_url, source="github", headers=self._auth_headers(),
+            raw_url,
+            source="github",
+            headers=self._auth_headers(),
         )
         return build_fetch_result(
             response=response,

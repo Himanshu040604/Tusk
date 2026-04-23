@@ -10,6 +10,7 @@ Revision ID: 0005_add_dangerous_combinations
 Revises: 0004_add_companion_rules
 Create Date: 2026-04-22
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
@@ -38,8 +39,7 @@ def upgrade() -> None:
         )
     """)
     op.execute(
-        "CREATE INDEX IF NOT EXISTS idx_dc_action_b "
-        "ON dangerous_combinations(action_b, action_a)"
+        "CREATE INDEX IF NOT EXISTS idx_dc_action_b ON dangerous_combinations(action_b, action_a)"
     )
 
 

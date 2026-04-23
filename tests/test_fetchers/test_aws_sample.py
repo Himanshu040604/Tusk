@@ -30,7 +30,8 @@ def _html(payloads: list[str], tag: str = "pre") -> str:
 
 def _resp(html: str) -> httpx.Response:
     return httpx.Response(
-        status_code=200, content=html.encode("utf-8"),
+        status_code=200,
+        content=html.encode("utf-8"),
         headers={"X-Sentinel-Cache": "MISS"},
         request=httpx.Request("GET", "https://docs.aws.amazon.com/x"),
     )

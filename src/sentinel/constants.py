@@ -103,12 +103,8 @@ _DYNAMIC_ATTRS = {
     "ADMIN_PREFIXES": lambda: _verb_prefix("admin"),
     "READ_INTENT_KEYWORDS": _read_intent_keywords,
     "WRITE_INTENT_KEYWORDS": _write_intent_keywords,
-    "SECURITY_CRITICAL_SERVICES": lambda: set(
-        _settings().security.critical_services
-    ),
-    "REGION_LESS_GLOBAL_SERVICES": lambda: set(
-        _settings().security.region_less_global_services
-    ),
+    "SECURITY_CRITICAL_SERVICES": lambda: set(_settings().security.critical_services),
+    "REGION_LESS_GLOBAL_SERVICES": lambda: set(_settings().security.region_less_global_services),
     "SERVICE_NAME_MAPPINGS": lambda: dict(_settings().service_name_mappings),
 }
 
@@ -142,10 +138,9 @@ def __dir__() -> list[str]:
         ]
     )
 
+
 # Path to JSON data file (project root / data / known_services.json)
-_JSON_PATH: Path = (
-    Path(__file__).resolve().parent.parent.parent / "data" / "known_services.json"
-)
+_JSON_PATH: Path = Path(__file__).resolve().parent.parent.parent / "data" / "known_services.json"
 
 
 def load_known_services(json_path: Path | None = None) -> Set[str]:
@@ -167,4 +162,3 @@ def load_known_services(json_path: Path | None = None) -> Set[str]:
         return set(services)
     except (FileNotFoundError, json.JSONDecodeError, OSError, KeyError, TypeError):
         return set()
-

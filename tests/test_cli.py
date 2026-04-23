@@ -57,23 +57,31 @@ from src.sentinel.self_check import (
 # Fixtures
 # -----------------------------------------------------------------------
 
-VALID_POLICY = json.dumps({
-    "Version": "2012-10-17",
-    "Statement": [{
-        "Effect": "Allow",
-        "Action": "s3:GetObject",
-        "Resource": "arn:aws:s3:::my-bucket/*",
-    }],
-})
+VALID_POLICY = json.dumps(
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::my-bucket/*",
+            }
+        ],
+    }
+)
 
-WILDCARD_POLICY = json.dumps({
-    "Version": "2012-10-17",
-    "Statement": [{
-        "Effect": "Allow",
-        "Action": "*",
-        "Resource": "*",
-    }],
-})
+WILDCARD_POLICY = json.dumps(
+    {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": "*",
+                "Resource": "*",
+            }
+        ],
+    }
+)
 
 
 @pytest.fixture
@@ -98,15 +106,17 @@ def fresh_db(tmp_path: Path) -> Database:
     db = Database(tmp_path / "test.db")
     db.create_schema()
     db.insert_service(Service(service_prefix="s3", service_name="Amazon S3"))
-    db.insert_action(Action(
-        action_id=None,
-        service_prefix="s3",
-        action_name="GetObject",
-        full_action="s3:GetObject",
-        description="Read object",
-        access_level="Read",
-        is_read=True,
-    ))
+    db.insert_action(
+        Action(
+            action_id=None,
+            service_prefix="s3",
+            action_name="GetObject",
+            full_action="s3:GetObject",
+            description="Read object",
+            access_level="Read",
+            is_read=True,
+        )
+    )
     return db
 
 
@@ -121,6 +131,7 @@ def fresh_inv(tmp_path: Path) -> ResourceInventory:
 # -----------------------------------------------------------------------
 # TestBuildParser
 # -----------------------------------------------------------------------
+
 
 class TestBuildParser:
     """Test argument parser construction."""
@@ -143,14 +154,20 @@ class TestBuildParser:
 
     def test_rewrite_subcommand(self):
         p = build_parser()
-        args = p.parse_args([
-            "rewrite", "policy.json",
-            "--intent", "read-only",
-            "--account-id", "111111111111",
-            "--region", "us-west-2",
-            "--no-companions",
-            "--no-conditions",
-        ])
+        args = p.parse_args(
+            [
+                "rewrite",
+                "policy.json",
+                "--intent",
+                "read-only",
+                "--account-id",
+                "111111111111",
+                "--region",
+                "us-west-2",
+                "--no-companions",
+                "--no-conditions",
+            ]
+        )
         assert args.command == "rewrite"
         assert args.no_companions is True
         assert args.no_conditions is True
@@ -158,21 +175,31 @@ class TestBuildParser:
 
     def test_run_subcommand(self):
         p = build_parser()
-        args = p.parse_args([
-            "run", "policy.json", "--strict", "--max-retries", "5",
-        ])
+        args = p.parse_args(
+            [
+                "run",
+                "policy.json",
+                "--strict",
+                "--max-retries",
+                "5",
+            ]
+        )
         assert args.command == "run"
         assert args.strict is True
         assert args.max_retries == 5
 
     def test_refresh_subcommand(self):
         p = build_parser()
-        args = p.parse_args([
-            "refresh",
-            "--source", "policy-sentry",
-            "--data-path", "/data",
-            "--dry-run",
-        ])
+        args = p.parse_args(
+            [
+                "refresh",
+                "--source",
+                "policy-sentry",
+                "--data-path",
+                "/data",
+                "--dry-run",
+            ]
+        )
         assert args.command == "refresh"
         assert args.source == "policy-sentry"
         assert args.dry_run is True
@@ -184,13 +211,20 @@ class TestBuildParser:
 
     def test_shared_flags(self):
         p = build_parser()
-        args = p.parse_args([
-            "validate", "policy.json",
-            "-d", "mydb.db",
-            "-i", "inv.db",
-            "-f", "json",
-            "-o", "out.json",
-        ])
+        args = p.parse_args(
+            [
+                "validate",
+                "policy.json",
+                "-d",
+                "mydb.db",
+                "-i",
+                "inv.db",
+                "-f",
+                "json",
+                "-o",
+                "out.json",
+            ]
+        )
         assert args.database == "mydb.db"
         assert args.inventory == "inv.db"
         assert args.output_format == "json"
@@ -216,6 +250,7 @@ class TestBuildParser:
 # TestReadPolicyInput
 # -----------------------------------------------------------------------
 
+
 class TestReadPolicyInput:
     """Test policy file reading."""
 
@@ -238,6 +273,7 @@ class TestReadPolicyInput:
 # -----------------------------------------------------------------------
 # TestCmdValidate
 # -----------------------------------------------------------------------
+
 
 class TestCmdValidate:
     """Test the validate subcommand handler."""
@@ -299,6 +335,7 @@ class TestCmdValidate:
 # -----------------------------------------------------------------------
 # TestCmdRun
 # -----------------------------------------------------------------------
+
 
 class TestCmdRun:
     """Test the run subcommand handler."""
@@ -394,6 +431,7 @@ class TestCmdRun:
 # TestCmdInfo
 # -----------------------------------------------------------------------
 
+
 class TestCmdInfo:
     """Test the info subcommand handler."""
 
@@ -435,6 +473,7 @@ class TestCmdInfo:
 # -----------------------------------------------------------------------
 # TestOutputFormats
 # -----------------------------------------------------------------------
+
 
 class TestOutputFormats:
     """Test the three formatter classes produce valid output."""
@@ -561,25 +600,19 @@ class TestOutputFormats:
 
     def test_text_db_info(self):
         fmt = TextFormatter()
-        output = fmt.format_db_info(
-            {"schema_version": "1.0"}, service_count=5, action_count=100
-        )
+        output = fmt.format_db_info({"schema_version": "1.0"}, service_count=5, action_count=100)
         assert "Services: 5" in output
         assert "Actions:  100" in output
 
     def test_json_db_info(self):
         fmt = JsonFormatter()
-        output = fmt.format_db_info(
-            {"schema_version": "1.0"}, service_count=5, action_count=100
-        )
+        output = fmt.format_db_info({"schema_version": "1.0"}, service_count=5, action_count=100)
         data = json.loads(output)
         assert data["service_count"] == 5
 
     def test_markdown_db_info(self):
         fmt = MarkdownFormatter()
-        output = fmt.format_db_info(
-            {"schema_version": "1.0"}, service_count=5, action_count=100
-        )
+        output = fmt.format_db_info({"schema_version": "1.0"}, service_count=5, action_count=100)
         assert "# Database Info" in output
         assert "| schema_version | 1.0 |" in output
 
@@ -587,6 +620,7 @@ class TestOutputFormats:
 # -----------------------------------------------------------------------
 # TestExitCodes
 # -----------------------------------------------------------------------
+
 
 class TestExitCodes:
     """Verify exit code constants."""
@@ -607,6 +641,7 @@ class TestExitCodes:
 # -----------------------------------------------------------------------
 # TestResolveDatabase
 # -----------------------------------------------------------------------
+
 
 class TestResolveDatabase:
     """Test database resolution logic."""
@@ -645,6 +680,7 @@ class TestResolveInventory:
 # TestCmdAnalyze
 # -----------------------------------------------------------------------
 
+
 class TestCmdAnalyze:
     """Test the analyze subcommand handler."""
 
@@ -680,6 +716,7 @@ class TestCmdAnalyze:
 # -----------------------------------------------------------------------
 # TestCmdRewrite
 # -----------------------------------------------------------------------
+
 
 class TestCmdRewrite:
     """Test the rewrite subcommand handler."""
@@ -725,6 +762,7 @@ class TestCmdRewrite:
 # -----------------------------------------------------------------------
 # TestPipelineFormatters
 # -----------------------------------------------------------------------
+
 
 class TestPipelineFormatters:
     """Test formatting of pipeline results across all formatters."""

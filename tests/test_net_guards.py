@@ -61,15 +61,15 @@ class TestIPv4:
     @pytest.mark.parametrize(
         "addr",
         [
-            "10.0.0.1",            # RFC 1918 class A
-            "172.16.0.1",          # RFC 1918 class B
-            "192.168.1.1",         # RFC 1918 class C
-            "127.0.0.1",           # loopback
-            "169.254.169.254",     # AWS / GCP / Azure metadata
-            "0.0.0.0",             # unspecified
-            "224.0.0.1",           # multicast
-            "255.255.255.255",     # broadcast (reserved)
-            "100.64.0.1",          # CGNAT (private per ipaddress)
+            "10.0.0.1",  # RFC 1918 class A
+            "172.16.0.1",  # RFC 1918 class B
+            "192.168.1.1",  # RFC 1918 class C
+            "127.0.0.1",  # loopback
+            "169.254.169.254",  # AWS / GCP / Azure metadata
+            "0.0.0.0",  # unspecified
+            "224.0.0.1",  # multicast
+            "255.255.255.255",  # broadcast (reserved)
+            "100.64.0.1",  # CGNAT (private per ipaddress)
         ],
     )
     def test_blocked_ipv4(self, addr: str) -> None:
@@ -77,7 +77,8 @@ class TestIPv4:
             block_private_ipv4(addr)
 
     @pytest.mark.parametrize(
-        "addr", ["8.8.8.8", "1.1.1.1", "140.82.121.4"],
+        "addr",
+        ["8.8.8.8", "1.1.1.1", "140.82.121.4"],
     )
     def test_public_ipv4_passes(self, addr: str) -> None:
         block_private_ipv4(addr)  # no raise
@@ -92,11 +93,11 @@ class TestIPv6:
     @pytest.mark.parametrize(
         "addr",
         [
-            "::1",                 # loopback
-            "fe80::1",             # link-local
-            "fc00::1",             # ULA
-            "ff02::1",             # multicast
-            "::",                  # unspecified
+            "::1",  # loopback
+            "fe80::1",  # link-local
+            "fc00::1",  # ULA
+            "ff02::1",  # multicast
+            "::",  # unspecified
         ],
     )
     def test_blocked_ipv6_plain(self, addr: str) -> None:

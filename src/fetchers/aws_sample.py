@@ -29,8 +29,7 @@ if TYPE_CHECKING:  # pragma: no cover
 # reference-policies subtree twice in 2024; this layout is current
 # as of April 2026 and is allow-listed in defaults.toml.
 _SAMPLE_URL_TEMPLATE = (
-    "https://docs.aws.amazon.com/IAM/latest/UserGuide/"
-    "reference_policies_examples_{name}.html"
+    "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_{name}.html"
 )
 
 
@@ -55,9 +54,7 @@ def _extract_first_policy_block(html: str) -> str:
             candidate = (node.text() or "").strip()
             if candidate and _looks_like_policy_json(candidate):
                 return candidate
-    raise PolicyNotFoundError(
-        "no IAM-policy-shaped JSON block found in AWS sample page"
-    )
+    raise PolicyNotFoundError("no IAM-policy-shaped JSON block found in AWS sample page")
 
 
 class AWSSampleFetcher:

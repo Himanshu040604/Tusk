@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 class AccessLevel(Enum):
     """IAM access level categories."""
+
     LIST = "List"
     READ = "Read"
     WRITE = "Write"
@@ -31,6 +32,7 @@ class AccessLevel(Enum):
 
 class RiskSeverity(Enum):
     """Risk severity levels."""
+
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
@@ -50,6 +52,7 @@ class IntentMapping:
         confidence: Mapping confidence score (0.0-1.0)
         explanation: Human-readable explanation of mapping
     """
+
     original_intent: str
     access_levels: Set[AccessLevel]
     services: Set[str] = field(default_factory=set)
@@ -70,6 +73,7 @@ class RiskFinding:
         remediation: Suggested remediation steps
         additional_context: Additional context information
     """
+
     risk_type: str
     severity: RiskSeverity
     action: str
@@ -88,6 +92,7 @@ class CompanionPermission:
         reason: Why these companions are needed
         severity: Severity if companions are missing
     """
+
     primary_action: str
     companion_actions: List[str]
     reason: str
@@ -105,6 +110,7 @@ class HITLDecision:
         user_comment: Optional user comment
         assumptions_validated: List of assumptions user validated
     """
+
     action: str
     tier: str
     user_approved: bool
@@ -133,9 +139,7 @@ class IntentMapper:
             database: Optional Database instance for querying actions.
         """
         self.database = database
-        self._intent_keywords: Dict[str, Set[AccessLevel]] = (
-            self._load_intent_keywords()
-        )
+        self._intent_keywords: Dict[str, Set[AccessLevel]] = self._load_intent_keywords()
 
     @staticmethod
     def _load_intent_keywords() -> Dict[str, Set[AccessLevel]]:
@@ -199,8 +203,9 @@ class IntentMapper:
 
         # Graduate confidence based on keyword match count and DB results
         keyword_hits = sum(
-            1 for kw in self.INTENT_KEYWORDS
-            if re.search(r'\b' + re.escape(kw) + r'\b', intent_lower)
+            1
+            for kw in self.INTENT_KEYWORDS
+            if re.search(r"\b" + re.escape(kw) + r"\b", intent_lower)
         )
         if keyword_hits >= 3:
             confidence = 1.0
@@ -222,7 +227,7 @@ class IntentMapper:
             services=services,
             actions=actions,
             confidence=round(confidence, 2),
-            explanation=explanation
+            explanation=explanation,
         )
 
     def _extract_access_levels(self, intent_lower: str) -> Set[AccessLevel]:
@@ -240,7 +245,7 @@ class IntentMapper:
         # false positives (e.g. "target" matching "get", "blacklist"
         # matching "list").
         for keyword, levels in self.INTENT_KEYWORDS.items():
-            if re.search(r'\b' + re.escape(keyword) + r'\b', intent_lower):
+            if re.search(r"\b" + re.escape(keyword) + r"\b", intent_lower):
                 access_levels.update(levels)
 
         # If no keywords matched, default to read-only for safety
@@ -262,15 +267,13 @@ class IntentMapper:
 
         for keyword, service in SERVICE_NAME_MAPPINGS.items():
             # Use word boundary matching to avoid substring false positives
-            if re.search(r'\b' + re.escape(keyword) + r'\b', intent_lower):
+            if re.search(r"\b" + re.escape(keyword) + r"\b", intent_lower):
                 services.add(service)
 
         return services
 
     def _query_actions_by_access_levels(
-        self,
-        access_levels: Set[AccessLevel],
-        services: Set[str]
+        self, access_levels: Set[AccessLevel], services: Set[str]
     ) -> List[str]:
         """Query database for actions matching access levels.
 
@@ -309,7 +312,7 @@ class IntentMapper:
             where_clause = f"({' OR '.join(filters)})"
             params = []
             if services:
-                placeholders = ','.join('?' for _ in services)
+                placeholders = ",".join("?" for _ in services)
                 where_clause += f" AND service_prefix IN ({placeholders})"
                 params.extend(sorted(services))
 
@@ -321,17 +324,12 @@ class IntentMapper:
             """
 
             cursor.execute(query, params)
-            actions = [f"{row['service_prefix']}:{row['action_name']}"
-                      for row in cursor.fetchall()]
+            actions = [f"{row['service_prefix']}:{row['action_name']}" for row in cursor.fetchall()]
 
         return actions
 
     def _generate_explanation(
-        self,
-        intent: str,
-        access_levels: Set[AccessLevel],
-        services: Set[str],
-        actions: List[str]
+        self, intent: str, access_levels: Set[AccessLevel], services: Set[str], actions: List[str]
     ) -> str:
         """Generate human-readable explanation of mapping.
 
@@ -434,8 +432,7 @@ class RiskAnalyzer:
             with database.get_connection() as conn:
                 # Probe for table existence first (pre-migration DBs).
                 probe = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' "
-                    "AND name='dangerous_actions'"
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='dangerous_actions'"
                 ).fetchone()
                 if not probe:
                     return False
@@ -454,8 +451,7 @@ class RiskAnalyzer:
         destruction: list[tuple["re.Pattern[str]", str]] = []
         perms_mgmt: list[tuple["re.Pattern[str]", str]] = []
 
-        for (action_name, category, severity, description,
-             source, refreshed_at, row_hmac) in rows:
+        for action_name, category, severity, description, source, refreshed_at, row_hmac in rows:
             # Task 6a: HMAC verify each row before trusting its content.
             payload = {
                 "severity": severity,
@@ -539,25 +535,29 @@ class RiskAnalyzer:
         """
         findings = []
 
-        if action == '*' or action == '*:*':
-            findings.append(RiskFinding(
-                risk_type="WILDCARD_ALL_ACTIONS",
-                severity=RiskSeverity.CRITICAL,
-                action=action,
-                description="Full wildcard grants ALL AWS permissions across ALL services",
-                remediation="Replace with specific actions or service-level wildcards (e.g., s3:*)",
-                additional_context={'wildcard_type': 'full'}
-            ))
-        elif '*' in action:
+        if action == "*" or action == "*:*":
+            findings.append(
+                RiskFinding(
+                    risk_type="WILDCARD_ALL_ACTIONS",
+                    severity=RiskSeverity.CRITICAL,
+                    action=action,
+                    description="Full wildcard grants ALL AWS permissions across ALL services",
+                    remediation="Replace with specific actions or service-level wildcards (e.g., s3:*)",
+                    additional_context={"wildcard_type": "full"},
+                )
+            )
+        elif "*" in action:
             severity = self._assess_wildcard_severity(action)
-            findings.append(RiskFinding(
-                risk_type="WILDCARD_ACTION",
-                severity=severity,
-                action=action,
-                description=f"Wildcard action grants multiple permissions: {action}",
-                remediation="Replace with specific actions to follow least privilege",
-                additional_context={'wildcard_type': 'partial', 'pattern': action}
-            ))
+            findings.append(
+                RiskFinding(
+                    risk_type="WILDCARD_ACTION",
+                    severity=severity,
+                    action=action,
+                    description=f"Wildcard action grants multiple permissions: {action}",
+                    remediation="Replace with specific actions to follow least privilege",
+                    additional_context={"wildcard_type": "partial", "pattern": action},
+                )
+            )
 
         return findings
 
@@ -571,15 +571,15 @@ class RiskAnalyzer:
             RiskSeverity level
         """
         # service:* is HIGH severity
-        if action.endswith(':*'):
-            service = action.split(':')[0]
+        if action.endswith(":*"):
+            service = action.split(":")[0]
             # Critical services get CRITICAL severity
             if service in SECURITY_CRITICAL_SERVICES:
                 return RiskSeverity.CRITICAL
             return RiskSeverity.HIGH
 
         # Prefix/suffix wildcards are MEDIUM severity
-        if action.endswith('*') or action.startswith('*'):
+        if action.endswith("*") or action.startswith("*"):
             return RiskSeverity.MEDIUM
 
         return RiskSeverity.LOW
@@ -596,14 +596,16 @@ class RiskAnalyzer:
         findings = []
 
         if action in self._priv_escalation:
-            findings.append(RiskFinding(
-                risk_type="PRIVILEGE_ESCALATION",
-                severity=RiskSeverity.HIGH,
-                action=action,
-                description=f"Action {action} can be used for privilege escalation",
-                remediation="Add strict conditions (e.g., resource ARNs, tags) to limit scope",
-                additional_context={'escalation_action': action}
-            ))
+            findings.append(
+                RiskFinding(
+                    risk_type="PRIVILEGE_ESCALATION",
+                    severity=RiskSeverity.HIGH,
+                    action=action,
+                    description=f"Action {action} can be used for privilege escalation",
+                    remediation="Add strict conditions (e.g., resource ARNs, tags) to limit scope",
+                    additional_context={"escalation_action": action},
+                )
+            )
 
         return findings
 
@@ -622,17 +624,19 @@ class RiskAnalyzer:
             if compiled.match(action):
                 # Check if it's a wildcard on sensitive action
                 severity = RiskSeverity.MEDIUM
-                if '*' in action and ('Secret' in action or 's3:GetObject' in action):
+                if "*" in action and ("Secret" in action or "s3:GetObject" in action):
                     severity = RiskSeverity.HIGH
 
-                findings.append(RiskFinding(
-                    risk_type="DATA_EXFILTRATION_RISK",
-                    severity=severity,
-                    action=action,
-                    description=f"{description}: {action}",
-                    remediation="Add resource-level constraints and conditions to limit data access",
-                    additional_context={'pattern': description}
-                ))
+                findings.append(
+                    RiskFinding(
+                        risk_type="DATA_EXFILTRATION_RISK",
+                        severity=severity,
+                        action=action,
+                        description=f"{description}: {action}",
+                        remediation="Add resource-level constraints and conditions to limit data access",
+                        additional_context={"pattern": description},
+                    )
+                )
                 break
 
         return findings
@@ -652,18 +656,22 @@ class RiskAnalyzer:
             if compiled.match(action):
                 severity = RiskSeverity.MEDIUM
                 # Critical resources get higher severity
-                if any(svc in action for svc in ['rds:DeleteDB', 's3:DeleteBucket',
-                                                   'dynamodb:DeleteTable']):
+                if any(
+                    svc in action
+                    for svc in ["rds:DeleteDB", "s3:DeleteBucket", "dynamodb:DeleteTable"]
+                ):
                     severity = RiskSeverity.HIGH
 
-                findings.append(RiskFinding(
-                    risk_type="DESTRUCTION_CAPABILITY",
-                    severity=severity,
-                    action=action,
-                    description=f"{description}: {action}",
-                    remediation="Add MFA condition or restrict to specific resources",
-                    additional_context={'pattern': description}
-                ))
+                findings.append(
+                    RiskFinding(
+                        risk_type="DESTRUCTION_CAPABILITY",
+                        severity=severity,
+                        action=action,
+                        description=f"{description}: {action}",
+                        remediation="Add MFA condition or restrict to specific resources",
+                        additional_context={"pattern": description},
+                    )
+                )
                 break
 
         return findings
@@ -681,14 +689,16 @@ class RiskAnalyzer:
 
         for compiled, description in self._perms_mgmt_patterns:
             if compiled.match(action):
-                findings.append(RiskFinding(
-                    risk_type="PERMISSIONS_MANAGEMENT",
-                    severity=RiskSeverity.HIGH,
-                    action=action,
-                    description=f"{description}: {action}",
-                    remediation="Restrict to specific resources and add approval workflow",
-                    additional_context={'pattern': description}
-                ))
+                findings.append(
+                    RiskFinding(
+                        risk_type="PERMISSIONS_MANAGEMENT",
+                        severity=RiskSeverity.HIGH,
+                        action=action,
+                        description=f"{description}: {action}",
+                        remediation="Restrict to specific resources and add approval workflow",
+                        additional_context={"pattern": description},
+                    )
+                )
                 break
 
         return findings
@@ -706,46 +716,52 @@ class RiskAnalyzer:
         action_set = set(actions)
 
         # iam:PassRole + lambda:CreateFunction = privilege escalation
-        if 'iam:PassRole' in action_set and 'lambda:CreateFunction' in action_set:
-            findings.append(RiskFinding(
-                risk_type="DANGEROUS_COMBINATION",
-                severity=RiskSeverity.CRITICAL,
-                action="iam:PassRole + lambda:CreateFunction",
-                description="Combination allows privilege escalation via Lambda execution role",
-                remediation="Separate these permissions or add strict resource constraints",
-                additional_context={
-                    'combination': ['iam:PassRole', 'lambda:CreateFunction'],
-                    'escalation_path': 'Lambda role assumption'
-                }
-            ))
+        if "iam:PassRole" in action_set and "lambda:CreateFunction" in action_set:
+            findings.append(
+                RiskFinding(
+                    risk_type="DANGEROUS_COMBINATION",
+                    severity=RiskSeverity.CRITICAL,
+                    action="iam:PassRole + lambda:CreateFunction",
+                    description="Combination allows privilege escalation via Lambda execution role",
+                    remediation="Separate these permissions or add strict resource constraints",
+                    additional_context={
+                        "combination": ["iam:PassRole", "lambda:CreateFunction"],
+                        "escalation_path": "Lambda role assumption",
+                    },
+                )
+            )
 
         # iam:PassRole + ec2:RunInstances = privilege escalation
-        if 'iam:PassRole' in action_set and 'ec2:RunInstances' in action_set:
-            findings.append(RiskFinding(
-                risk_type="DANGEROUS_COMBINATION",
-                severity=RiskSeverity.CRITICAL,
-                action="iam:PassRole + ec2:RunInstances",
-                description="Combination allows privilege escalation via EC2 instance profile",
-                remediation="Add conditions to restrict role ARNs and instance types",
-                additional_context={
-                    'combination': ['iam:PassRole', 'ec2:RunInstances'],
-                    'escalation_path': 'EC2 instance profile'
-                }
-            ))
+        if "iam:PassRole" in action_set and "ec2:RunInstances" in action_set:
+            findings.append(
+                RiskFinding(
+                    risk_type="DANGEROUS_COMBINATION",
+                    severity=RiskSeverity.CRITICAL,
+                    action="iam:PassRole + ec2:RunInstances",
+                    description="Combination allows privilege escalation via EC2 instance profile",
+                    remediation="Add conditions to restrict role ARNs and instance types",
+                    additional_context={
+                        "combination": ["iam:PassRole", "ec2:RunInstances"],
+                        "escalation_path": "EC2 instance profile",
+                    },
+                )
+            )
 
         # iam:CreatePolicyVersion + iam:SetDefaultPolicyVersion = policy takeover
-        if 'iam:CreatePolicyVersion' in action_set and 'iam:SetDefaultPolicyVersion' in action_set:
-            findings.append(RiskFinding(
-                risk_type="DANGEROUS_COMBINATION",
-                severity=RiskSeverity.CRITICAL,
-                action="iam:CreatePolicyVersion + iam:SetDefaultPolicyVersion",
-                description="Combination allows complete policy takeover",
-                remediation="Separate permissions or add strict resource ARN constraints",
-                additional_context={
-                    'combination': ['iam:CreatePolicyVersion', 'iam:SetDefaultPolicyVersion'],
-                    'escalation_path': 'Policy version manipulation'
-                }
-            ))
+        if "iam:CreatePolicyVersion" in action_set and "iam:SetDefaultPolicyVersion" in action_set:
+            findings.append(
+                RiskFinding(
+                    risk_type="DANGEROUS_COMBINATION",
+                    severity=RiskSeverity.CRITICAL,
+                    action="iam:CreatePolicyVersion + iam:SetDefaultPolicyVersion",
+                    description="Combination allows complete policy takeover",
+                    remediation="Separate permissions or add strict resource ARN constraints",
+                    additional_context={
+                        "combination": ["iam:CreatePolicyVersion", "iam:SetDefaultPolicyVersion"],
+                        "escalation_path": "Policy version manipulation",
+                    },
+                )
+            )
 
         return findings
 
@@ -761,32 +777,36 @@ class RiskAnalyzer:
         findings = []
 
         # Check if wildcard makes specific actions redundant
-        wildcards = [a for a in actions if '*' in a]
-        specific = [a for a in actions if '*' not in a]
+        wildcards = [a for a in actions if "*" in a]
+        specific = [a for a in actions if "*" not in a]
 
         for wildcard in wildcards:
-            if wildcard == '*' or wildcard == '*:*':
+            if wildcard == "*" or wildcard == "*:*":
                 if specific:
-                    findings.append(RiskFinding(
-                        risk_type="REDUNDANCY",
-                        severity=RiskSeverity.INFO,
-                        action=wildcard,
-                        description=f"Wildcard {wildcard} makes {len(specific)} specific actions redundant",
-                        remediation="Remove specific actions as wildcard already grants them",
-                        additional_context={'redundant_count': len(specific)}
-                    ))
-            elif wildcard.endswith(':*'):
-                service = wildcard.split(':')[0]
+                    findings.append(
+                        RiskFinding(
+                            risk_type="REDUNDANCY",
+                            severity=RiskSeverity.INFO,
+                            action=wildcard,
+                            description=f"Wildcard {wildcard} makes {len(specific)} specific actions redundant",
+                            remediation="Remove specific actions as wildcard already grants them",
+                            additional_context={"redundant_count": len(specific)},
+                        )
+                    )
+            elif wildcard.endswith(":*"):
+                service = wildcard.split(":")[0]
                 redundant = [a for a in specific if a.startswith(f"{service}:")]
                 if redundant:
-                    findings.append(RiskFinding(
-                        risk_type="REDUNDANCY",
-                        severity=RiskSeverity.INFO,
-                        action=wildcard,
-                        description=f"Service wildcard {wildcard} makes {len(redundant)} actions redundant",
-                        remediation=f"Remove redundant {service} actions",
-                        additional_context={'redundant_actions': redundant}
-                    ))
+                    findings.append(
+                        RiskFinding(
+                            risk_type="REDUNDANCY",
+                            severity=RiskSeverity.INFO,
+                            action=wildcard,
+                            description=f"Service wildcard {wildcard} makes {len(redundant)} actions redundant",
+                            remediation=f"Remove redundant {service} actions",
+                            additional_context={"redundant_actions": redundant},
+                        )
+                    )
 
         return findings
 
@@ -822,7 +842,7 @@ class DangerousPermissionChecker:
         for finding in findings:
             if resource == "*":
                 finding.severity = self._escalate_severity(finding.severity)
-                finding.additional_context['resource'] = resource
+                finding.additional_context["resource"] = resource
                 finding.description += " (applied to wildcard resource)"
 
         return findings
@@ -903,8 +923,7 @@ class CompanionPermissionDetector:
         try:
             with database.get_connection() as conn:
                 probe = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' "
-                    "AND name='companion_rules'"
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='companion_rules'"
                 ).fetchone()
                 if not probe:
                     return False
@@ -921,17 +940,14 @@ class CompanionPermissionDetector:
 
         # Group by primary_action.  HMAC-verify each row as we go.
         grouped: dict[str, dict] = {}
-        for (primary, companion, reason, severity, source,
-             refreshed_at, row_hmac) in rows:
+        for primary, companion, reason, severity, source, refreshed_at, row_hmac in rows:
             payload = {
                 "reason": reason,
                 "severity": severity,
                 "source": source,
                 "refreshed_at": refreshed_at,
             }
-            if not verify_row(
-                "companion_rules", (primary, companion), payload, row_hmac
-            ):
+            if not verify_row("companion_rules", (primary, companion), payload, row_hmac):
                 from .database import DatabaseError
 
                 raise DatabaseError(
@@ -958,9 +974,7 @@ class CompanionPermissionDetector:
         return True
 
     def detect_missing_companions(
-        self,
-        actions: List[str],
-        context: Dict[str, Any] | None = None
+        self, actions: List[str], context: Dict[str, Any] | None = None
     ) -> List[CompanionPermission]:
         """Detect missing companion permissions.
 
@@ -980,17 +994,18 @@ class CompanionPermissionDetector:
 
                 # Check if any companion actions are missing
                 missing_companions = [
-                    comp for comp in companion.companion_actions
-                    if comp not in action_set
+                    comp for comp in companion.companion_actions if comp not in action_set
                 ]
 
                 if missing_companions:
-                    missing.append(CompanionPermission(
-                        primary_action=companion.primary_action,
-                        companion_actions=missing_companions,
-                        reason=companion.reason,
-                        severity=companion.severity
-                    ))
+                    missing.append(
+                        CompanionPermission(
+                            primary_action=companion.primary_action,
+                            companion_actions=missing_companions,
+                            reason=companion.reason,
+                            severity=companion.severity,
+                        )
+                    )
 
         return missing
 
@@ -1025,11 +1040,7 @@ class HITLSystem:
         self.decisions: List[HITLDecision] = []
         self._skip_remaining = False
 
-    def flag_tier2_action(
-        self,
-        action: str,
-        assumptions: List[str]
-    ) -> bool:
+    def flag_tier2_action(self, action: str, assumptions: List[str]) -> bool:
         """Flag Tier 2 action for human review.
 
         When interactive mode is enabled, prompts the user via stdin
@@ -1046,7 +1057,7 @@ class HITLSystem:
         if not self.interactive or self._skip_remaining:
             decision = HITLDecision(
                 action=action,
-                tier='TIER_2_UNKNOWN',
+                tier="TIER_2_UNKNOWN",
                 user_approved=True,
                 assumptions_validated=assumptions,
             )
@@ -1070,44 +1081,48 @@ class HITLSystem:
         Returns:
             True if approved, False if rejected.
         """
-        reason = '; '.join(assumptions) if assumptions else 'No details available'
+        reason = "; ".join(assumptions) if assumptions else "No details available"
         print(f"\n[HITL] Tier 2 action: {action}")
         print(f"  Reason: {reason}")
 
         while True:
             try:
-                answer = input(
-                    "  Approve this action? "
-                    "[A]pprove / [R]eject / [S]kip remaining (auto-approve) > "
-                ).strip().lower()
+                answer = (
+                    input(
+                        "  Approve this action? "
+                        "[A]pprove / [R]eject / [S]kip remaining (auto-approve) > "
+                    )
+                    .strip()
+                    .lower()
+                )
             except EOFError:
-                answer = 'r'
+                answer = "r"
 
-            if answer in ('a', 'approve'):
+            if answer in ("a", "approve"):
                 decision = HITLDecision(
                     action=action,
-                    tier='TIER_2_UNKNOWN',
+                    tier="TIER_2_UNKNOWN",
                     user_approved=True,
                     assumptions_validated=assumptions,
                 )
                 self.decisions.append(decision)
                 return True
-            elif answer in ('r', 'reject'):
+            elif answer in ("r", "reject"):
                 decision = HITLDecision(
                     action=action,
-                    tier='TIER_2_UNKNOWN',
+                    tier="TIER_2_UNKNOWN",
                     user_approved=False,
                     assumptions_validated=assumptions,
                 )
                 self.decisions.append(decision)
                 return False
-            elif answer in ('s', 'skip'):
+            elif answer in ("s", "skip"):
                 self._skip_remaining = True
                 decision = HITLDecision(
                     action=action,
-                    tier='TIER_2_UNKNOWN',
+                    tier="TIER_2_UNKNOWN",
                     user_approved=True,
-                    user_comment='Auto-approved (skip remaining)',
+                    user_comment="Auto-approved (skip remaining)",
                     assumptions_validated=assumptions,
                 )
                 self.decisions.append(decision)
@@ -1121,7 +1136,7 @@ class HITLSystem:
         tier: str,
         approved: bool,
         comment: str | None = None,
-        assumptions: List[str] | None = None
+        assumptions: List[str] | None = None,
     ) -> None:
         """Record a user decision.
 
@@ -1137,7 +1152,7 @@ class HITLSystem:
             tier=tier,
             user_approved=approved,
             user_comment=comment,
-            assumptions_validated=assumptions or []
+            assumptions_validated=assumptions or [],
         )
 
         self.decisions.append(decision)
@@ -1161,10 +1176,10 @@ class HITLSystem:
         rejected = total - approved
 
         return {
-            'total_reviews': total,
-            'approved': approved,
-            'rejected': rejected,
-            'approval_rate': approved / total if total > 0 else 0.0
+            "total_reviews": total,
+            "approved": approved,
+            "rejected": rejected,
+            "approval_rate": approved / total if total > 0 else 0.0,
         }
 
     def clear_history(self) -> None:

@@ -22,15 +22,17 @@ def cmd_managed(args: argparse.Namespace) -> int:
     from fetchers.aws_managed import AWSManagedFetcher
     from fetchers.base import PolicyNotFoundError
     from .cli import (
-        resolve_database, resolve_inventory,
-        _get_formatter, _write_output, _verdict_to_exit_code,
+        resolve_database,
+        resolve_inventory,
+        _get_formatter,
+        _write_output,
+        _verdict_to_exit_code,
     )
 
     sub = getattr(args, "managed_cmd", None)
     db = resolve_database(args)
     if db is None:
-        print("No database found. Use --database to specify path.",
-              file=sys.stderr)
+        print("No database found. Use --database to specify path.", file=sys.stderr)
         return EXIT_IO_ERROR
 
     fetcher = AWSManagedFetcher(db)
@@ -42,8 +44,9 @@ def cmd_managed(args: argparse.Namespace) -> int:
             print(json.dumps(names, indent=2))
         else:
             if not names:
-                print("(no managed policies loaded; "
-                      "run `sentinel refresh --source managed-policies`)")
+                print(
+                    "(no managed policies loaded; run `sentinel refresh --source managed-policies`)"
+                )
                 return EXIT_SUCCESS
             for n in names:
                 print(n)
@@ -61,13 +64,15 @@ def cmd_managed(args: argparse.Namespace) -> int:
     if sub == "analyze":
         from .self_check import Pipeline, PipelineConfig
         from .models import PolicyInput
+
         try:
             fetch_result = fetcher.fetch(args.name)
         except PolicyNotFoundError as exc:
             print(f"Error: {exc}", file=sys.stderr)
             return EXIT_IO_ERROR
         policy_input = PolicyInput(
-            body_bytes=fetch_result.body, origin=fetch_result.origin,
+            body_bytes=fetch_result.body,
+            origin=fetch_result.origin,
         )
         inv = resolve_inventory(args)
         try:

@@ -49,6 +49,7 @@ class CheckSeverity(Enum):
     WARNING: Should fix, may be acceptable.
     INFO: Informational observation.
     """
+
     ERROR = "ERROR"
     WARNING = "WARNING"
     INFO = "INFO"
@@ -61,6 +62,7 @@ class CheckVerdict(Enum):
     FAIL: Policy has errors that must be fixed.
     WARNING: Policy has warnings that should be reviewed.
     """
+
     PASS = "PASS"
     FAIL = "FAIL"
     WARNING = "WARNING"
@@ -78,6 +80,7 @@ class CheckFinding:
         resource: Resource ARN associated with the finding, if any.
         remediation: Suggested fix for the finding.
     """
+
     check_type: str
     severity: CheckSeverity
     message: str
@@ -99,6 +102,7 @@ class SelfCheckResult:
         summary: Human-readable summary of the self-check.
         confidence_summary: Per-aspect confidence scores from the pipeline.
     """
+
     verdict: CheckVerdict
     findings: List[CheckFinding]
     completeness_score: float
@@ -126,6 +130,7 @@ class PipelineConfig:
         allow_wildcard_actions: Downgrade wildcard action ERRORs to WARNINGs.
         allow_wildcard_resources: Downgrade wildcard resource ERRORs to WARNINGs.
     """
+
     intent: str | None = None
     account_id: str | None = None
     region: str | None = None
@@ -157,6 +162,7 @@ class PipelineResult:
         hitl_decisions: HITL decisions for Tier 2 actions (empty if
             non-interactive).
     """
+
     original_policy: Policy
     rewritten_policy: Policy
     validation_results: List[ValidationResult]
@@ -174,7 +180,7 @@ class PipelineResult:
 
 
 # ARN format: starts with arn: and has at least 5 colon-separated parts
-_ARN_BASIC_PATTERN = re.compile(r'^arn:[^:]+:[^:]+:[^:]*:[^:]*:.+$')
+_ARN_BASIC_PATTERN = re.compile(r"^arn:[^:]+:[^:]+:[^:]*:[^:]*:.+$")
 
 
 class SelfCheckValidator:
@@ -231,8 +237,8 @@ class SelfCheckValidator:
         findings.extend(self._check_arn_formats(policy, config))
 
         # Check 3: Functional completeness
-        completeness_findings, completeness_score = (
-            self._check_functional_completeness(policy, rewrite_result, config)
+        completeness_findings, completeness_score = self._check_functional_completeness(
+            policy, rewrite_result, config
         )
         findings.extend(completeness_findings)
 
@@ -240,27 +246,20 @@ class SelfCheckValidator:
         findings.extend(self._check_overly_broad_permissions(policy, config))
 
         # Check 5: Tier 2 exclusion
-        original_validation = self.parser.validate_policy(
-            rewrite_result.original_policy
-        )
-        findings.extend(
-            self._check_tier2_exclusion(policy, original_validation)
-        )
+        original_validation = self.parser.validate_policy(rewrite_result.original_policy)
+        findings.extend(self._check_tier2_exclusion(policy, original_validation))
 
         # Check 6: Assumption validation
         assumption_findings = self._check_assumptions(rewrite_result)
         findings.extend(assumption_findings)
-        assumptions_valid = not any(
-            f.severity == CheckSeverity.ERROR for f in assumption_findings
-        )
+        assumptions_valid = not any(f.severity == CheckSeverity.ERROR for f in assumption_findings)
 
         # Check 7: Low-confidence rewrite decisions
         findings.extend(self._check_low_confidence(rewrite_result))
 
         # Tier 2 exclusion result
         tier2_excluded = not any(
-            f.check_type == "TIER2_IN_POLICY"
-            and f.severity == CheckSeverity.ERROR
+            f.check_type == "TIER2_IN_POLICY" and f.severity == CheckSeverity.ERROR
             for f in findings
         )
 
@@ -268,15 +267,9 @@ class SelfCheckValidator:
         verdict = self._compute_verdict(findings, config.strict_mode)
 
         # Build summary
-        error_count = sum(
-            1 for f in findings if f.severity == CheckSeverity.ERROR
-        )
-        warning_count = sum(
-            1 for f in findings if f.severity == CheckSeverity.WARNING
-        )
-        info_count = sum(
-            1 for f in findings if f.severity == CheckSeverity.INFO
-        )
+        error_count = sum(1 for f in findings if f.severity == CheckSeverity.ERROR)
+        warning_count = sum(1 for f in findings if f.severity == CheckSeverity.WARNING)
+        info_count = sum(1 for f in findings if f.severity == CheckSeverity.INFO)
         summary = (
             f"Self-check {verdict.value}: "
             f"{error_count} error(s), {warning_count} warning(s), "
@@ -309,36 +302,38 @@ class SelfCheckValidator:
 
         for stmt in policy.statements:
             for action in stmt.actions:
-                if action == '*' or action == '*:*':
+                if action == "*" or action == "*:*":
                     continue
 
                 result = self.parser.classify_action(action)
 
                 if result.tier == ValidationTier.TIER_3_INVALID:
-                    findings.append(CheckFinding(
-                        check_type="ACTION_VALIDATION",
-                        severity=CheckSeverity.ERROR,
-                        message=(
-                            f"Invalid action '{action}' in rewritten policy: "
-                            f"{result.reason}"
-                        ),
-                        action=action,
-                        remediation=f"Remove invalid action '{action}'",
-                    ))
+                    findings.append(
+                        CheckFinding(
+                            check_type="ACTION_VALIDATION",
+                            severity=CheckSeverity.ERROR,
+                            message=(
+                                f"Invalid action '{action}' in rewritten policy: {result.reason}"
+                            ),
+                            action=action,
+                            remediation=f"Remove invalid action '{action}'",
+                        )
+                    )
                 elif result.tier == ValidationTier.TIER_2_UNKNOWN:
-                    findings.append(CheckFinding(
-                        check_type="TIER2_ACTION_KEPT",
-                        severity=CheckSeverity.WARNING,
-                        message=(
-                            f"Tier 2 unknown action '{action}' kept in "
-                            "rewritten policy (requires manual review)"
-                        ),
-                        action=action,
-                        remediation=(
-                            f"Verify action '{action}' exists or refresh "
-                            "the IAM database"
-                        ),
-                    ))
+                    findings.append(
+                        CheckFinding(
+                            check_type="TIER2_ACTION_KEPT",
+                            severity=CheckSeverity.WARNING,
+                            message=(
+                                f"Tier 2 unknown action '{action}' kept in "
+                                "rewritten policy (requires manual review)"
+                            ),
+                            action=action,
+                            remediation=(
+                                f"Verify action '{action}' exists or refresh the IAM database"
+                            ),
+                        )
+                    )
 
         return findings
 
@@ -368,46 +363,47 @@ class SelfCheckValidator:
 
             allow_wc_res = config.allow_wildcard_resources if config else False
             for resource in all_resources:
-                if resource == '*':
-                    severity = (
-                        CheckSeverity.WARNING if allow_wc_res
-                        else CheckSeverity.ERROR
+                if resource == "*":
+                    severity = CheckSeverity.WARNING if allow_wc_res else CheckSeverity.ERROR
+                    findings.append(
+                        CheckFinding(
+                            check_type="REMAINING_WILDCARD",
+                            severity=severity,
+                            message="Wildcard resource '*' remains in rewritten policy",
+                            resource=resource,
+                            remediation=(
+                                "Replace with specific resource ARNs "
+                                "(use --allow-wildcard-resources to downgrade)"
+                            ),
+                        )
                     )
-                    findings.append(CheckFinding(
-                        check_type="REMAINING_WILDCARD",
-                        severity=severity,
-                        message="Wildcard resource '*' remains in rewritten policy",
-                        resource=resource,
-                        remediation=(
-                            "Replace with specific resource ARNs "
-                            "(use --allow-wildcard-resources to downgrade)"
-                        ),
-                    ))
-                elif 'PLACEHOLDER' in resource:
-                    findings.append(CheckFinding(
-                        check_type="PLACEHOLDER_ARN",
-                        severity=CheckSeverity.INFO,
-                        message=(
-                            f"Placeholder ARN '{resource}' needs to be "
-                            "replaced with a real ARN before deployment"
-                        ),
-                        resource=resource,
-                        remediation=(
-                            "Replace placeholder with actual resource ARN"
-                        ),
-                    ))
-                elif resource.startswith('arn:'):
-                    if not _ARN_BASIC_PATTERN.match(resource):
-                        findings.append(CheckFinding(
-                            check_type="ARN_FORMAT",
-                            severity=CheckSeverity.ERROR,
+                elif "PLACEHOLDER" in resource:
+                    findings.append(
+                        CheckFinding(
+                            check_type="PLACEHOLDER_ARN",
+                            severity=CheckSeverity.INFO,
                             message=(
-                                f"Malformed ARN: '{resource}'. Expected format: "
-                                "arn:partition:service:region:account:resource"
+                                f"Placeholder ARN '{resource}' needs to be "
+                                "replaced with a real ARN before deployment"
                             ),
                             resource=resource,
-                            remediation="Fix the ARN format",
-                        ))
+                            remediation=("Replace placeholder with actual resource ARN"),
+                        )
+                    )
+                elif resource.startswith("arn:"):
+                    if not _ARN_BASIC_PATTERN.match(resource):
+                        findings.append(
+                            CheckFinding(
+                                check_type="ARN_FORMAT",
+                                severity=CheckSeverity.ERROR,
+                                message=(
+                                    f"Malformed ARN: '{resource}'. Expected format: "
+                                    "arn:partition:service:region:account:resource"
+                                ),
+                                resource=resource,
+                                remediation="Fix the ARN format",
+                            )
+                        )
 
         return findings
 
@@ -446,66 +442,65 @@ class SelfCheckValidator:
 
         missing_services = original_services - rewritten_services
         if missing_services:
-            findings.append(CheckFinding(
-                check_type="MISSING_SERVICE_COVERAGE",
-                severity=CheckSeverity.WARNING,
-                message=(
-                    f"Services from original policy not covered in rewritten "
-                    f"policy: {', '.join(sorted(missing_services))}"
-                ),
-                remediation="Add actions for missing services",
-            ))
+            findings.append(
+                CheckFinding(
+                    check_type="MISSING_SERVICE_COVERAGE",
+                    severity=CheckSeverity.WARNING,
+                    message=(
+                        f"Services from original policy not covered in rewritten "
+                        f"policy: {', '.join(sorted(missing_services))}"
+                    ),
+                    remediation="Add actions for missing services",
+                )
+            )
 
         # Score component 2: Access level match with intent (weight 0.3)
         access_level_score = 1.0
         if config.intent:
             intent_lower = config.intent.lower()
             is_read_only = any(
-                re.search(r'\b' + re.escape(kw) + r'\b', intent_lower)
+                re.search(r"\b" + re.escape(kw) + r"\b", intent_lower)
                 for kw in READ_INTENT_KEYWORDS
             )
             if is_read_only:
                 write_actions = self._find_write_actions(policy)
                 if write_actions:
                     access_level_score = 0.5
-                    findings.append(CheckFinding(
-                        check_type="INTENT_MISMATCH",
-                        severity=CheckSeverity.WARNING,
-                        message=(
-                            f"Intent is read-only but rewritten policy "
-                            f"contains write actions: "
-                            f"{', '.join(write_actions[:3])}"
-                        ),
-                        remediation=(
-                            "Remove write actions to match read-only intent"
-                        ),
-                    ))
+                    findings.append(
+                        CheckFinding(
+                            check_type="INTENT_MISMATCH",
+                            severity=CheckSeverity.WARNING,
+                            message=(
+                                f"Intent is read-only but rewritten policy "
+                                f"contains write actions: "
+                                f"{', '.join(write_actions[:3])}"
+                            ),
+                            remediation=("Remove write actions to match read-only intent"),
+                        )
+                    )
 
         # Score component 3: Companion completeness (weight 0.2)
         all_actions = self._collect_allow_actions(policy)
-        missing_companions = self.companion_detector.detect_missing_companions(
-            all_actions
-        )
+        missing_companions = self.companion_detector.detect_missing_companions(all_actions)
         if missing_companions:
             companion_score = max(
                 0.0,
                 1.0 - (len(missing_companions) * 0.25),
             )
             for comp in missing_companions:
-                findings.append(CheckFinding(
-                    check_type="MISSING_COMPANION",
-                    severity=CheckSeverity.WARNING,
-                    message=(
-                        f"Missing companion permissions for "
-                        f"{comp.primary_action}: "
-                        f"{', '.join(comp.companion_actions)}"
-                    ),
-                    action=comp.primary_action,
-                    remediation=(
-                        f"Add companion actions: "
-                        f"{', '.join(comp.companion_actions)}"
-                    ),
-                ))
+                findings.append(
+                    CheckFinding(
+                        check_type="MISSING_COMPANION",
+                        severity=CheckSeverity.WARNING,
+                        message=(
+                            f"Missing companion permissions for "
+                            f"{comp.primary_action}: "
+                            f"{', '.join(comp.companion_actions)}"
+                        ),
+                        action=comp.primary_action,
+                        remediation=(f"Add companion actions: {', '.join(comp.companion_actions)}"),
+                    )
+                )
         else:
             companion_score = 1.0
 
@@ -514,9 +509,7 @@ class SelfCheckValidator:
         rewritten_actions = set(all_actions)
         if original_actions:
             # Check how many original specific actions are still covered
-            original_specific = {
-                a for a in original_actions if '*' not in a
-            }
+            original_specific = {a for a in original_actions if "*" not in a}
             if original_specific:
                 covered_actions = original_specific & rewritten_actions
                 action_score = len(covered_actions) / len(original_specific)
@@ -560,53 +553,44 @@ class SelfCheckValidator:
         allow_wc_actions = config.allow_wildcard_actions if config else False
 
         for stmt in policy.statements:
-            if stmt.effect != 'Allow':
+            if stmt.effect != "Allow":
                 continue
 
             for action in stmt.actions:
-                if action == '*' or action == '*:*':
-                    severity = (
-                        CheckSeverity.WARNING if allow_wc_actions
-                        else CheckSeverity.ERROR
+                if action == "*" or action == "*:*":
+                    severity = CheckSeverity.WARNING if allow_wc_actions else CheckSeverity.ERROR
+                    findings.append(
+                        CheckFinding(
+                            check_type="OVERLY_BROAD_ACTION",
+                            severity=severity,
+                            message=(f"Full wildcard action '{action}' in rewritten policy"),
+                            action=action,
+                            remediation=(
+                                "Replace with specific service actions "
+                                "(use --allow-wildcard-actions to downgrade)"
+                            ),
+                        )
                     )
-                    findings.append(CheckFinding(
-                        check_type="OVERLY_BROAD_ACTION",
-                        severity=severity,
-                        message=(
-                            f"Full wildcard action '{action}' in rewritten policy"
-                        ),
-                        action=action,
-                        remediation=(
-                            "Replace with specific service actions "
-                            "(use --allow-wildcard-actions to downgrade)"
-                        ),
-                    ))
-                elif action.endswith(':*'):
-                    findings.append(CheckFinding(
-                        check_type="OVERLY_BROAD_ACTION",
-                        severity=CheckSeverity.WARNING,
-                        message=(
-                            f"Service wildcard action '{action}' in rewritten "
-                            "policy"
-                        ),
-                        action=action,
-                        remediation=(
-                            "Replace with specific actions for the service"
-                        ),
-                    ))
-                elif '*' in action:
-                    findings.append(CheckFinding(
-                        check_type="OVERLY_BROAD_ACTION",
-                        severity=CheckSeverity.INFO,
-                        message=(
-                            f"Partial wildcard action '{action}' in rewritten "
-                            "policy"
-                        ),
-                        action=action,
-                        remediation=(
-                            "Consider replacing with specific actions"
-                        ),
-                    ))
+                elif action.endswith(":*"):
+                    findings.append(
+                        CheckFinding(
+                            check_type="OVERLY_BROAD_ACTION",
+                            severity=CheckSeverity.WARNING,
+                            message=(f"Service wildcard action '{action}' in rewritten policy"),
+                            action=action,
+                            remediation=("Replace with specific actions for the service"),
+                        )
+                    )
+                elif "*" in action:
+                    findings.append(
+                        CheckFinding(
+                            check_type="OVERLY_BROAD_ACTION",
+                            severity=CheckSeverity.INFO,
+                            message=(f"Partial wildcard action '{action}' in rewritten policy"),
+                            action=action,
+                            remediation=("Consider replacing with specific actions"),
+                        )
+                    )
 
         return findings
 
@@ -630,8 +614,7 @@ class SelfCheckValidator:
         findings: List[CheckFinding] = []
 
         tier2_actions = {
-            r.action for r in validation_results
-            if r.tier == ValidationTier.TIER_2_UNKNOWN
+            r.action for r in validation_results if r.tier == ValidationTier.TIER_2_UNKNOWN
         }
 
         if not tier2_actions:
@@ -644,21 +627,24 @@ class SelfCheckValidator:
                 rewritten_actions.update(stmt.not_actions)
 
         for action in sorted(tier2_actions & rewritten_actions):
-            findings.append(CheckFinding(
-                check_type="TIER2_IN_POLICY",
-                severity=CheckSeverity.ERROR,
-                message=(
-                    f"Tier 2 unknown action '{action}' found in rewritten "
-                    "policy. It should have been excluded."
-                ),
-                action=action,
-                remediation=f"Remove Tier 2 action '{action}'",
-            ))
+            findings.append(
+                CheckFinding(
+                    check_type="TIER2_IN_POLICY",
+                    severity=CheckSeverity.ERROR,
+                    message=(
+                        f"Tier 2 unknown action '{action}' found in rewritten "
+                        "policy. It should have been excluded."
+                    ),
+                    action=action,
+                    remediation=f"Remove Tier 2 action '{action}'",
+                )
+            )
 
         return findings
 
     def _check_assumptions(
-        self, rewrite_result: RewriteResult,
+        self,
+        rewrite_result: RewriteResult,
     ) -> List[CheckFinding]:
         """Validate that the rewrite result includes meaningful assumptions.
 
@@ -674,28 +660,31 @@ class SelfCheckValidator:
         findings: List[CheckFinding] = []
 
         if not rewrite_result.assumptions:
-            findings.append(CheckFinding(
-                check_type="MISSING_ASSUMPTIONS",
-                severity=CheckSeverity.WARNING,
-                message=(
-                    "No assumptions recorded during rewrite. "
-                    "At minimum, database and inventory status should be noted."
-                ),
-                remediation=(
-                    "Document assumptions about database availability "
-                    "and resource inventory"
-                ),
-            ))
+            findings.append(
+                CheckFinding(
+                    check_type="MISSING_ASSUMPTIONS",
+                    severity=CheckSeverity.WARNING,
+                    message=(
+                        "No assumptions recorded during rewrite. "
+                        "At minimum, database and inventory status should be noted."
+                    ),
+                    remediation=(
+                        "Document assumptions about database availability and resource inventory"
+                    ),
+                )
+            )
             return findings
 
         for assumption in rewrite_result.assumptions:
             if not assumption or not assumption.strip():
-                findings.append(CheckFinding(
-                    check_type="EMPTY_ASSUMPTION",
-                    severity=CheckSeverity.WARNING,
-                    message="Empty assumption string found in rewrite result",
-                    remediation="Remove empty assumptions or add content",
-                ))
+                findings.append(
+                    CheckFinding(
+                        check_type="EMPTY_ASSUMPTION",
+                        severity=CheckSeverity.WARNING,
+                        message="Empty assumption string found in rewrite result",
+                        remediation="Remove empty assumptions or add content",
+                    )
+                )
 
         return findings
 
@@ -714,15 +703,17 @@ class SelfCheckValidator:
         findings: List[CheckFinding] = []
         for change in rewrite_result.changes:
             if change.confidence < 0.5:
-                findings.append(CheckFinding(
-                    check_type="LOW_CONFIDENCE",
-                    severity=CheckSeverity.WARNING,
-                    message=(
-                        f"Low confidence ({change.confidence}) on "
-                        f"{change.change_type}: {change.description}"
-                    ),
-                    remediation="Review this change manually",
-                ))
+                findings.append(
+                    CheckFinding(
+                        check_type="LOW_CONFIDENCE",
+                        severity=CheckSeverity.WARNING,
+                        message=(
+                            f"Low confidence ({change.confidence}) on "
+                            f"{change.change_type}: {change.description}"
+                        ),
+                        remediation="Review this change manually",
+                    )
+                )
         return findings
 
     def _compute_verdict(
@@ -742,12 +733,8 @@ class SelfCheckValidator:
         Returns:
             CheckVerdict (PASS, FAIL, or WARNING).
         """
-        has_error = any(
-            f.severity == CheckSeverity.ERROR for f in findings
-        )
-        has_warning = any(
-            f.severity == CheckSeverity.WARNING for f in findings
-        )
+        has_error = any(f.severity == CheckSeverity.ERROR for f in findings)
+        has_warning = any(f.severity == CheckSeverity.WARNING for f in findings)
 
         if has_error:
             return CheckVerdict.FAIL
@@ -774,8 +761,8 @@ class SelfCheckValidator:
             if stmt.not_actions:
                 all_actions.extend(stmt.not_actions)
             for action in all_actions:
-                parts = action.split(':', 1)
-                if len(parts) == 2 and parts[0] != '*':
+                parts = action.split(":", 1)
+                if len(parts) == 2 and parts[0] != "*":
                     services.add(parts[0])
         return services
 
@@ -790,10 +777,10 @@ class SelfCheckValidator:
         """
         write_actions: List[str] = []
         for stmt in policy.statements:
-            if stmt.effect != 'Allow':
+            if stmt.effect != "Allow":
                 continue
             for action in stmt.actions:
-                action_name = action.split(':')[-1] if ':' in action else action
+                action_name = action.split(":")[-1] if ":" in action else action
                 if any(action_name.startswith(p) for p in WRITE_PREFIXES):
                     write_actions.append(action)
         return write_actions
@@ -809,7 +796,7 @@ class SelfCheckValidator:
         """
         actions: List[str] = []
         for stmt in policy.statements:
-            if stmt.effect == 'Allow':
+            if stmt.effect == "Allow":
                 actions.extend(stmt.actions)
         return actions
 
@@ -905,16 +892,11 @@ class Pipeline:
         risk_findings = risk_analyzer.analyze_actions(all_actions)
 
         companion_detector = CompanionPermissionDetector(self.database)
-        missing_companions = companion_detector.detect_missing_companions(
-            all_actions
-        )
+        missing_companions = companion_detector.detect_missing_companions(all_actions)
 
         # Step 2.5: HITL - Interactive Tier 2 action review
         hitl = HITLSystem(interactive=config.interactive)
-        tier2_actions = [
-            r for r in validation_results
-            if r.tier == ValidationTier.TIER_2_UNKNOWN
-        ]
+        tier2_actions = [r for r in validation_results if r.tier == ValidationTier.TIER_2_UNKNOWN]
         rejected_actions: Set[str] = set()
 
         if tier2_actions and config.interactive:
@@ -928,14 +910,8 @@ class Pipeline:
             if rejected_actions:
                 policy = copy.deepcopy(policy)
                 for stmt in policy.statements:
-                    stmt.actions = [
-                        a for a in stmt.actions
-                        if a not in rejected_actions
-                    ]
-                policy.statements = [
-                    s for s in policy.statements
-                    if s.actions or s.not_actions
-                ]
+                    stmt.actions = [a for a in stmt.actions if a not in rejected_actions]
+                policy.statements = [s for s in policy.statements if s.actions or s.not_actions]
 
         # Step 3: REWRITE
         rewriter = PolicyRewriter(self.database, self.inventory)
@@ -960,10 +936,7 @@ class Pipeline:
             )
 
             # Break early if fixes made no changes or policy is empty
-            if (
-                not fixed_policy.statements
-                or fixed_policy.statements == previous_policy.statements
-            ):
+            if not fixed_policy.statements or fixed_policy.statements == previous_policy.statements:
                 break
 
             # Re-run rewrite on the fixed policy
@@ -973,9 +946,7 @@ class Pipeline:
                 changes=rewrite_result.changes,
                 assumptions=rewrite_result.assumptions,
                 warnings=rewrite_result.warnings,
-                companion_permissions_added=(
-                    rewrite_result.companion_permissions_added
-                ),
+                companion_permissions_added=(rewrite_result.companion_permissions_added),
             )
 
             # Re-run self-check
@@ -994,9 +965,7 @@ class Pipeline:
 
         hitl_decisions = hitl.get_decision_history()
         if hitl_decisions:
-            approved_count = sum(
-                1 for d in hitl_decisions if d.user_approved
-            )
+            approved_count = sum(1 for d in hitl_decisions if d.user_approved)
             rejected_count = len(hitl_decisions) - approved_count
             summary_parts.append(
                 f"HITL: {len(hitl_decisions)} Tier 2 action(s) reviewed "
@@ -1012,7 +981,7 @@ class Pipeline:
             self_check_result=self_check_result,
             iterations=iterations,
             final_verdict=self_check_result.verdict,
-            pipeline_summary=' '.join(summary_parts),
+            pipeline_summary=" ".join(summary_parts),
             hitl_decisions=hitl_decisions,
             origin=policy_input.origin,
         )
@@ -1072,7 +1041,8 @@ class Pipeline:
             # auto-resolved without additional context (inventory, intent).
             # The loop-back would waste retries on them.
             if finding.check_type in (
-                "OVERLY_BROAD_ACTION", "REMAINING_WILDCARD",
+                "OVERLY_BROAD_ACTION",
+                "REMAINING_WILDCARD",
             ):
                 continue
 
@@ -1082,24 +1052,17 @@ class Pipeline:
 
             elif finding.check_type == "MISSING_COMPANION":
                 if finding.action:
-                    detected = self._companion_detector.detect_missing_companions(
-                        [finding.action]
-                    )
+                    detected = self._companion_detector.detect_missing_companions([finding.action])
                     for comp in detected:
                         companions_to_add.extend(comp.companion_actions)
 
         # Remove invalid actions from all statements
         if actions_to_remove:
             for stmt in fixed.statements:
-                stmt.actions = [
-                    a for a in stmt.actions if a not in actions_to_remove
-                ]
+                stmt.actions = [a for a in stmt.actions if a not in actions_to_remove]
 
             # Remove empty statements (preserve NotAction statements)
-            fixed.statements = [
-                s for s in fixed.statements
-                if s.actions or s.not_actions
-            ]
+            fixed.statements = [s for s in fixed.statements if s.actions or s.not_actions]
 
         # Add missing companion actions (skip those already in the policy)
         if companions_to_add:
@@ -1108,22 +1071,21 @@ class Pipeline:
                 existing_actions.update(stmt.actions)
                 if stmt.not_actions:
                     existing_actions.update(stmt.not_actions)
-            new_companions = [
-                a for a in companions_to_add if a not in existing_actions
-            ]
+            new_companions = [a for a in companions_to_add if a not in existing_actions]
             if new_companions:
                 companion_stmt = Statement(
-                    effect='Allow',
+                    effect="Allow",
                     actions=new_companions,
-                    resources=['*'],
-                    sid='AllowCompanionPermissions',
+                    resources=["*"],
+                    sid="AllowCompanionPermissions",
                 )
                 fixed.statements.append(companion_stmt)
 
         return fixed
 
     def _build_rewrite_config(
-        self, config: PipelineConfig,
+        self,
+        config: PipelineConfig,
     ) -> RewriteConfig:
         """Convert PipelineConfig to RewriteConfig.
 

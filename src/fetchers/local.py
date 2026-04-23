@@ -35,7 +35,10 @@ class LocalFileFetcher:
             body=body,
         )
         return FetchResult(
-            body=body, headers={}, cache_status="N/A", origin=origin,
+            body=body,
+            headers={},
+            cache_status="N/A",
+            origin=origin,
         )
 
 
@@ -56,7 +59,10 @@ class StdinFetcher:
             body=data,
         )
         return FetchResult(
-            body=data, headers={}, cache_status="N/A", origin=origin,
+            body=data,
+            headers={},
+            cache_status="N/A",
+            origin=origin,
         )
 
 

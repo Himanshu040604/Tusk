@@ -63,8 +63,11 @@ def client(
     retry: RetryPolicy,
 ) -> SentinelHTTPClient:
     return SentinelHTTPClient(
-        settings=settings, allow_list=allow_list, cache=cache,
-        retry_policy=retry, insecure=False,
+        settings=settings,
+        allow_list=allow_list,
+        cache=cache,
+        retry_policy=retry,
+        insecure=False,
     )
 
 
@@ -74,9 +77,7 @@ def client(
 
 
 class TestAllowList:
-    def test_unlisted_domain_rejected(
-        self, client: SentinelHTTPClient
-    ) -> None:
+    def test_unlisted_domain_rejected(self, client: SentinelHTTPClient) -> None:
         with pytest.raises(DomainNotAllowedError):
             client.get("https://notallowed.test/", source="user_url")
 
@@ -89,8 +90,7 @@ class TestAllowList:
             # Preflight succeeds; the actual GET would hit the network,
             # so we only assert that no DomainNotAllowedError fired.
             with patch.object(
-                client._client, "get",
-                side_effect=httpx.ConnectError("no net in tests")
+                client._client, "get", side_effect=httpx.ConnectError("no net in tests")
             ):
                 with pytest.raises(httpx.ConnectError):
                     client.get("https://example.com/", source="user_url")
@@ -102,17 +102,13 @@ class TestAllowList:
 
 
 class TestSsrfInitial:
-    def test_ssrf_on_private_ip_literal(
-        self, client: SentinelHTTPClient
-    ) -> None:
+    def test_ssrf_on_private_ip_literal(self, client: SentinelHTTPClient) -> None:
         # Allow-list accepts literal-IP 169.254.169.254 (no allow-list entry
         # covers it, so allow-list check rejects first).
         with pytest.raises(DomainNotAllowedError):
             client.get("http://169.254.169.254/latest/", source="user_url")
 
-    def test_ssrf_on_dns_to_private_ip(
-        self, client: SentinelHTTPClient
-    ) -> None:
+    def test_ssrf_on_dns_to_private_ip(self, client: SentinelHTTPClient) -> None:
         fake_info = [(socket.AF_INET, 0, 0, "", ("10.0.0.1", 0))]
         with patch("socket.getaddrinfo", return_value=fake_info):
             with pytest.raises(SSRFBlockedError):
@@ -148,17 +144,11 @@ class TestRedirectChaserH9:
         )
 
         with patch("socket.getaddrinfo", return_value=fake_info):
-            with patch.object(
-                client._client, "get", return_value=redirect_response
-            ):
-                with pytest.raises(
-                    (SSRFBlockedError, DomainNotAllowedError)
-                ):
+            with patch.object(client._client, "get", return_value=redirect_response):
+                with pytest.raises((SSRFBlockedError, DomainNotAllowedError)):
                     client.get("https://example.com/", source="user_url")
 
-    def test_too_many_redirects(
-        self, client: SentinelHTTPClient, settings: Settings
-    ) -> None:
+    def test_too_many_redirects(self, client: SentinelHTTPClient, settings: Settings) -> None:
         """Exceeding ``network.max_redirects`` must raise TooManyRedirects."""
         fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
 
@@ -174,9 +164,7 @@ class TestRedirectChaserH9:
         redirect_resp = make_302("https://example.com/loop")
 
         with patch("socket.getaddrinfo", return_value=fake_info):
-            with patch.object(
-                client._client, "get", return_value=redirect_resp
-            ):
+            with patch.object(client._client, "get", return_value=redirect_resp):
                 with pytest.raises(httpx.TooManyRedirects):
                     client.get("https://example.com/", source="user_url")
 
@@ -204,8 +192,7 @@ class TestCacheIntegration:
         fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
         with patch("socket.getaddrinfo", return_value=fake_info):
             with patch.object(
-                client._client, "get",
-                side_effect=AssertionError("should not hit network")
+                client._client, "get", side_effect=AssertionError("should not hit network")
             ):
                 resp = client.get("https://example.com/x", source="user_url")
         assert resp.status_code == 200
@@ -217,15 +204,14 @@ class TestCacheIntegration:
     ) -> None:
         fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
         live = httpx.Response(
-            status_code=200, content=b"live-body",
+            status_code=200,
+            content=b"live-body",
             headers={"Content-Type": "text/plain"},
             request=httpx.Request("GET", "https://example.com/miss"),
         )
         with patch("socket.getaddrinfo", return_value=fake_info):
             with patch.object(client._client, "get", return_value=live):
-                resp = client.get(
-                    "https://example.com/miss", source="user_url"
-                )
+                resp = client.get("https://example.com/miss", source="user_url")
         assert resp.headers.get("X-Sentinel-Cache") == "MISS"
         # Cache is now populated.
         entry = cache.get("https://example.com/miss", "user_url")
@@ -247,30 +233,26 @@ class TestInsecureWarn:
         retry: RetryPolicy,
     ) -> None:
         insecure_client = SentinelHTTPClient(
-            settings=settings, allow_list=allow_list, cache=cache,
-            retry_policy=retry, insecure=True,
+            settings=settings,
+            allow_list=allow_list,
+            cache=cache,
+            retry_policy=retry,
+            insecure=True,
         )
         fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
         live = httpx.Response(
-            status_code=200, content=b"x",
+            status_code=200,
+            content=b"x",
             request=httpx.Request("GET", "https://example.com/"),
         )
         with patch("socket.getaddrinfo", return_value=fake_info):
             # Patch the logger so we can introspect the warning call.
-            with patch.object(
-                insecure_client._log, "warning"
-            ) as mock_warn:
-                with patch.object(
-                    insecure_client._client, "get", return_value=live
-                ):
-                    insecure_client.get(
-                        "https://example.com/", source="user_url"
-                    )
+            with patch.object(insecure_client._log, "warning") as mock_warn:
+                with patch.object(insecure_client._client, "get", return_value=live):
+                    insecure_client.get("https://example.com/", source="user_url")
         mock_warn.assert_called()
         # At least one call mentions TLS disabled.
-        assert any(
-            "tls_verify_disabled" in str(c) for c in mock_warn.call_args_list
-        )
+        assert any("tls_verify_disabled" in str(c) for c in mock_warn.call_args_list)
 
     def test_insecure_sets_httpx_verify_false(
         self,
@@ -280,8 +262,11 @@ class TestInsecureWarn:
         retry: RetryPolicy,
     ) -> None:
         c = SentinelHTTPClient(
-            settings=settings, allow_list=allow_list, cache=cache,
-            retry_policy=retry, insecure=True,
+            settings=settings,
+            allow_list=allow_list,
+            cache=cache,
+            retry_policy=retry,
+            insecure=True,
         )
         # httpx stores verify on the transport; check via _transport or _options.
         # Easiest: the Client's _transport context carries it.  Just assert

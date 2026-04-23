@@ -22,7 +22,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from .exit_codes import (
-    EXIT_INVALID_ARGS, EXIT_IO_ERROR, EXIT_SUCCESS,
+    EXIT_INVALID_ARGS,
+    EXIT_IO_ERROR,
+    EXIT_SUCCESS,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -38,19 +40,21 @@ def _build_http_client():
     from .net.retry import RetryPolicy
 
     settings = get_settings()
-    allow = AllowList(list(settings.network.allow_list.domains)
-                      + list(settings.allow_domain))
+    allow = AllowList(list(settings.network.allow_list.domains) + list(settings.allow_domain))
     ttl = {
-        "aws_docs":      settings.cache.ttl_hours_aws_docs * 3600,
+        "aws_docs": settings.cache.ttl_hours_aws_docs * 3600,
         "policy_sentry": settings.cache.ttl_hours_policy_sentry * 3600,
-        "github":        settings.cache.ttl_hours_github * 3600,
-        "user_url":      settings.cache.ttl_hours_user_url * 3600,
+        "github": settings.cache.ttl_hours_github * 3600,
+        "user_url": settings.cache.ttl_hours_user_url * 3600,
     }
     cache = DiskCache(ttl_seconds_by_source=ttl)
     retry = RetryPolicy.from_settings(settings.retries)
     return SentinelHTTPClient(
-        settings=settings, allow_list=allow, cache=cache,
-        retry_policy=retry, insecure=settings.insecure,
+        settings=settings,
+        allow_list=allow,
+        cache=cache,
+        retry_policy=retry,
+        insecure=settings.insecure,
     )
 
 
@@ -118,9 +122,7 @@ def _dispatch_fetch(args: argparse.Namespace) -> "FetchResult":
         if args.aws_sample:
             return AWSSampleFetcher(client).fetch(args.aws_sample)
         if args.cloudsplaining:
-            return CloudSplainingFetcher(client, settings).fetch(
-                args.cloudsplaining
-            )
+            return CloudSplainingFetcher(client, settings).fetch(args.cloudsplaining)
     finally:
         client.close()
 
@@ -131,8 +133,11 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     """Fetch a policy from a remote source and pipe through the full pipeline."""
     from fetchers.base import FetcherError
     from .cli import (
-        resolve_database, resolve_inventory,
-        _get_formatter, _write_output, _verdict_to_exit_code,
+        resolve_database,
+        resolve_inventory,
+        _get_formatter,
+        _write_output,
+        _verdict_to_exit_code,
     )
     from .models import PolicyInput
     from .self_check import Pipeline, PipelineConfig
@@ -150,7 +155,8 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         _check_alert(fetch_result)
 
     policy_input = PolicyInput(
-        body_bytes=fetch_result.body, origin=fetch_result.origin,
+        body_bytes=fetch_result.body,
+        origin=fetch_result.origin,
     )
     db = resolve_database(args)
     inv = resolve_inventory(args)
@@ -167,9 +173,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         return EXIT_IO_ERROR
     formatter = _get_formatter(args)
     _write_output(args, formatter.format_pipeline_result(result))
-    findings = list(result.risk_findings) + list(
-        getattr(result.self_check_result, "findings", [])
-    )
+    findings = list(result.risk_findings) + list(getattr(result.self_check_result, "findings", []))
     return _verdict_to_exit_code(findings)
 
 

@@ -121,7 +121,7 @@ class ServiceAuthorizationParser(HTMLParser):
             return
 
         # Clean brackets, footnote markers, whitespace
-        action_name = re.sub(r'\s*\[.*?\]', '', action_name).strip()
+        action_name = re.sub(r"\s*\[.*?\]", "", action_name).strip()
 
         entry: Dict[str, str] = {
             "privilege": action_name,
@@ -145,10 +145,12 @@ class ServiceAuthorizationParser(HTMLParser):
         if not resource_name:
             return
 
-        self.resource_types.append({
-            "resource": resource_name,
-            "arn": arn,
-        })
+        self.resource_types.append(
+            {
+                "resource": resource_name,
+                "arn": arn,
+            }
+        )
 
     def _process_condition_keys_row(self, cells: List[str]) -> None:
         """Parse a row from the Condition keys table.
@@ -163,11 +165,13 @@ class ServiceAuthorizationParser(HTMLParser):
         if not condition:
             return
 
-        self.condition_keys.append({
-            "condition": condition,
-            "description": cells[1].strip() if len(cells) > 1 else "",
-            "type": cells[2].strip() if len(cells) > 2 else "String",
-        })
+        self.condition_keys.append(
+            {
+                "condition": condition,
+                "description": cells[1].strip() if len(cells) > 1 else "",
+                "type": cells[2].strip() if len(cells) > 2 else "String",
+            }
+        )
 
 
 class AwsDocsScraper:
@@ -185,7 +189,8 @@ class AwsDocsScraper:
         self.database = database
 
     def load_from_directory(
-        self, html_dir: Path,
+        self,
+        html_dir: Path,
     ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
         """Load all ``*.html`` files from a directory.
 
@@ -214,7 +219,8 @@ class AwsDocsScraper:
         return stats, changelog
 
     def load_from_file(
-        self, html_file: Path,
+        self,
+        html_file: Path,
     ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
         """Load from a single HTML file.
 
@@ -231,9 +237,7 @@ class AwsDocsScraper:
         service_prefix = self._infer_service_prefix(html_file.name, content)
 
         if not service_prefix:
-            stats.errors.append(
-                f"Could not infer service prefix from {html_file.name}"
-            )
+            stats.errors.append(f"Could not infer service prefix from {html_file.name}")
             return stats, changelog
 
         parser = ServiceAuthorizationParser()
@@ -280,34 +284,22 @@ class AwsDocsScraper:
                 errors.append(f"No HTML files found in {data_path}")
             for html_file in files:
                 try:
-                    content = html_file.read_text(
-                        encoding="utf-8", errors="replace"
-                    )
-                    prefix = self._infer_service_prefix(
-                        html_file.name, content
-                    )
+                    content = html_file.read_text(encoding="utf-8", errors="replace")
+                    prefix = self._infer_service_prefix(html_file.name, content)
                     if not prefix:
-                        errors.append(
-                            f"Could not infer service prefix from {html_file.name}"
-                        )
+                        errors.append(f"Could not infer service prefix from {html_file.name}")
                     parser = ServiceAuthorizationParser()
                     parser.feed(content)
                     if not parser.actions:
-                        errors.append(
-                            f"{html_file.name}: No actions found"
-                        )
+                        errors.append(f"{html_file.name}: No actions found")
                 except Exception as e:
                     errors.append(f"{html_file.name}: {e}")
         else:
             try:
-                content = data_path.read_text(
-                    encoding="utf-8", errors="replace"
-                )
+                content = data_path.read_text(encoding="utf-8", errors="replace")
                 prefix = self._infer_service_prefix(data_path.name, content)
                 if not prefix:
-                    errors.append(
-                        f"Could not infer service prefix from {data_path.name}"
-                    )
+                    errors.append(f"Could not infer service prefix from {data_path.name}")
                 parser = ServiceAuthorizationParser()
                 parser.feed(content)
                 if not parser.actions:
@@ -318,7 +310,9 @@ class AwsDocsScraper:
         return errors
 
     def _infer_service_prefix(
-        self, filename: str, content: str,
+        self,
+        filename: str,
+        content: str,
     ) -> str:
         """Infer AWS service prefix from filename or HTML content.
 
@@ -338,16 +332,16 @@ class AwsDocsScraper:
         stem = Path(filename).stem.lower()
 
         # Pattern: list_amazons3, list_awslambda, etc.
-        m = re.match(r'list_(?:amazon|aws)?(.+)', stem)
+        m = re.match(r"list_(?:amazon|aws)?(.+)", stem)
         if m:
             return m.group(1).replace("_", "-")
 
         # Pattern: s3.html, ec2.html
-        if re.match(r'^[a-z0-9\-]+$', stem):
+        if re.match(r"^[a-z0-9\-]+$", stem):
             return stem
 
         # Try HTML content: look for service prefix in code block
-        m = re.search(r'service prefix[:\s]*<code>([a-z0-9\-]+)</code>', content, re.I)
+        m = re.search(r"service prefix[:\s]*<code>([a-z0-9\-]+)</code>", content, re.I)
         if m:
             return m.group(1)
 

@@ -341,12 +341,8 @@ def seed_dangerous_actions(conn: sqlite3.Connection) -> int:
                 "source": SOURCE_SHIPPED,
                 "refreshed_at": now,
             }
-            row_hmac = sign_row(
-                "dangerous_actions", (pattern, category), data
-            )
-            rows.append(
-                (pattern, category, severity, description, SOURCE_SHIPPED, now, row_hmac)
-            )
+            row_hmac = sign_row("dangerous_actions", (pattern, category), data)
+            rows.append((pattern, category, severity, description, SOURCE_SHIPPED, now, row_hmac))
 
     conn.execute(
         "DELETE FROM dangerous_actions WHERE source = ?",
@@ -373,16 +369,10 @@ def seed_companion_rules(conn: sqlite3.Connection) -> int:
                 "source": SOURCE_SHIPPED,
                 "refreshed_at": now,
             }
-            row_hmac = sign_row(
-                "companion_rules", (primary, companion), data
-            )
-            rows.append(
-                (primary, companion, reason, severity, SOURCE_SHIPPED, now, row_hmac)
-            )
+            row_hmac = sign_row("companion_rules", (primary, companion), data)
+            rows.append((primary, companion, reason, severity, SOURCE_SHIPPED, now, row_hmac))
 
-    conn.execute(
-        "DELETE FROM companion_rules WHERE source = ?", (SOURCE_SHIPPED,)
-    )
+    conn.execute("DELETE FROM companion_rules WHERE source = ?", (SOURCE_SHIPPED,))
     conn.executemany(
         "INSERT OR IGNORE INTO companion_rules "
         "(primary_action, companion_action, reason, severity, source, refreshed_at, row_hmac) "
@@ -399,8 +389,7 @@ def seed_action_resource_map(conn: sqlite3.Connection) -> int:
     """
     rows = list(_BASELINE_ACTION_RESOURCE_MAP.items())
     conn.executemany(
-        "INSERT OR IGNORE INTO action_resource_map (action_name, resource_type) "
-        "VALUES (?, ?)",
+        "INSERT OR IGNORE INTO action_resource_map (action_name, resource_type) VALUES (?, ?)",
         rows,
     )
     return len(rows)

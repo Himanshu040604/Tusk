@@ -39,9 +39,7 @@ VALID_SCP = {
             "Effect": "Deny",
             "Action": "s3:*",
             "Resource": "*",
-            "Condition": {
-                "StringNotEquals": {"aws:RequestedRegion": "us-east-1"}
-            },
+            "Condition": {"StringNotEquals": {"aws:RequestedRegion": "us-east-1"}},
         }
     ],
 }
@@ -63,6 +61,7 @@ NOT_A_POLICY = {"name": "some-package", "version": "1.0.0"}
 # ---------------------------------------------------------------------------
 # Helper function tests
 # ---------------------------------------------------------------------------
+
 
 class TestHelperFunctions:
     """Tests for module-level helper functions."""
@@ -115,6 +114,7 @@ class TestHelperFunctions:
 # verify_gh_cli tests
 # ---------------------------------------------------------------------------
 
+
 class TestVerifyGhCli:
     """Tests for gh CLI verification."""
 
@@ -139,22 +139,19 @@ class TestVerifyGhCli:
 # run_gh_api tests
 # ---------------------------------------------------------------------------
 
+
 class TestRunGhApi:
     """Tests for the gh API wrapper."""
 
     @patch("src.refresh.aws_examples.subprocess.run")
     def test_successful_call(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout='{"key": "value"}'
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout='{"key": "value"}')
         result = run_gh_api("repos/owner/repo")
         assert result == {"key": "value"}
 
     @patch("src.refresh.aws_examples.subprocess.run")
     def test_with_params(self, mock_run: MagicMock) -> None:
-        mock_run.return_value = MagicMock(
-            returncode=0, stdout='{"ok": true}'
-        )
+        mock_run.return_value = MagicMock(returncode=0, stdout='{"ok": true}')
         result = run_gh_api("endpoint", params="recursive=1")
         mock_run.assert_called_once()
         call_args = mock_run.call_args[0][0]
@@ -174,6 +171,7 @@ class TestRunGhApi:
 # ---------------------------------------------------------------------------
 # ExampleFetcher tests
 # ---------------------------------------------------------------------------
+
 
 class TestExampleFetcher:
     """Tests for the ExampleFetcher class."""
@@ -195,9 +193,7 @@ class TestExampleFetcher:
                 {"path": "package.json", "type": "blob"},
             ]
         }
-        policy_b64 = base64.b64encode(
-            json.dumps(VALID_IDENTITY).encode()
-        ).decode()
+        policy_b64 = base64.b64encode(json.dumps(VALID_IDENTITY).encode()).decode()
         content_response = {"content": policy_b64}
 
         mock_api.side_effect = [tree_response, content_response]
@@ -234,6 +230,7 @@ class TestExampleFetcher:
 # ---------------------------------------------------------------------------
 # PolicyNormalizer tests
 # ---------------------------------------------------------------------------
+
 
 class TestPolicyNormalizer:
     """Tests for the PolicyNormalizer class."""
@@ -284,9 +281,7 @@ class TestPolicyNormalizer:
         normalizer = PolicyNormalizer(raw, norm)
         normalizer.normalize_all()
 
-        manifest = json.loads(
-            (norm / "manifest.json").read_text(encoding="utf-8")
-        )
+        manifest = json.loads((norm / "manifest.json").read_text(encoding="utf-8"))
         assert manifest["total_policies"] == 1
         assert "my-repo" in manifest["by_repo"]
         entry = manifest["policies"][0]
@@ -318,6 +313,7 @@ class TestPolicyNormalizer:
 # write_manifest tests
 # ---------------------------------------------------------------------------
 
+
 class TestWriteManifest:
     """Tests for the manifest writer."""
 
@@ -344,14 +340,13 @@ class TestWriteManifest:
 # BenchmarkRunner tests
 # ---------------------------------------------------------------------------
 
+
 class TestBenchmarkRunner:
     """Tests for the BenchmarkRunner class."""
 
     def test_run_single_success(self, tmp_path: Path) -> None:
         policy_file = tmp_path / "policy.json"
-        policy_file.write_text(
-            json.dumps(VALID_IDENTITY), encoding="utf-8"
-        )
+        policy_file.write_text(json.dumps(VALID_IDENTITY), encoding="utf-8")
         np = NormalizedPolicy(
             source_repo="test",
             relative_path="test/policy.json",
@@ -391,9 +386,7 @@ class TestBenchmarkRunner:
 
     def test_run_benchmark_all(self, tmp_path: Path) -> None:
         policy_file = tmp_path / "policy.json"
-        policy_file.write_text(
-            json.dumps(VALID_IDENTITY), encoding="utf-8"
-        )
+        policy_file.write_text(json.dumps(VALID_IDENTITY), encoding="utf-8")
         policies = [
             NormalizedPolicy(
                 source_repo="test",
@@ -411,6 +404,7 @@ class TestBenchmarkRunner:
 # ---------------------------------------------------------------------------
 # BenchmarkReporter tests
 # ---------------------------------------------------------------------------
+
 
 class TestBenchmarkReporter:
     """Tests for the BenchmarkReporter class."""
@@ -475,6 +469,7 @@ class TestBenchmarkReporter:
 # ---------------------------------------------------------------------------
 # RepoConfig tests
 # ---------------------------------------------------------------------------
+
 
 class TestRepoConfig:
     """Tests for the RepoConfig dataclass."""

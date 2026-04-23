@@ -9,6 +9,7 @@ Revision ID: 0002_add_verb_prefixes
 Revises: 0001_initial_schema
 Create Date: 2026-04-22
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union

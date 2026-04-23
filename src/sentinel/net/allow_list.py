@@ -40,9 +40,7 @@ class AllowList:
     __slots__ = ("_entries",)
 
     def __init__(self, domains: list[str]) -> None:
-        self._entries: frozenset[str] = frozenset(
-            self._normalize(d) for d in domains if d
-        )
+        self._entries: frozenset[str] = frozenset(self._normalize(d) for d in domains if d)
 
     @staticmethod
     def _normalize(domain: str) -> str:

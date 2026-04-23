@@ -56,9 +56,7 @@ class NonRetryableHTTPError(httpx.HTTPError):
 # HTTP status codes that DO justify a retry.  Anything else 4xx is
 # wrapped in NonRetryableHTTPError.  429 and 5xx are retryable; 408
 # is request-timeout (retryable); the rest of 4xx are permanent.
-_RETRYABLE_STATUS_CODES: Final[frozenset[int]] = frozenset(
-    {408, 425, 429, 500, 502, 503, 504}
-)
+_RETRYABLE_STATUS_CODES: Final[frozenset[int]] = frozenset({408, 425, 429, 500, 502, 503, 504})
 
 
 def is_retryable_status(status_code: int) -> bool:
@@ -152,9 +150,7 @@ class RetryPolicy:
                 if hinted is not None:
                     return hinted
             # Fall back to exponential: base * 2^(attempt-1), capped at 60s.
-            return wait_exponential(
-                multiplier=self.base_wait_seconds, max=60.0
-            )(retry_state)
+            return wait_exponential(multiplier=self.base_wait_seconds, max=60.0)(retry_state)
 
         def _should_retry(exc: BaseException) -> bool:
             # Retry any httpx.HTTPError EXCEPT NonRetryableHTTPError.

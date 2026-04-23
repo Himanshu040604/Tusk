@@ -13,6 +13,7 @@ Revision ID: 0008_add_managed_policies
 Revises: 0007_add_arn_templates
 Create Date: 2026-04-22
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union

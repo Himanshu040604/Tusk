@@ -51,12 +51,16 @@ class BatchFetcher:
                 body = path.read_bytes()
             except PermissionError as exc:
                 self._log.warning(
-                    "batch_permission_denied", path=str(path), error=str(exc),
+                    "batch_permission_denied",
+                    path=str(path),
+                    error=str(exc),
                 )
                 continue
             except OSError as exc:
                 self._log.warning(
-                    "batch_read_failed", path=str(path), error=str(exc),
+                    "batch_read_failed",
+                    path=str(path),
+                    error=str(exc),
                 )
                 continue
             matched_any = True
@@ -66,13 +70,14 @@ class BatchFetcher:
                 body=body,
             )
             yield FetchResult(
-                body=body, headers={}, cache_status="N/A", origin=origin,
+                body=body,
+                headers={},
+                cache_status="N/A",
+                origin=origin,
             )
 
         if not matched_any:
-            raise PolicyNotFoundError(
-                f"no policy files (.json/.txt/.yaml/.yml) under {spec!r}"
-            )
+            raise PolicyNotFoundError(f"no policy files (.json/.txt/.yaml/.yml) under {spec!r}")
 
     def fetch(self, spec: str) -> FetchResult:
         """Protocol compliance — returns the first match only.

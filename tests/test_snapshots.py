@@ -41,8 +41,7 @@ def _canonicalise(obj: object) -> object:
         return {k: _canonicalise(obj[k]) for k in sorted(obj)}
     if isinstance(obj, list):
         canonical_children = [_canonicalise(x) for x in obj]
-        if all(isinstance(c, (int, float, str, bool)) or c is None
-               for c in canonical_children):
+        if all(isinstance(c, (int, float, str, bool)) or c is None for c in canonical_children):
             return sorted(canonical_children, key=lambda x: str(x))
         return sorted(canonical_children, key=lambda x: json.dumps(x, sort_keys=True))
     return obj
@@ -85,8 +84,7 @@ def _snapshot_assert(name: str, actual: dict) -> None:
     if not snap_file.exists():
         snap_file.write_text(payload)
         pytest.skip(
-            f"snapshot {name} did not exist — created.  "
-            f"Re-run the test to assert stability."
+            f"snapshot {name} did not exist — created.  Re-run the test to assert stability."
         )
 
     expected = snap_file.read_text()

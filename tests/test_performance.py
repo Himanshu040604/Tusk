@@ -33,6 +33,7 @@ ACCESS_LEVELS = ["Read", "Write", "List"]
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _rotating_access_level(index: int) -> str:
     """Return an access level rotating through Read, Write, List."""
     return ACCESS_LEVELS[index % len(ACCESS_LEVELS)]
@@ -82,18 +83,20 @@ def _build_db_with_services(tmp_path, num_services, actions_per_service=0):
                 for j in range(actions_per_service):
                     level = _rotating_access_level(j)
                     is_list, is_read, is_write = _access_level_flags(level)
-                    rows.append((
-                        f"svc{i}",
-                        f"Action{j}",
-                        f"Service {i} action {j}",
-                        level,
-                        None,
-                        is_list,
-                        is_read,
-                        is_write,
-                        False,
-                        False,
-                    ))
+                    rows.append(
+                        (
+                            f"svc{i}",
+                            f"Action{j}",
+                            f"Service {i} action {j}",
+                            level,
+                            None,
+                            is_list,
+                            is_read,
+                            is_write,
+                            False,
+                            False,
+                        )
+                    )
             cursor.executemany(
                 "INSERT OR REPLACE INTO actions "
                 "(service_prefix, action_name, description, access_level, "
@@ -175,17 +178,19 @@ def _build_pipeline_db(tmp_path):
         ("HeadObject", "Read", False, True, False),
     ]
     for name, level, is_list, is_read, is_write in s3_actions:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix="s3",
-            action_name=name,
-            full_action=f"s3:{name}",
-            description=f"S3 {name}",
-            access_level=level,
-            is_list=is_list,
-            is_read=is_read,
-            is_write=is_write,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="s3",
+                action_name=name,
+                full_action=f"s3:{name}",
+                description=f"S3 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     ec2_actions = [
         ("DescribeInstances", "List", True, False, False),
@@ -193,50 +198,58 @@ def _build_pipeline_db(tmp_path):
         ("TerminateInstances", "Write", False, False, True),
     ]
     for name, level, is_list, is_read, is_write in ec2_actions:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix="ec2",
-            action_name=name,
-            full_action=f"ec2:{name}",
-            description=f"EC2 {name}",
-            access_level=level,
-            is_list=is_list,
-            is_read=is_read,
-            is_write=is_write,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="ec2",
+                action_name=name,
+                full_action=f"ec2:{name}",
+                description=f"EC2 {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+            )
+        )
 
     for name in ["InvokeFunction", "CreateFunction", "UpdateFunctionCode"]:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix="lambda",
-            action_name=name,
-            full_action=f"lambda:{name}",
-            description=f"Lambda {name}",
-            access_level="Write",
-            is_write=True,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="lambda",
+                action_name=name,
+                full_action=f"lambda:{name}",
+                description=f"Lambda {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     for name in ["CreateLogGroup", "CreateLogStream", "PutLogEvents"]:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix="logs",
-            action_name=name,
-            full_action=f"logs:{name}",
-            description=f"Logs {name}",
-            access_level="Write",
-            is_write=True,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="logs",
+                action_name=name,
+                full_action=f"logs:{name}",
+                description=f"Logs {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     for name in ["Decrypt", "Encrypt", "GenerateDataKey"]:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix="kms",
-            action_name=name,
-            full_action=f"kms:{name}",
-            description=f"KMS {name}",
-            access_level="Write",
-            is_write=True,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="kms",
+                action_name=name,
+                full_action=f"kms:{name}",
+                description=f"KMS {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     iam_actions = [
         ("PassRole", "Permissions management", False, False, False, True),
@@ -245,42 +258,53 @@ def _build_pipeline_db(tmp_path):
         ("GetUser", "Read", False, True, False, False),
     ]
     for name, level, is_list, is_read, is_write, is_perms in iam_actions:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix="iam",
-            action_name=name,
-            full_action=f"iam:{name}",
-            description=f"IAM {name}",
-            access_level=level,
-            is_list=is_list,
-            is_read=is_read,
-            is_write=is_write,
-            is_permissions_management=is_perms,
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="iam",
+                action_name=name,
+                full_action=f"iam:{name}",
+                description=f"IAM {name}",
+                access_level=level,
+                is_list=is_list,
+                is_read=is_read,
+                is_write=is_write,
+                is_permissions_management=is_perms,
+            )
+        )
 
-    for name in ["SendMessage", "ReceiveMessage", "DeleteMessage",
-                  "GetQueueAttributes", "ChangeMessageVisibility"]:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix="sqs",
-            action_name=name,
-            full_action=f"sqs:{name}",
-            description=f"SQS {name}",
-            access_level="Write",
-            is_write=True,
-        ))
+    for name in [
+        "SendMessage",
+        "ReceiveMessage",
+        "DeleteMessage",
+        "GetQueueAttributes",
+        "ChangeMessageVisibility",
+    ]:
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="sqs",
+                action_name=name,
+                full_action=f"sqs:{name}",
+                description=f"SQS {name}",
+                access_level="Write",
+                is_write=True,
+            )
+        )
 
     for name in ["GetItem", "PutItem", "DeleteItem", "Query", "Scan"]:
-        db.insert_action(Action(
-            action_id=None,
-            service_prefix="dynamodb",
-            action_name=name,
-            full_action=f"dynamodb:{name}",
-            description=f"DynamoDB {name}",
-            access_level="Write" if name in ("PutItem", "DeleteItem") else "Read",
-            is_read=name not in ("PutItem", "DeleteItem"),
-            is_write=name in ("PutItem", "DeleteItem"),
-        ))
+        db.insert_action(
+            Action(
+                action_id=None,
+                service_prefix="dynamodb",
+                action_name=name,
+                full_action=f"dynamodb:{name}",
+                description=f"DynamoDB {name}",
+                access_level="Write" if name in ("PutItem", "DeleteItem") else "Read",
+                is_read=name not in ("PutItem", "DeleteItem"),
+                is_write=name in ("PutItem", "DeleteItem"),
+            )
+        )
 
     # Seed Phase 2 baseline so CompanionPermissionDetector / RiskAnalyzer
     # have data for the bulk-load path (required after Task 8 which removed
@@ -350,6 +374,7 @@ def _build_pipeline_inventory(tmp_path):
 # TestLargePolicies
 # ---------------------------------------------------------------------------
 
+
 class TestLargePolicies:
     """Tests for parsing and validating large IAM policies."""
 
@@ -360,25 +385,27 @@ class TestLargePolicies:
 
         statements = []
         for i in range(50):
-            statements.append({
-                "Effect": "Allow",
-                "Action": [f"s3:GetObject"],
-                "Resource": [f"arn:aws:s3:::bucket-{i}/*"],
-            })
+            statements.append(
+                {
+                    "Effect": "Allow",
+                    "Action": [f"s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::bucket-{i}/*"],
+                }
+            )
 
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": statements,
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": statements,
+            }
+        )
 
         start = time.time()
         policy = parser.parse_policy(policy_json)
         results = parser.validate_policy(policy)
         elapsed = time.time() - start
 
-        assert elapsed < MAX_ALLOWED_SECONDS, (
-            f"Parsing 50-statement policy took {elapsed:.2f}s"
-        )
+        assert elapsed < MAX_ALLOWED_SECONDS, f"Parsing 50-statement policy took {elapsed:.2f}s"
         assert len(policy.statements) == 50
         assert len(results) > 0
 
@@ -388,25 +415,25 @@ class TestLargePolicies:
         parser = PolicyParser(db)
 
         actions = [f"s3:Action{i}" for i in range(100)]
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Action": actions,
-                    "Resource": "*",
-                }
-            ],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": actions,
+                        "Resource": "*",
+                    }
+                ],
+            }
+        )
 
         start = time.time()
         policy = parser.parse_policy(policy_json)
         results = parser.validate_policy(policy)
         elapsed = time.time() - start
 
-        assert elapsed < MAX_ALLOWED_SECONDS, (
-            f"Parsing 100-action statement took {elapsed:.2f}s"
-        )
+        assert elapsed < MAX_ALLOWED_SECONDS, f"Parsing 100-action statement took {elapsed:.2f}s"
         assert len(policy.statements) == 1
         assert len(policy.statements[0].actions) == 100
         assert len(results) == 100
@@ -418,22 +445,28 @@ class TestLargePolicies:
 
         statements = []
         for i in range(30):
-            statements.append({
-                "Effect": "Allow",
-                "Action": ["s3:GetObject"],
-                "Resource": [f"arn:aws:s3:::allow-bucket-{i}/*"],
-            })
+            statements.append(
+                {
+                    "Effect": "Allow",
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::allow-bucket-{i}/*"],
+                }
+            )
         for i in range(20):
-            statements.append({
-                "Effect": "Deny",
-                "Action": ["s3:DeleteObject"],
-                "Resource": [f"arn:aws:s3:::deny-bucket-{i}/*"],
-            })
+            statements.append(
+                {
+                    "Effect": "Deny",
+                    "Action": ["s3:DeleteObject"],
+                    "Resource": [f"arn:aws:s3:::deny-bucket-{i}/*"],
+                }
+            )
 
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": statements,
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": statements,
+            }
+        )
 
         start = time.time()
         result = pipeline.run(policy_json)
@@ -450,6 +483,7 @@ class TestLargePolicies:
 # ---------------------------------------------------------------------------
 # TestLargeDatabase
 # ---------------------------------------------------------------------------
+
 
 class TestLargeDatabase:
     """Tests for database operations with large datasets."""
@@ -477,9 +511,7 @@ class TestLargeDatabase:
     def test_db_with_5000_actions(self, tmp_path):
         """Database with 5000 actions across 50 services handles lookups."""
         start = time.time()
-        db = _build_db_with_services(
-            tmp_path, num_services=50, actions_per_service=100
-        )
+        db = _build_db_with_services(tmp_path, num_services=50, actions_per_service=100)
 
         # Verify a sample of actions via lookup
         found_count = 0
@@ -519,6 +551,7 @@ class TestLargeDatabase:
 # ---------------------------------------------------------------------------
 # TestLargeInventory
 # ---------------------------------------------------------------------------
+
 
 class TestLargeInventory:
     """Tests for inventory operations with large datasets."""
@@ -563,6 +596,7 @@ class TestLargeInventory:
 # TestPipelineStress
 # ---------------------------------------------------------------------------
 
+
 class TestPipelineStress:
     """Stress tests for the full pipeline."""
 
@@ -574,28 +608,42 @@ class TestPipelineStress:
 
         statements = []
         known_actions = [
-            "s3:GetObject", "s3:PutObject", "s3:ListBucket",
-            "s3:DeleteObject", "s3:GetBucketPolicy",
-            "ec2:DescribeInstances", "ec2:RunInstances",
+            "s3:GetObject",
+            "s3:PutObject",
+            "s3:ListBucket",
+            "s3:DeleteObject",
+            "s3:GetBucketPolicy",
+            "ec2:DescribeInstances",
+            "ec2:RunInstances",
             "ec2:TerminateInstances",
-            "lambda:InvokeFunction", "lambda:CreateFunction",
-            "kms:Decrypt", "kms:Encrypt",
-            "sqs:SendMessage", "sqs:ReceiveMessage",
-            "dynamodb:GetItem", "dynamodb:PutItem",
-            "dynamodb:Query", "dynamodb:Scan",
-            "iam:GetUser", "logs:CreateLogGroup",
+            "lambda:InvokeFunction",
+            "lambda:CreateFunction",
+            "kms:Decrypt",
+            "kms:Encrypt",
+            "sqs:SendMessage",
+            "sqs:ReceiveMessage",
+            "dynamodb:GetItem",
+            "dynamodb:PutItem",
+            "dynamodb:Query",
+            "dynamodb:Scan",
+            "iam:GetUser",
+            "logs:CreateLogGroup",
         ]
         for i in range(20):
-            statements.append({
-                "Effect": "Allow",
-                "Action": [known_actions[i % len(known_actions)]],
-                "Resource": "*",
-            })
+            statements.append(
+                {
+                    "Effect": "Allow",
+                    "Action": [known_actions[i % len(known_actions)]],
+                    "Resource": "*",
+                }
+            )
 
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": statements,
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": statements,
+            }
+        )
 
         start = time.time()
         result = pipeline.run(policy_json)
@@ -616,22 +664,34 @@ class TestPipelineStress:
 
         # 15 service-level wildcards
         wildcard_actions = [
-            "s3:*", "ec2:*", "lambda:*", "logs:*", "kms:*",
-            "iam:*", "sqs:*", "dynamodb:*",
-            "s3:Get*", "s3:Put*", "s3:List*",
-            "ec2:Describe*", "lambda:Invoke*",
-            "kms:Decrypt", "logs:Create*",
+            "s3:*",
+            "ec2:*",
+            "lambda:*",
+            "logs:*",
+            "kms:*",
+            "iam:*",
+            "sqs:*",
+            "dynamodb:*",
+            "s3:Get*",
+            "s3:Put*",
+            "s3:List*",
+            "ec2:Describe*",
+            "lambda:Invoke*",
+            "kms:Decrypt",
+            "logs:Create*",
         ]
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Action": wildcard_actions,
-                    "Resource": "*",
-                }
-            ],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": wildcard_actions,
+                        "Resource": "*",
+                    }
+                ],
+            }
+        )
 
         start = time.time()
         result = pipeline.run(policy_json)
@@ -661,16 +721,18 @@ class TestPipelineStress:
             "ec2:TerminateInstances",
             "kms:Decrypt",
         ]
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Action": companion_triggering_actions,
-                    "Resource": "*",
-                }
-            ],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": companion_triggering_actions,
+                        "Resource": "*",
+                    }
+                ],
+            }
+        )
 
         config = PipelineConfig(
             add_companions=True,
@@ -697,12 +759,8 @@ class TestPipelineStress:
         assert len(all_rewritten_actions) > 0
 
         # CloudWatch Logs companions from lambda should be present
-        has_logs_companion = any(
-            a.startswith("logs:") for a in all_rewritten_actions
-        )
-        assert has_logs_companion, (
-            "Expected CloudWatch Logs companion actions for lambda triggers"
-        )
+        has_logs_companion = any(a.startswith("logs:") for a in all_rewritten_actions)
+        assert has_logs_companion, "Expected CloudWatch Logs companion actions for lambda triggers"
 
 
 # ---------------------------------------------------------------------------
@@ -725,14 +783,18 @@ class TestColdStartBudget:
         """
         db = _build_pipeline_db(tmp_path)
 
-        policy_json = json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": ["s3:GetObject"],
-                "Resource": "arn:aws:s3:::bucket/*",
-            }],
-        })
+        policy_json = json.dumps(
+            {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Action": ["s3:GetObject"],
+                        "Resource": "arn:aws:s3:::bucket/*",
+                    }
+                ],
+            }
+        )
 
         # Fresh Pipeline + parse round-trip — measures cold instantiation.
         start = time.time()
@@ -760,10 +822,7 @@ class TestSelectolaxBench:
 
     _HTML_TEMPLATE = (
         "<html><body>"
-        + "".join(
-            f'<pre><code>{{"policy_{i}":"Statement"}}</code></pre>'
-            for i in range(1000)
-        )
+        + "".join(f'<pre><code>{{"policy_{i}":"Statement"}}</code></pre>' for i in range(1000))
         + "</body></html>"
     )
 
@@ -823,7 +882,4 @@ class TestSelectolaxBench:
             f"stdlib={stdlib_elapsed:.4f}s ratio={ratio:.1f}x"
         )
         if ratio < 2.0:
-            print(
-                "[H26] TODO: selectolax <2x faster than stdlib — "
-                "reconsider dependency"
-            )
+            print("[H26] TODO: selectolax <2x faster than stdlib — reconsider dependency")

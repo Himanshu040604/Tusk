@@ -124,6 +124,7 @@ def sample_html_dir(tmp_path: Path) -> Path:
 # TestPolicySentryLoader
 # -----------------------------------------------------------------------
 
+
 class TestPolicySentryLoader:
     """Test PolicySentryLoader."""
 
@@ -142,7 +143,7 @@ class TestPolicySentryLoader:
         stats, changelog = loader.load_from_directory(sample_policy_sentry_dir)
 
         assert stats.services_added == 2  # s3 + ec2
-        assert stats.actions_added == 4   # 3 s3 + 1 ec2
+        assert stats.actions_added == 4  # 3 s3 + 1 ec2
 
     def test_access_level_flag_mapping(self, fresh_db: Database, sample_policy_sentry_json: Path):
         loader = PolicySentryLoader(fresh_db)
@@ -171,9 +172,7 @@ class TestPolicySentryLoader:
 
         with fresh_db.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) as c FROM resource_types WHERE service_prefix = 's3'"
-            )
+            cursor.execute("SELECT COUNT(*) as c FROM resource_types WHERE service_prefix = 's3'")
             count = cursor.fetchone()["c"]
         assert count == 2
 
@@ -183,9 +182,7 @@ class TestPolicySentryLoader:
 
         with fresh_db.get_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) as c FROM condition_keys WHERE service_prefix = 's3'"
-            )
+            cursor.execute("SELECT COUNT(*) as c FROM condition_keys WHERE service_prefix = 's3'")
             count = cursor.fetchone()["c"]
         assert count == 2
 
@@ -243,6 +240,7 @@ class TestPolicySentryLoader:
 # -----------------------------------------------------------------------
 # TestDryRun
 # -----------------------------------------------------------------------
+
 
 class TestDryRun:
     """Test dry-run validation."""
@@ -303,6 +301,7 @@ class TestDryRun:
 # TestChangelogEntry
 # -----------------------------------------------------------------------
 
+
 class TestChangelogEntry:
     """Test ChangelogEntry dataclass."""
 
@@ -322,6 +321,7 @@ class TestChangelogEntry:
 # -----------------------------------------------------------------------
 # TestServiceAuthorizationParser
 # -----------------------------------------------------------------------
+
 
 class TestServiceAuthorizationParser:
     """Test the HTML table parser."""
@@ -356,6 +356,7 @@ class TestServiceAuthorizationParser:
 # -----------------------------------------------------------------------
 # TestAwsDocsScraper
 # -----------------------------------------------------------------------
+
 
 class TestAwsDocsScraper:
     """Test AwsDocsScraper."""
@@ -393,7 +394,7 @@ class TestAwsDocsScraper:
 
     def test_infer_service_prefix_from_content(self, fresh_db: Database):
         scraper = AwsDocsScraper(fresh_db)
-        content = '<p>service prefix: <code>dynamodb</code></p>'
+        content = "<p>service prefix: <code>dynamodb</code></p>"
         # Filename with uppercase/spaces won't match the simple stem pattern,
         # forcing the content-based fallback to fire.
         prefix = scraper._infer_service_prefix("Unknown Service.html", content)

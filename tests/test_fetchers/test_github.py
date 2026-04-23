@@ -18,20 +18,17 @@ from sentinel.config import Settings
 
 def _resp(body: bytes = b"{}", cache: str = "MISS") -> httpx.Response:
     return httpx.Response(
-        status_code=200, content=body,
+        status_code=200,
+        content=body,
         headers={"X-Sentinel-Cache": cache},
-        request=httpx.Request(
-            "GET", "https://raw.githubusercontent.com/o/r/main/p.json"
-        ),
+        request=httpx.Request("GET", "https://raw.githubusercontent.com/o/r/main/p.json"),
     )
 
 
 class TestParseSpec:
     def test_owner_repo_path(self) -> None:
         raw, canonical = _parse_spec("acme/policies/p.json")
-        assert raw == (
-            "https://raw.githubusercontent.com/acme/policies/main/p.json"
-        )
+        assert raw == ("https://raw.githubusercontent.com/acme/policies/main/p.json")
         assert canonical == "acme/policies@main/p.json"
 
     def test_nested_path(self) -> None:
@@ -40,16 +37,12 @@ class TestParseSpec:
         assert canonical.endswith("dir/sub/p.json")
 
     def test_github_com_blob_url(self) -> None:
-        raw, canonical = _parse_spec(
-            "https://github.com/acme/policies/blob/dev/p.json"
-        )
+        raw, canonical = _parse_spec("https://github.com/acme/policies/blob/dev/p.json")
         assert raw.startswith("https://raw.githubusercontent.com/")
         assert "@dev" in canonical
 
     def test_raw_url_passed_through(self) -> None:
-        spec = (
-            "https://raw.githubusercontent.com/acme/policies/main/p.json"
-        )
+        spec = "https://raw.githubusercontent.com/acme/policies/main/p.json"
         raw, canonical = _parse_spec(spec)
         assert raw == spec
         assert canonical == "acme/policies@main/p.json"
@@ -83,10 +76,7 @@ class TestGitHubFetcher:
         fetcher = GitHubFetcher(client=client, settings=settings)
         fetcher.fetch("acme/policies/p.json")
         _args, kwargs = client.get.call_args
-        assert (
-            kwargs.get("headers", {}).get("Authorization")
-            == "token ghp_faketoken"
-        )
+        assert kwargs.get("headers", {}).get("Authorization") == "token ghp_faketoken"
 
     def test_no_token_emits_warn_once(self) -> None:
         client = MagicMock()

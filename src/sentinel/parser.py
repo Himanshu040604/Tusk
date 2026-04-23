@@ -70,6 +70,7 @@ class ValidationTier(Enum):
     TIER_2_UNKNOWN: Not in database but plausible format
     TIER_3_INVALID: Invalid format or impossible action name
     """
+
     TIER_1_VALID = "VALID"
     TIER_2_UNKNOWN = "UNKNOWN"
     TIER_3_INVALID = "INVALID"
@@ -77,6 +78,7 @@ class ValidationTier(Enum):
 
 class PolicyParserError(Exception):
     """Base exception for policy parsing errors."""
+
     pass
 
 
@@ -92,6 +94,7 @@ class ValidationResult:
         suggestions: List of suggested corrections if applicable
         confidence: Classification confidence (1.0=DB match, 0.6=known svc, 0.5=wildcard, 0.0=invalid)
     """
+
     action: str
     tier: ValidationTier
     reason: str
@@ -119,6 +122,7 @@ class Statement:
         not_actions: NotAction block if present
         not_resources: NotResource block if present
     """
+
     effect: str
     actions: List[str]
     resources: List[str]
@@ -138,6 +142,7 @@ class Policy:
         statements: List of policy statements
         id: Optional policy ID
     """
+
     version: str
     statements: List[Statement]
     id: str | None = None
@@ -150,10 +155,10 @@ class PolicyParser:
     """
 
     # Valid action name pattern: service:ActionName
-    ACTION_PATTERN = re.compile(r'^[a-z0-9\-]+:[A-Za-z0-9*]+$')
+    ACTION_PATTERN = re.compile(r"^[a-z0-9\-]+:[A-Za-z0-9*]+$")
 
     # Pattern for action names (must start with uppercase or *, no spaces)
-    ACTION_NAME_PATTERN = re.compile(r'^[A-Z*][A-Za-z0-9*]*$')
+    ACTION_NAME_PATTERN = re.compile(r"^[A-Z*][A-Za-z0-9*]*$")
 
     def __init__(self, database: Database | None = None):
         """Initialize parser.
@@ -259,8 +264,7 @@ class PolicyParser:
                 depth += 1
                 if depth > max_depth:
                     raise PolicyParserError(
-                        f"Policy JSON exceeds max nesting depth "
-                        f"({max_depth}); refusing to parse"
+                        f"Policy JSON exceeds max nesting depth ({max_depth}); refusing to parse"
                     )
             elif ch == "}" or ch == "]":
                 if depth > 0:
@@ -279,7 +283,7 @@ class PolicyParser:
             PolicyParserError: If file cannot be read or parsed
         """
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 content = f.read()
             return self.parse_policy(content)
         except FileNotFoundError:
@@ -303,8 +307,7 @@ class PolicyParser:
         """
         if yaml is None:
             raise PolicyParserError(
-                "PyYAML is required for YAML input. "
-                "Install it with: pip install pyyaml"
+                "PyYAML is required for YAML input. Install it with: pip install pyyaml"
             )
         try:
             data = yaml.safe_load(yaml_string)
@@ -312,10 +315,7 @@ class PolicyParser:
             raise PolicyParserError(f"Invalid YAML: {e}")
 
         if not isinstance(data, dict):
-            raise PolicyParserError(
-                "YAML content must be a mapping, got "
-                f"{type(data).__name__}"
-            )
+            raise PolicyParserError(f"YAML content must be a mapping, got {type(data).__name__}")
 
         return self._parse_policy_dict(data)
 
@@ -354,19 +354,16 @@ class PolicyParser:
         # ``'Version' not in data`` raises ``TypeError`` for bools,
         # ints, lists, None, etc.  Caught by hypothesis fuzzing.
         if not isinstance(data, dict):
-            raise PolicyParserError(
-                "Policy root must be a JSON object, got "
-                f"{type(data).__name__}"
-            )
+            raise PolicyParserError(f"Policy root must be a JSON object, got {type(data).__name__}")
 
-        if 'Version' not in data:
+        if "Version" not in data:
             raise PolicyParserError("Policy missing required 'Version' field")
 
-        if 'Statement' not in data:
+        if "Statement" not in data:
             raise PolicyParserError("Policy missing required 'Statement' field")
 
-        version = data['Version']
-        statement_data = data['Statement']
+        version = data["Version"]
+        statement_data = data["Statement"]
 
         # Statement can be a single dict or list of dicts
         if isinstance(statement_data, dict):
@@ -376,11 +373,7 @@ class PolicyParser:
 
         statements = [self._parse_statement(stmt) for stmt in statement_data]
 
-        return Policy(
-            version=version,
-            statements=statements,
-            id=data.get('Id')
-        )
+        return Policy(version=version, statements=statements, id=data.get("Id"))
 
     def _parse_statement(self, stmt: Dict[str, Any]) -> Statement:
         """Parse statement dictionary.
@@ -394,39 +387,33 @@ class PolicyParser:
         Raises:
             PolicyParserError: If required fields missing
         """
-        if 'Effect' not in stmt:
+        if "Effect" not in stmt:
             raise PolicyParserError("Statement missing required 'Effect' field")
 
-        effect = stmt['Effect']
-        if effect not in ['Allow', 'Deny']:
+        effect = stmt["Effect"]
+        if effect not in ["Allow", "Deny"]:
             raise PolicyParserError(f"Invalid Effect: {effect}")
 
         # Get actions (Action or NotAction)
         actions = []
         not_actions = None
 
-        if 'Action' in stmt:
-            action_data = stmt['Action']
+        if "Action" in stmt:
+            action_data = stmt["Action"]
             if not isinstance(action_data, (str, list)):
-                raise PolicyParserError(
-                    "Action must be a string or list of strings"
-                )
+                raise PolicyParserError("Action must be a string or list of strings")
             actions = [action_data] if isinstance(action_data, str) else action_data
             if isinstance(action_data, list) and not all(isinstance(a, str) for a in actions):
-                raise PolicyParserError(
-                    "All Action entries must be strings"
-                )
-        elif 'NotAction' in stmt:
-            not_action_data = stmt['NotAction']
+                raise PolicyParserError("All Action entries must be strings")
+        elif "NotAction" in stmt:
+            not_action_data = stmt["NotAction"]
             if not isinstance(not_action_data, (str, list)):
-                raise PolicyParserError(
-                    "NotAction must be a string or list of strings"
-                )
+                raise PolicyParserError("NotAction must be a string or list of strings")
             not_actions = [not_action_data] if isinstance(not_action_data, str) else not_action_data
-            if isinstance(not_action_data, list) and not all(isinstance(a, str) for a in not_actions):
-                raise PolicyParserError(
-                    "All NotAction entries must be strings"
-                )
+            if isinstance(not_action_data, list) and not all(
+                isinstance(a, str) for a in not_actions
+            ):
+                raise PolicyParserError("All NotAction entries must be strings")
         else:
             raise PolicyParserError("Statement missing 'Action' or 'NotAction'")
 
@@ -434,40 +421,36 @@ class PolicyParser:
         resources = []
         not_resources = None
 
-        if 'Resource' in stmt:
-            resource_data = stmt['Resource']
+        if "Resource" in stmt:
+            resource_data = stmt["Resource"]
             if not isinstance(resource_data, (str, list)):
-                raise PolicyParserError(
-                    "Resource must be a string or list of strings"
-                )
+                raise PolicyParserError("Resource must be a string or list of strings")
             resources = [resource_data] if isinstance(resource_data, str) else resource_data
             if isinstance(resource_data, list) and not all(isinstance(r, str) for r in resources):
-                raise PolicyParserError(
-                    "All Resource entries must be strings"
-                )
-        elif 'NotResource' in stmt:
-            not_resource_data = stmt['NotResource']
+                raise PolicyParserError("All Resource entries must be strings")
+        elif "NotResource" in stmt:
+            not_resource_data = stmt["NotResource"]
             if not isinstance(not_resource_data, (str, list)):
-                raise PolicyParserError(
-                    "NotResource must be a string or list of strings"
-                )
-            not_resources = [not_resource_data] if isinstance(not_resource_data, str) else not_resource_data
-            if isinstance(not_resource_data, list) and not all(isinstance(r, str) for r in not_resources):
-                raise PolicyParserError(
-                    "All NotResource entries must be strings"
-                )
+                raise PolicyParserError("NotResource must be a string or list of strings")
+            not_resources = (
+                [not_resource_data] if isinstance(not_resource_data, str) else not_resource_data
+            )
+            if isinstance(not_resource_data, list) and not all(
+                isinstance(r, str) for r in not_resources
+            ):
+                raise PolicyParserError("All NotResource entries must be strings")
         else:
             raise PolicyParserError("Statement missing 'Resource' or 'NotResource'")
 
         return Statement(
-            sid=stmt.get('Sid'),
+            sid=stmt.get("Sid"),
             effect=effect,
             actions=actions,
             resources=resources,
-            conditions=stmt.get('Condition'),
-            principals=stmt.get('Principal'),
+            conditions=stmt.get("Condition"),
+            principals=stmt.get("Principal"),
             not_actions=not_actions,
-            not_resources=not_resources
+            not_resources=not_resources,
         )
 
     def validate_policy(self, policy: Policy) -> List[ValidationResult]:
@@ -513,7 +496,7 @@ class PolicyParser:
             ValidationResult with classification
         """
         # Handle wildcards
-        if action == '*' or action == '*:*':
+        if action == "*" or action == "*:*":
             return ValidationResult(
                 action=action,
                 tier=ValidationTier.TIER_2_UNKNOWN,
@@ -532,12 +515,12 @@ class PolicyParser:
             )
 
         # Split into service and action name
-        parts = action.split(':', 1)
+        parts = action.split(":", 1)
         service_prefix = parts[0]
         action_name = parts[1]
 
         # Check if contains wildcard
-        if '*' in action:
+        if "*" in action:
             # Validate wildcard pattern
             if not self._is_valid_wildcard(action):
                 return ValidationResult(
@@ -566,7 +549,9 @@ class PolicyParser:
                 action=action,
                 tier=ValidationTier.TIER_3_INVALID,
                 reason=f"Unknown service prefix: {service_prefix}",
-                suggestions=[f"{svc}:{action_name}" for svc in self._find_similar_services(service_prefix)],
+                suggestions=[
+                    f"{svc}:{action_name}" for svc in self._find_similar_services(service_prefix)
+                ],
                 confidence=0.0,
             )
 
@@ -691,10 +676,10 @@ class PolicyParser:
         # *:* is valid
         # Invalid: service:Get*Put, multiple stars
 
-        if action == '*:*':
+        if action == "*:*":
             return True
 
-        parts = action.split(':', 1)
+        parts = action.split(":", 1)
         if len(parts) != 2:
             return False
 
@@ -702,18 +687,18 @@ class PolicyParser:
 
         # Service prefix must be a valid lowercase identifier (not *)
         # Note: *:* is handled above, so * prefix is invalid here
-        if not re.match(r'^[a-z0-9\-]+$', service_prefix):
+        if not re.match(r"^[a-z0-9\-]+$", service_prefix):
             return False
 
         # Action pattern validation
         # Only one wildcard allowed, at start or end
-        star_count = action_pattern.count('*')
+        star_count = action_pattern.count("*")
         if star_count > 1:
             return False
 
         if star_count == 1:
             # Must be at start or end
-            if not (action_pattern.startswith('*') or action_pattern.endswith('*')):
+            if not (action_pattern.startswith("*") or action_pattern.endswith("*")):
                 return False
 
         return True
@@ -727,31 +712,31 @@ class PolicyParser:
         Returns:
             List of expanded actions (or original if no expansion)
         """
-        if '*' not in action:
+        if "*" not in action:
             return [action]
 
         if not self.database:
             return [action]
 
         # Handle full wildcard
-        if action == '*' or action == '*:*':
+        if action == "*" or action == "*:*":
             return [action]
 
         # Handle service:* pattern
-        parts = action.split(':', 1)
+        parts = action.split(":", 1)
         if len(parts) != 2:
             return [action]
 
         service_prefix, action_pattern = parts
 
         # service:*
-        if action_pattern == '*':
+        if action_pattern == "*":
             actions = self.database.get_actions_by_service(service_prefix)
             expanded = [f"{service_prefix}:{a.action_name}" for a in actions]
             return expanded if expanded else [action]
 
         # Prefix/suffix matching: service:Get*, service:*Object
-        if action_pattern.startswith('*'):
+        if action_pattern.startswith("*"):
             suffix = action_pattern[1:]
             actions = self.database.get_actions_by_service(service_prefix)
             expanded = [
@@ -760,7 +745,7 @@ class PolicyParser:
                 if a.action_name.endswith(suffix)
             ]
             return expanded if expanded else [action]
-        elif action_pattern.endswith('*'):
+        elif action_pattern.endswith("*"):
             prefix = action_pattern[:-1]
             actions = self.database.get_actions_by_service(service_prefix)
             expanded = [
@@ -784,10 +769,10 @@ class PolicyParser:
         suggestions = []
 
         # Try to parse service and action
-        if ':' in action:
-            parts = action.split(':', 1)
+        if ":" in action:
+            parts = action.split(":", 1)
             service_prefix = parts[0]
-            action_name = parts[1] if len(parts) > 1 else ''
+            action_name = parts[1] if len(parts) > 1 else ""
 
             # Suggest similar services
             similar_services = self._find_similar_services(service_prefix)
@@ -836,7 +821,7 @@ class PolicyParser:
                 return sorted(similar)[:5]
 
         # 2. If no prefix matches, try character similarity
-        first_char = service_prefix[0] if service_prefix else ''
+        first_char = service_prefix[0] if service_prefix else ""
         for svc in self.known_services:
             if svc and svc[0] == first_char and svc not in similar:
                 similar.append(svc)
@@ -886,12 +871,12 @@ class PolicyParser:
         tier3_count = sum(1 for r in validation_results if r.tier == ValidationTier.TIER_3_INVALID)
 
         return {
-            'version': policy.version,
-            'statement_count': len(policy.statements),
-            'total_actions': len(all_actions),
-            'valid_actions': tier1_count,
-            'unknown_actions': tier2_count,
-            'invalid_actions': tier3_count,
-            'has_wildcards': any('*' in action for action in all_actions),
-            'has_deny_statements': any(stmt.effect == 'Deny' for stmt in policy.statements)
+            "version": policy.version,
+            "statement_count": len(policy.statements),
+            "total_actions": len(all_actions),
+            "valid_actions": tier1_count,
+            "unknown_actions": tier2_count,
+            "invalid_actions": tier3_count,
+            "has_wildcards": any("*" in action for action in all_actions),
+            "has_deny_statements": any(stmt.effect == "Deny" for stmt in policy.statements),
         }

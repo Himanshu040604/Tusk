@@ -122,13 +122,17 @@ class SentinelHTTPClient:
         headers = dict(entry.headers)
         headers["X-Sentinel-Cache"] = "HIT"
         return httpx.Response(
-            status_code=200, content=entry.body,
+            status_code=200,
+            content=entry.body,
             headers=headers,
             request=httpx.Request("GET", entry.url),
         )
 
     def _one_attempt(
-        self, url: str, source: str, headers: dict[str, str] | None,
+        self,
+        url: str,
+        source: str,
+        headers: dict[str, str] | None,
         etag: str | None,
     ) -> tuple[httpx.Response, dict[str, str]]:
         """Issue one HTTP GET and classify the response.
@@ -151,7 +155,8 @@ class SentinelHTTPClient:
             if is_retryable_status(resp.status_code):
                 raise httpx.HTTPStatusError(
                     f"retryable status {resp.status_code}",
-                    request=resp.request, response=resp,
+                    request=resp.request,
+                    response=resp,
                 )
             raise NonRetryableHTTPError(
                 f"non-retryable status {resp.status_code} for {url!r}",
@@ -262,14 +267,18 @@ class SentinelHTTPClient:
                 if 200 <= resp.status_code < 300:
                     # Cache keyed on ORIGINAL url, not current_url.
                     self._cache.put(
-                        url=url, source=source,
+                        url=url,
+                        source=source,
                         body=resp.content,
                         headers=dict(resp.headers),
                         etag=resp.headers.get("ETag"),
                     )
                 self._log.info(
-                    "http_response", url=url, source=source,
-                    status=resp.status_code, cache=cache_status,
+                    "http_response",
+                    url=url,
+                    source=source,
+                    status=resp.status_code,
+                    cache=cache_status,
                     redirect_hops=redirect_count,
                 )
                 return resp
@@ -287,7 +296,8 @@ class SentinelHTTPClient:
                     span.set_attribute("http.status_code", resp.status_code)
                     self._log.warning(
                         "http_redirect_without_location",
-                        url=current_url, status=resp.status_code,
+                        url=current_url,
+                        status=resp.status_code,
                     )
                     return resp
 

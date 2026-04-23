@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 # Data classes
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RepoConfig:
     """Configuration for a single AWS example repository.
@@ -143,6 +144,7 @@ class BenchmarkEntry:
 # Module-level helpers (extracted to keep classes under 100 lines)
 # ---------------------------------------------------------------------------
 
+
 def verify_gh_cli() -> None:
     """Check that the ``gh`` CLI is installed and authenticated.
 
@@ -157,13 +159,9 @@ def verify_gh_cli() -> None:
             timeout=10,
         )
         if result.returncode != 0:
-            raise RuntimeError(
-                "gh CLI is not authenticated. Run: gh auth login"
-            )
+            raise RuntimeError("gh CLI is not authenticated. Run: gh auth login")
     except FileNotFoundError:
-        raise RuntimeError(
-            "gh CLI not found. Install from: https://cli.github.com/"
-        )
+        raise RuntimeError("gh CLI not found. Install from: https://cli.github.com/")
 
 
 def run_gh_api(
@@ -226,9 +224,7 @@ def infer_policy_type(relative_path: str, data: Dict[str, Any]) -> str:
     statements = data.get("Statement", [])
     if isinstance(statements, dict):
         statements = [statements]
-    all_deny = all(
-        s.get("Effect") == "Deny" for s in statements if isinstance(s, dict)
-    )
+    all_deny = all(s.get("Effect") == "Deny" for s in statements if isinstance(s, dict))
     if all_deny and len(statements) > 0:
         return "scp"
     return "identity"
@@ -246,25 +242,21 @@ def write_manifest(
         "policies": [],
     }
     for p in policies:
-        manifest["by_type"][p.policy_type] = (
-            manifest["by_type"].get(p.policy_type, 0) + 1
+        manifest["by_type"][p.policy_type] = manifest["by_type"].get(p.policy_type, 0) + 1
+        manifest["by_repo"][p.source_repo] = manifest["by_repo"].get(p.source_repo, 0) + 1
+        manifest["policies"].append(
+            {
+                "source_repo": p.source_repo,
+                "relative_path": p.relative_path,
+                "category": p.category,
+                "policy_type": p.policy_type,
+                "statement_count": p.statement_count,
+                "uses_not_action": p.uses_not_action,
+                "uses_conditions": p.uses_conditions,
+            }
         )
-        manifest["by_repo"][p.source_repo] = (
-            manifest["by_repo"].get(p.source_repo, 0) + 1
-        )
-        manifest["policies"].append({
-            "source_repo": p.source_repo,
-            "relative_path": p.relative_path,
-            "category": p.category,
-            "policy_type": p.policy_type,
-            "statement_count": p.statement_count,
-            "uses_not_action": p.uses_not_action,
-            "uses_conditions": p.uses_conditions,
-        })
     manifest_path = output_dir / "manifest.json"
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return manifest_path
 
 
@@ -303,6 +295,7 @@ def collect_policy_actions(policy: Any) -> List[str]:
 # ---------------------------------------------------------------------------
 # ExampleFetcher
 # ---------------------------------------------------------------------------
+
 
 class ExampleFetcher:
     """Fetches JSON policy files from AWS GitHub repos via ``gh api``.
@@ -354,9 +347,7 @@ class ExampleFetcher:
             if content is not None:
                 dest = repo_dir / file_path
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                dest.write_text(
-                    json.dumps(content, indent=2) + "\n", encoding="utf-8"
-                )
+                dest.write_text(json.dumps(content, indent=2) + "\n", encoding="utf-8")
                 results.append(dest)
         return results
 
@@ -382,6 +373,7 @@ class ExampleFetcher:
 # ---------------------------------------------------------------------------
 # PolicyNormalizer
 # ---------------------------------------------------------------------------
+
 
 class PolicyNormalizer:
     """Validates and tags downloaded JSON files as IAM policies.
@@ -424,9 +416,7 @@ class PolicyNormalizer:
 
         dest = self.output_dir / relative
         dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_text(
-            json.dumps(data, indent=2) + "\n", encoding="utf-8"
-        )
+        dest.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
         return NormalizedPolicy(
             source_repo=repo_name,
@@ -435,18 +425,15 @@ class PolicyNormalizer:
             policy_type=infer_policy_type(str(relative), data),
             local_path=dest,
             statement_count=len(statements),
-            uses_not_action=any(
-                "NotAction" in s for s in statements if isinstance(s, dict)
-            ),
-            uses_conditions=any(
-                "Condition" in s for s in statements if isinstance(s, dict)
-            ),
+            uses_not_action=any("NotAction" in s for s in statements if isinstance(s, dict)),
+            uses_conditions=any("Condition" in s for s in statements if isinstance(s, dict)),
         )
 
 
 # ---------------------------------------------------------------------------
 # BenchmarkRunner
 # ---------------------------------------------------------------------------
+
 
 class BenchmarkRunner:
     """Feeds normalized policies through the Sentinel pipeline."""
@@ -503,13 +490,9 @@ class BenchmarkRunner:
             rewr = collect_policy_actions(result.rewritten_policy)
             entry.original_action_count = len(orig)
             entry.rewritten_action_count = len(rewr)
-            entry.wildcards_resolved = (
-                count_wildcards(orig) - count_wildcards(rewr)
-            )
+            entry.wildcards_resolved = count_wildcards(orig) - count_wildcards(rewr)
             entry.wildcards_surviving = count_wildcards(rewr)
-            entry.completeness_score = (
-                result.self_check_result.completeness_score
-            )
+            entry.completeness_score = result.self_check_result.completeness_score
         except Exception as exc:
             entry.error = str(exc)
         return entry
@@ -518,6 +501,7 @@ class BenchmarkRunner:
 # ---------------------------------------------------------------------------
 # BenchmarkReporter
 # ---------------------------------------------------------------------------
+
 
 class BenchmarkReporter:
     """Aggregates benchmark results into a structured report."""
@@ -550,14 +534,10 @@ class BenchmarkReporter:
         total_wc_resolved = sum(e.wildcards_resolved for e in succeeded)
         total_wc_surviving = sum(e.wildcards_surviving for e in succeeded)
         n = len(succeeded) or 1
-        avg_completeness = sum(
-            e.completeness_score for e in succeeded
-        ) / n
+        avg_completeness = sum(e.completeness_score for e in succeeded) / n
         avg_elapsed = sum(e.elapsed_ms for e in succeeded) / n
 
-        reduction_pct = format_pct(
-            total_orig - total_rewr, total_orig
-        ) if total_orig > 0 else "N/A"
+        reduction_pct = format_pct(total_orig - total_rewr, total_orig) if total_orig > 0 else "N/A"
         wc_total = total_wc_resolved + total_wc_surviving
         wc_elim_pct = format_pct(total_wc_resolved, wc_total)
 
@@ -565,9 +545,7 @@ class BenchmarkReporter:
         for e in succeeded:
             # Count risk findings by risk_count only (no severity yet)
             if e.risk_count > 0:
-                risk_dist["policies_with_risks"] = (
-                    risk_dist.get("policies_with_risks", 0) + 1
-                )
+                risk_dist["policies_with_risks"] = risk_dist.get("policies_with_risks", 0) + 1
 
         hallucination_catch = format_pct(t3, t3 + t2) if (t3 + t2) else "N/A"
 
@@ -603,9 +581,7 @@ class BenchmarkReporter:
             "by_repo": by_repo,
             "by_category": by_cat,
             "risk_distribution": risk_dist,
-            "failures": [
-                {"path": e.policy_path, "error": e.error} for e in failed
-            ],
+            "failures": [{"path": e.policy_path, "error": e.error} for e in failed],
         }
 
     @staticmethod
@@ -628,24 +604,28 @@ class BenchmarkReporter:
             f"  Total actions:    {t['total_actions']:>5}",
         ]
         if r:
-            lines.extend([
-                "",
-                "--- Least-Privilege Reduction ---",
-                f"  Original actions:       {r['original_actions']}",
-                f"  Rewritten actions:      {r['rewritten_actions']}",
-                f"  Action reduction:       {r['action_reduction_pct']}",
-                f"  Wildcards resolved:     {r['wildcards_resolved']}",
-                f"  Wildcards surviving:    {r['wildcards_surviving']}",
-                f"  Wildcard elimination:   {r['wildcard_elimination_pct']}",
-                f"  Avg completeness:       {r['avg_completeness_score']}",
-                f"  Hallucination catch:    {r['hallucination_catch_rate']}",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "--- Least-Privilege Reduction ---",
+                    f"  Original actions:       {r['original_actions']}",
+                    f"  Rewritten actions:      {r['rewritten_actions']}",
+                    f"  Action reduction:       {r['action_reduction_pct']}",
+                    f"  Wildcards resolved:     {r['wildcards_resolved']}",
+                    f"  Wildcards surviving:    {r['wildcards_surviving']}",
+                    f"  Wildcard elimination:   {r['wildcard_elimination_pct']}",
+                    f"  Avg completeness:       {r['avg_completeness_score']}",
+                    f"  Hallucination catch:    {r['hallucination_catch_rate']}",
+                ]
+            )
         if p:
-            lines.extend([
-                "",
-                "--- Performance ---",
-                f"  Avg pipeline time:      {p['avg_elapsed_ms']:.1f} ms",
-            ])
+            lines.extend(
+                [
+                    "",
+                    "--- Performance ---",
+                    f"  Avg pipeline time:      {p['avg_elapsed_ms']:.1f} ms",
+                ]
+            )
         lines.extend(["", "--- Self-Check Verdicts ---"])
         for verdict, count in report["verdicts"].items():
             lines.append(f"  {verdict}: {count}")

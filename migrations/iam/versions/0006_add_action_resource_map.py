@@ -8,6 +8,7 @@ Revision ID: 0006_add_action_resource_map
 Revises: 0005_add_dangerous_combinations
 Create Date: 2026-04-22
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
