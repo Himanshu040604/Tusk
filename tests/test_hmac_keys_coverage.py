@@ -75,10 +75,15 @@ def test_corrupt_size_key_regenerated_on_clean_install(
     os.chmod(key_file, 0o600)  # Proper mode so perm check passes.
 
     hk._root_key_cached = None
-    key = hk._load_or_create_root_key()
-    assert len(key) == 32, "Key should be regenerated to canonical size"
-    captured = capsys.readouterr()
-    assert "unexpected size" in captured.err
+    try:
+        key = hk._load_or_create_root_key()
+        assert len(key) == 32, "Key should be regenerated to canonical size"
+        captured = capsys.readouterr()
+        assert "unexpected size" in captured.err
+    finally:
+        # Reset so the next test on this xdist worker re-derives from the
+        # session-shared SENTINEL_DATA_DIR (not our tmp_path).
+        hk._reset_cache()
 
 
 # ---------------------------------------------------------------------------
@@ -92,17 +97,22 @@ def test_regenerate_root_key_clears_derived_subkeys(
     """Rotation resets K_cache / K_db so they are re-derived from the new root."""
     monkeypatch.setenv("SENTINEL_DATA_DIR", str(tmp_path))
     hk._reset_cache()
+    try:
+        old_cache = derive_cache_key()
+        old_db = derive_db_row_key()
+        new_root = regenerate_root_key()
 
-    old_cache = derive_cache_key()
-    old_db = derive_db_row_key()
-    new_root = regenerate_root_key()
-
-    assert len(new_root) == 32
-    new_cache = derive_cache_key()
-    new_db = derive_db_row_key()
-    # Both sub-keys MUST differ from their pre-rotation values.
-    assert new_cache != old_cache
-    assert new_db != old_db
+        assert len(new_root) == 32
+        new_cache = derive_cache_key()
+        new_db = derive_db_row_key()
+        # Both sub-keys MUST differ from their pre-rotation values.
+        assert new_cache != old_cache
+        assert new_db != old_db
+    finally:
+        # CRITICAL: reset so the NEXT test on this xdist worker re-derives
+        # K_db from the session-shared SENTINEL_DATA_DIR (not our tmp_path).
+        # Without this, the shared seeded DB's HMAC rows fail verification.
+        hk._reset_cache()
 
 
 # ---------------------------------------------------------------------------
