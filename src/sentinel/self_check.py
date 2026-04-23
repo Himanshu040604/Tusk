@@ -306,6 +306,13 @@ class SelfCheckValidator:
         Flags Tier 3 (invalid) actions as ERROR and Tier 2 (unknown)
         actions as ERROR since they should have been excluded by the rewriter.
 
+        P1-8 β completion (phase 7.1): when ``self.database`` is available,
+        share a single DB connection across the per-action classify loop.
+        Previously each ``classify_action`` call opened its own connection
+        (up to 3 round-trips per action) — for a 20-action rewritten policy
+        that's ~60 connections where 1 suffices.  Mirrors the pattern
+        ``PolicyParser.validate_policy`` uses post-P1-8 β.
+
         Args:
             policy: Rewritten policy to validate.
 
@@ -314,42 +321,66 @@ class SelfCheckValidator:
         """
         findings: List[CheckFinding] = []
 
-        for stmt in policy.statements:
-            for action in stmt.actions:
-                if action == "*" or action == "*:*":
-                    continue
+        if self.database is None:
+            # Fallback: no DB -> per-action classify_action (which returns
+            # TIER_2_UNKNOWN on every action without DB access anyway).
+            for stmt in policy.statements:
+                for action in stmt.actions:
+                    if action == "*" or action == "*:*":
+                        continue
+                    result = self.parser.classify_action(action)
+                    self._append_validate_finding(findings, action, result)
+            return findings
 
-                result = self.parser.classify_action(action)
-
-                if result.tier == ValidationTier.TIER_3_INVALID:
-                    findings.append(
-                        CheckFinding(
-                            check_type="ACTION_VALIDATION",
-                            severity=CheckSeverity.ERROR,
-                            message=(
-                                f"Invalid action '{action}' in rewritten policy: {result.reason}"
-                            ),
-                            action=action,
-                            remediation=f"Remove invalid action '{action}'",
-                        )
-                    )
-                elif result.tier == ValidationTier.TIER_2_UNKNOWN:
-                    findings.append(
-                        CheckFinding(
-                            check_type="TIER2_ACTION_KEPT",
-                            severity=CheckSeverity.WARNING,
-                            message=(
-                                f"Tier 2 unknown action '{action}' kept in "
-                                "rewritten policy (requires manual review)"
-                            ),
-                            action=action,
-                            remediation=(
-                                f"Verify action '{action}' exists or refresh the IAM database"
-                            ),
-                        )
-                    )
+        with self.database.get_connection() as conn:
+            for stmt in policy.statements:
+                for action in stmt.actions:
+                    if action == "*" or action == "*:*":
+                        continue
+                    result = self.parser._classify_action_with_conn(action, conn)
+                    self._append_validate_finding(findings, action, result)
 
         return findings
+
+    def _append_validate_finding(
+        self,
+        findings: List[CheckFinding],
+        action: str,
+        result: ValidationResult,
+    ) -> None:
+        """Append a CheckFinding for a Tier 3 (invalid) or Tier 2 (unknown) action.
+
+        Extracted helper for the shared-connection refactor so both the
+        no-DB fallback path and the shared-connection hot path build
+        findings identically.
+        """
+        if result.tier == ValidationTier.TIER_3_INVALID:
+            findings.append(
+                CheckFinding(
+                    check_type="ACTION_VALIDATION",
+                    severity=CheckSeverity.ERROR,
+                    message=(
+                        f"Invalid action '{action}' in rewritten policy: {result.reason}"
+                    ),
+                    action=action,
+                    remediation=f"Remove invalid action '{action}'",
+                )
+            )
+        elif result.tier == ValidationTier.TIER_2_UNKNOWN:
+            findings.append(
+                CheckFinding(
+                    check_type="TIER2_ACTION_KEPT",
+                    severity=CheckSeverity.WARNING,
+                    message=(
+                        f"Tier 2 unknown action '{action}' kept in "
+                        "rewritten policy (requires manual review)"
+                    ),
+                    action=action,
+                    remediation=(
+                        f"Verify action '{action}' exists or refresh the IAM database"
+                    ),
+                )
+            )
 
     def _check_arn_formats(
         self,
