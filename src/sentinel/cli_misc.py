@@ -259,8 +259,16 @@ def cmd_search(args: argparse.Namespace) -> int:
     cache = DiskCache(ttl_seconds_by_source={"github": 60})  # short TTL for search
     retry = RetryPolicy.from_settings(settings.retries)
     token = settings.github_token.get_secret_value()
-    q = f"{args.query} in:file extension:json"
-    url = f"https://api.github.com/search/code?q={q}&per_page={max(1, min(100, args.limit))}"
+    # P2-12 α — urlencode the query so `&` / `#` / spaces / quotes in
+    # the user's input can't break URL parsing or (worse) inject extra
+    # URL parameters into the GitHub Search call.
+    from urllib.parse import urlencode, quote
+
+    params = {
+        "q": f"{args.query} in:file extension:json",
+        "per_page": max(1, min(100, args.limit)),
+    }
+    url = f"https://api.github.com/search/code?{urlencode(params, quote_via=quote)}"
     with SentinelHTTPClient(
         settings=settings,
         allow_list=allow,
