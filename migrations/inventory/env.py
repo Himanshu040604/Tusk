@@ -8,15 +8,15 @@ history per M18 dual-DB design.
 
 from __future__ import annotations
 
-from logging.config import fileConfig
-
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 config = context.config
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# NOTE (Issue 4, v0.8.0): fileConfig() call removed — Alembic's default
+# logging config hijacks the root logger, producing "setup plugin" /
+# "Context impl SQLiteImpl" noise on every invocation. Sentinel owns its
+# logging via ``sentinel.logging_setup.configure()`` (structlog-based).
 
 target_metadata = None
 
