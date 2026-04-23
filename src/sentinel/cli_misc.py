@@ -124,11 +124,19 @@ def cmd_wizard(args: argparse.Namespace) -> int:
     mapping = mapper.map_intent(intent, service_filter=[service])
     actions = sorted(set(mapping.actions))
     if not actions:
-        actions = [f"{service}:*"]
+        # P1-4 α — refuse to emit a wildcard fallback.  A least-privilege
+        # tool that silently falls back to ``service:*`` when it cannot
+        # classify the intent violates the product's core guarantee.
         print(
-            f"[WARN] IntentMapper produced no actions — falling back to '{service}:*'.",
+            f"[ERROR] Could not classify intent {intent!r} for service {service!r}.",
             file=sys.stderr,
         )
+        print(
+            "Recognized intents: read-only, read-write, write, admin, list, "
+            "deploy, tagging, permissions",
+            file=sys.stderr,
+        )
+        return EXIT_INVALID_ARGS
 
     policy = {
         "Version": "2012-10-17",
