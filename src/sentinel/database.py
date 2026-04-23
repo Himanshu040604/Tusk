@@ -820,6 +820,15 @@ class Database:
     # that created it; all validate_policy use is single-thread.
 
     def _service_exists_with_conn(self, conn: "sqlite3.Connection", service_prefix: str) -> bool:
+        """Check if a service prefix exists using a caller-supplied connection.
+
+        Args:
+            conn: Open sqlite3.Connection owned by the calling thread.
+            service_prefix: AWS service prefix (e.g. ``"s3"``).
+
+        Returns:
+            ``True`` if the prefix is present in the ``services`` table.
+        """
         cursor = conn.cursor()
         cursor.execute(
             "SELECT COUNT(*) as count FROM services WHERE service_prefix = ?",
@@ -831,6 +840,16 @@ class Database:
     def _get_action_with_conn(
         self, conn: "sqlite3.Connection", service_prefix: str, action_name: str
     ) -> "Action | None":
+        """Fetch a single Action row using a caller-supplied connection.
+
+        Args:
+            conn: Open sqlite3.Connection owned by the calling thread.
+            service_prefix: AWS service prefix (e.g. ``"s3"``).
+            action_name: Action name (e.g. ``"GetObject"``).
+
+        Returns:
+            A fully-populated :class:`Action` if the row exists, else ``None``.
+        """
         cursor = conn.cursor()
         cursor.execute(
             """
@@ -862,6 +881,15 @@ class Database:
         )
 
     def _action_exists_with_conn(self, conn: "sqlite3.Connection", full_action: str) -> bool:
+        """Check if a fully-qualified action exists using a caller-supplied connection.
+
+        Args:
+            conn: Open sqlite3.Connection owned by the calling thread.
+            full_action: Dotted action (e.g. ``"s3:GetObject"``).
+
+        Returns:
+            ``True`` if the action is present in the ``actions`` table.
+        """
         parts = full_action.split(":", 1)
         if len(parts) != 2:
             return False
