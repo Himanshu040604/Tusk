@@ -131,6 +131,8 @@ def _dispatch_fetch(args: argparse.Namespace) -> "FetchResult":
 
 def cmd_fetch(args: argparse.Namespace) -> int:
     """Fetch a policy from a remote source and pipe through the full pipeline."""
+    import httpx
+
     from .fetchers.base import FetcherError
     from .cli import (
         resolve_database,
@@ -144,6 +146,16 @@ def cmd_fetch(args: argparse.Namespace) -> int:
 
     try:
         fetch_result = _dispatch_fetch(args)
+    except httpx.InvalidURL as exc:
+        # Issue 6 (v0.8.0): httpx raises InvalidURL for URLs containing
+        # newlines, tabs, or other non-printable characters. Surface an
+        # actionable message at the CLI boundary instead of a raw traceback.
+        print(
+            f"Error: malformed URL — {exc}. "
+            "Check for newlines, tabs, or other non-printable characters in your --url argument.",
+            file=sys.stderr,
+        )
+        return EXIT_INVALID_ARGS
     except FetcherError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_IO_ERROR
