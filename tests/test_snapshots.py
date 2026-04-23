@@ -47,13 +47,18 @@ def _canonicalise(obj: object) -> object:
     return obj
 
 
-def _run_pipeline(fixture_path: Path, tmp_path: Path) -> dict:
-    """Return a canonicalised pipeline summary dict for ``fixture_path``."""
+def _run_pipeline(fixture_path: Path, tmp_path: Path, template: Path) -> dict:
+    """Return a canonicalised pipeline summary dict for ``fixture_path``.
+
+    v0.7.0 (Phase 7.3): accepts ``template`` (the ``migrated_db_template``
+    fixture path) so the per-test DB is a fast-copy of the stamped+seeded
+    session template instead of paying the full migration cost per test.
+    """
     from tests.conftest import make_test_db
     from sentinel.database import Database
     from sentinel.self_check import Pipeline
 
-    db_path = make_test_db(tmp_path)
+    db_path = make_test_db(tmp_path, template=template)
     db = Database(db_path)
     pipeline = Pipeline(database=db)
     policy_json = fixture_path.read_text()
@@ -102,13 +107,13 @@ def _snapshot_assert(name: str, actual: dict) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_wildcard_overuse(tmp_path: Path) -> None:
+def test_wildcard_overuse(tmp_path: Path, migrated_db_template: Path) -> None:
     fixture = FIXTURES / "wildcard_overuse.json"
-    actual = _run_pipeline(fixture, tmp_path)
+    actual = _run_pipeline(fixture, tmp_path, migrated_db_template)
     _snapshot_assert("wildcard_overuse", actual)
 
 
-def test_missing_companions(tmp_path: Path) -> None:
+def test_missing_companions(tmp_path: Path, migrated_db_template: Path) -> None:
     fixture = FIXTURES / "missing_companions.json"
-    actual = _run_pipeline(fixture, tmp_path)
+    actual = _run_pipeline(fixture, tmp_path, migrated_db_template)
     _snapshot_assert("missing_companions", actual)

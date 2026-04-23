@@ -344,7 +344,9 @@ class TestWriteManifest:
 class TestBenchmarkRunner:
     """Tests for the BenchmarkRunner class."""
 
-    def test_run_single_success(self, tmp_path: Path) -> None:
+    def test_run_single_success(
+        self, tmp_path: Path, migrated_db_template: Path
+    ) -> None:
         policy_file = tmp_path / "policy.json"
         policy_file.write_text(json.dumps(VALID_IDENTITY), encoding="utf-8")
         np = NormalizedPolicy(
@@ -356,10 +358,11 @@ class TestBenchmarkRunner:
         )
         # Pipeline(None) now HARD-FAILs (D3 fail-closed); seed a baseline
         # DB via make_test_db so the runner has a RiskAnalyzer-ready DB.
+        # v0.7.0: uses template=migrated_db_template for fast-copy.
         from tests.conftest import make_test_db
         from src.sentinel.database import Database
 
-        db_path = make_test_db(tmp_path)
+        db_path = make_test_db(tmp_path, template=migrated_db_template)
         runner = BenchmarkRunner(database=Database(db_path))
         entry = runner._run_single(np)
 

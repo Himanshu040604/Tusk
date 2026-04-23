@@ -61,11 +61,15 @@ def _insert_managed_policy(
 
 
 @pytest.fixture
-def managed_db(tmp_path: Path):
-    """Fresh Phase-2 DB with two managed policies pre-inserted."""
+def managed_db(tmp_path: Path, migrated_db_template: Path):
+    """Fresh Phase-2 DB with two managed policies pre-inserted.
+
+    v0.7.0 (Phase 7.3): uses ``template=migrated_db_template`` for the
+    session-scoped fast-copy path.
+    """
     from tests.conftest import make_test_db
 
-    db_path = make_test_db(tmp_path)
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
     _insert_managed_policy(
         db_path,
         "ReadOnly",
