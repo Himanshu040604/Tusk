@@ -22,13 +22,11 @@ from pathlib import Path
 from typing import Any, Optional, Set, Tuple
 
 # ---------------------------------------------------------------------------
-# CLI exit codes (pure constants — not "AWS data")
+# CLI exit codes — canonical definitions live in :mod:`sentinel.exit_codes`.
+# Duplicate constants were removed here in Phase 7 (P2-10); importers
+# should read from ``exit_codes`` directly.
 # ---------------------------------------------------------------------------
 
-EXIT_SUCCESS: int = 0
-EXIT_ISSUES_FOUND: int = 1
-EXIT_INVALID_ARGS: int = 2
-EXIT_IO_ERROR: int = 3
 
 # ---------------------------------------------------------------------------
 # Default file paths (pure constants)
@@ -125,10 +123,6 @@ def __dir__() -> list[str]:
     return sorted(
         list(_DYNAMIC_ATTRS.keys())
         + [
-            "EXIT_SUCCESS",
-            "EXIT_ISSUES_FOUND",
-            "EXIT_INVALID_ARGS",
-            "EXIT_IO_ERROR",
             "DEFAULT_DB_PATH",
             "DEFAULT_INVENTORY_PATH",
             "SCHEMA_VERSION",

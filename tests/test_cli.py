@@ -20,13 +20,13 @@ from src.sentinel.cli import (
     resolve_database,
     resolve_inventory,
 )
-from src.sentinel.constants import (
+from src.sentinel.exit_codes import (
     EXIT_SUCCESS,
     EXIT_ISSUES_FOUND,
     EXIT_INVALID_ARGS,
     EXIT_IO_ERROR,
+    EXIT_CRITICAL_FINDING,
 )
-from src.sentinel.exit_codes import EXIT_CRITICAL_FINDING
 from src.sentinel.formatters import TextFormatter, JsonFormatter, MarkdownFormatter
 from src.sentinel.database import Database, Service, Action
 from src.sentinel.inventory import ResourceInventory

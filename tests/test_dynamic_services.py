@@ -22,7 +22,7 @@ from src.sentinel.cli import (
     cmd_export_services,
     cmd_refresh,
 )
-from src.sentinel.constants import EXIT_SUCCESS, EXIT_IO_ERROR
+from src.sentinel.exit_codes import EXIT_SUCCESS, EXIT_IO_ERROR
 
 
 # -----------------------------------------------------------------------
