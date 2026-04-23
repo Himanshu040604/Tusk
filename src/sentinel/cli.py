@@ -838,10 +838,11 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
     try:
         risk_analyzer = RiskAnalyzer(db)
-    except Exception as e:  # noqa: BLE001 — maps DatabaseError + subtypes.
+    except Exception as e:  # noqa: BLE001 — maps DatabaseError + ConfigError.
         from .database import DatabaseError
+        from .config import ConfigError
 
-        if isinstance(e, DatabaseError):
+        if isinstance(e, (DatabaseError, ConfigError)):
             print(f"Error: {e}", file=sys.stderr)
             return EXIT_IO_ERROR
         raise
@@ -894,10 +895,11 @@ def cmd_rewrite(args: argparse.Namespace) -> int:
 
     try:
         rewriter = PolicyRewriter(db, inv)
-    except Exception as e:  # noqa: BLE001 — maps DatabaseError + subtypes.
+    except Exception as e:  # noqa: BLE001 — maps DatabaseError + ConfigError.
         from .database import DatabaseError
+        from .config import ConfigError
 
-        if isinstance(e, DatabaseError):
+        if isinstance(e, (DatabaseError, ConfigError)):
             print(f"Error: {e}", file=sys.stderr)
             return EXIT_IO_ERROR
         raise
