@@ -5,6 +5,103 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-04-22
+
+Phase 7 hardening release.  Fourteen investigator-confirmed issues
+fixed; Agents 1-3 + independent validation converged on a 14-step
+application plan which landed here.  No behaviour change for correct
+data+config paths; a number of previously-silent failure modes now
+fail loudly and correctly.
+
+### Fixed
+
+- **P0-1 alpha - fail-open bulk-load removed.** Four `except Exception:
+  return False/None` blocks that silently swallowed DatabaseError
+  (including HMAC-mismatch) at the bulk-load sites in analyzer.py and
+  rewriter.py were removed.  Corrupted rows now raise `DatabaseError`
+  instead of producing zero findings.
+- **P0-2 gamma - startup-time DB safe-stamp detect-and-abort.** A DB
+  stamped at Alembic HEAD but missing Phase-2 tables (safe-stamp
+  branch without backfill) is detected at migrations time and aborts
+  with EXIT_IO_ERROR + recovery instructions (`delete data/iam_actions.db`
+  then `sentinel info`).
+- **P0-3 alpha + gamma - cold-start `sentinel --version` from ~885ms
+  to ~158ms.** Module-level `from .constants import X` imports in
+  analyzer.py, rewriter.py, and formatters.py triggered the
+  pydantic-settings stack at import time.  Deferred to function
+  scope; class attributes became lazy `@property` accessors.
+- **P1-4 alpha - `cmd_wizard` no longer falls back to `service:*`.**
+  When IntentMapper cannot classify the intent string, the wizard
+  refuses to emit a policy, prints the recognized intent buckets,
+  and exits EXIT_INVALID_ARGS.  Fail-closed per section 2.4.
+- **P1-6 beta - `Database.is_empty` SQL-injection surface hardened.**
+  Two-layer defense: (1) module-level `_EXPECTED_TABLES` frozenset
+  whitelist check before any SQL; (2) even for whitelisted names, a
+  parameterized sqlite_master round-trip validates the name before
+  the row probe; the row probe interpolates `probe[0]` (SQLite's own
+  validated identifier) inside ANSI double-quotes.
+- **P1-7 alpha - cron script uses bash array form** (`read -ra` +
+  `"${_SENTINEL_CMD[@]}"`) to prevent glob injection and IFS attacks.
+- **P1-8 beta - `validate_policy` shares one DB connection** across
+  all `classify_action` calls in its loop.  New
+  `_classify_action_with_conn` helper + three `_with_conn` variants
+  on Database (`_service_exists`, `_action_exists`, `_get_action`).
+  Single-connection path for 100-action policies; public
+  `classify_action` unchanged.
+- **P2-9 alpha - profile `max_retries` now effective.** The
+  profile-merge logic writes the value to all three
+  `retries.budgets.{github, aws_docs, user_url}` keys in addition
+  to the legacy `defaults.max_retries`.
+- **P2-10 alpha - duplicate `EXIT_*` constants removed from
+  `constants.py`.** Single source of truth in `exit_codes.py`.  Two
+  test files updated to import from the canonical location.
+- **P2-12 alpha - GitHub Search URL urlencoded.**  cmd_search now
+  builds the URL via `urllib.parse.urlencode(params, quote_via=quote)`
+  instead of naive f-string concatenation.
+- **P2-13 beta - HMAC key file refuses to load on broad POSIX perms.**
+  `_load_or_create_root_key` stats the key file; if `mode & 0o077`
+  is non-zero, raises `HMACError` with a rotate-key recovery hint.
+  Platform-conditionalized: Windows skips the check (chmod may
+  silently no-op on non-POSIX filesystems).
+- **P2-15 alpha - `IntentMapper` precompiles keyword patterns once.**
+  Word-boundary regex patterns built in `__init__` into
+  `self._compiled_keyword_patterns`; hot-path methods iterate the
+  precompiled list instead of rebuilding regex strings per call.
+
+### Changed
+
+- **P1-5 alpha + Amendment 7 - fetchers + refresh relocated** from
+  `src/fetchers/` and `src/refresh/` to `src/sentinel/fetchers/` and
+  `src/sentinel/refresh/`.  Departure from section 4.2 peer-layout;
+  Amendment 7 appended to prod_imp.md section 17 documents the
+  decision.  30+ cross-package imports rewritten, 17+ test-mock
+  string literals updated, `pyproject.toml` wheel packages collapsed
+  to `["src/sentinel"]`.  Fixes a latent runtime bug where
+  `sentinel refresh` crashed with `ImportError: attempted relative
+  import beyond top-level package`.
+
+### Added
+
+- **P2-11 alpha - `migrated_db_template` fixture implemented.**
+  Session-scoped per xdist worker; stamped at Alembic HEAD + seeded.
+  Individual tests get a fast `shutil.copy2` via a new `template=`
+  parameter on `make_test_db`.
+- **P2-11 alpha - `signed_db_row(table, pk, row_data, *, key=None)`
+  fixture implemented.**  Default path derives K_db from `cache.key`;
+  custom `key` bytes override reimplements the canonical serialization
+  for forgery tests.  Returns a dict ready for INSERT.
+
+### Internal
+
+- **P2-14 alpha - Pipeline eagerly constructs + reuses analyzer /
+  companion detector instances.**  `SelfCheckValidator.__init__`
+  gained two optional keyword-only DI slots; Pipeline passes its
+  pre-built instances through so the self-check retry loop doesn't
+  re-bulk-load the DB up to 3 times per policy.
+- Test conftest reshaped for Group A: per-worker `SENTINEL_DATA_DIR`
+  replaced by a shared session-scoped path so all xdist workers agree
+  on the HMAC key for the shared `data/iam_actions.db`.
+
 ## [0.5.0] - 2026-04-22
 
 The "production migration" release.  The tool evolved from a fully
