@@ -292,13 +292,13 @@ def test_cmd_search_requires_github_token(
 
 
 def test_cmd_managed_list_text(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, migrated_db_template: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """`sentinel managed list` returns success; empty-DB -> hint message."""
     from sentinel.cli_managed import cmd_managed
     from tests.conftest import make_test_db
 
-    db_path = make_test_db(tmp_path)
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
     ns = argparse.Namespace(
         managed_cmd="list",
         database=str(db_path),
@@ -310,7 +310,7 @@ def test_cmd_managed_list_text(
 
 
 def test_cmd_managed_list_json(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, migrated_db_template: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """`sentinel managed list --output-format json` emits a JSON list."""
     import json as _json
@@ -318,7 +318,7 @@ def test_cmd_managed_list_json(
     from sentinel.cli_managed import cmd_managed
     from tests.conftest import make_test_db
 
-    db_path = make_test_db(tmp_path)
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
     ns = argparse.Namespace(
         managed_cmd="list",
         database=str(db_path),
@@ -333,14 +333,14 @@ def test_cmd_managed_list_json(
 
 
 def test_cmd_managed_show_missing_policy(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, migrated_db_template: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """`sentinel managed show <unknown>` returns EXIT_IO_ERROR."""
     from sentinel.exit_codes import EXIT_IO_ERROR as _EXIT_IO_ERROR
     from sentinel.cli_managed import cmd_managed
     from tests.conftest import make_test_db
 
-    db_path = make_test_db(tmp_path)
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
     ns = argparse.Namespace(
         managed_cmd="show",
         database=str(db_path),
@@ -353,13 +353,13 @@ def test_cmd_managed_show_missing_policy(
 
 
 def test_cmd_managed_unknown_subcommand(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, migrated_db_template: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """Unknown `managed` subcommand returns EXIT_INVALID_ARGS."""
     from sentinel.cli_managed import cmd_managed
     from tests.conftest import make_test_db
 
-    db_path = make_test_db(tmp_path)
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
     ns = argparse.Namespace(
         managed_cmd="bogus",
         database=str(db_path),
