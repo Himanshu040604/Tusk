@@ -20,7 +20,7 @@ from __future__ import annotations
 import os
 import shutil
 from pathlib import Path
-from typing import Iterator, Optional
+from typing import Iterator
 
 import pytest
 
@@ -120,29 +120,28 @@ def migrated_db_template(
     tmp_path_factory: pytest.TempPathFactory,
     worker_id: str,
 ) -> Path:
-    """Create one stamped-at-head DB template per xdist worker session.
+    """Create one stamped-at-HEAD + seeded DB template per xdist worker session.
 
-    Individual tests get a fast ``shutil.copy2`` of this template into their
-    own ``tmp_path``, avoiding N tests * 519 per-test migration cost once
-    Alembic migrations land in Phase 2.
+    Phase 7 P2-11 α (per prod_imp.md § 12 Phase 1.5 Task 2): runs
+    ``check_and_upgrade_all_dbs(path, None)`` to stamp/upgrade the template
+    to Alembic HEAD, then ``seed_all_baseline(path)`` to populate shipped
+    baseline rows.  Individual tests that need a realistic DB call
+    ``shutil.copy2(migrated_db_template, tmp_path / "test.db")`` for a
+    fast per-test copy instead of paying the migration cost N times.
 
-    Phase 1.5 stub: no migrations exist yet, so we only create a plain
-    unstamped schema via ``Database(path).create_schema()``.  The Phase 2
-    follow-up replaces the stub body with ``check_and_upgrade_db(path)``
-    to stamp the template at the current Alembic HEAD revision.
+    Per-worker via ``tmp_path_factory.mktemp(f"sentinel-template-{worker_id}")``
+    so xdist parallel runs don't race on the same template file.
 
     Returns:
         Path to the on-disk template DB (session-lived, per-worker).
     """
-    # TODO(Phase 2 Task 5): once migrations.py exists, call
-    # check_and_upgrade_db(path) here to stamp the template at the Alembic HEAD
-    # revision. Then individual tests get a fast shutil.copy2 of the stamped
-    # template, avoiding N × 519 per-test migration cost.
-    from sentinel.database import Database
+    from sentinel.migrations import check_and_upgrade_all_dbs
+    from sentinel.seed_data import seed_all_baseline
 
-    template_dir = tmp_path_factory.mktemp(f"db-template-{worker_id}")
+    template_dir = tmp_path_factory.mktemp(f"sentinel-template-{worker_id}")
     path = template_dir / "template.db"
-    Database(path).create_schema()
+    check_and_upgrade_all_dbs(path, None)
+    seed_all_baseline(path)
     return path
 
 
@@ -151,7 +150,12 @@ def migrated_db_template(
 # ---------------------------------------------------------------------------
 
 
-def make_test_db(tmp_path: Path, *, seed: bool = True) -> Path:
+def make_test_db(
+    tmp_path: Path,
+    *,
+    seed: bool = True,
+    template: Path | None = None,
+) -> Path:
     """Create a fresh Phase-2-ready test DB in ``tmp_path`` and return its path.
 
     Phase 2 Task 0 evolution of the original helper.  Beyond
@@ -172,14 +176,28 @@ def make_test_db(tmp_path: Path, *, seed: bool = True) -> Path:
         tmp_path: per-test temp directory (pytest ``tmp_path`` fixture).
         seed: If False, skip ``seed_all_baseline`` — for tests that
             specifically exercise the empty-table bulk-load path.
+        template: P2-11 α — optional session-scoped template DB
+            (from the ``migrated_db_template`` fixture).  If provided,
+            ``shutil.copy2`` the template instead of running migrations
+            + seeding from scratch — one migration per session instead
+            of one per test.  Respects ``seed=False`` by skipping the
+            copy path and falling through to the cold-rebuild branch.
 
     Returns:
         Absolute path to a migrated (+ optionally seeded) SQLite DB.
     """
+    path = tmp_path / "test.db"
+
+    if template is not None and seed:
+        # P2-11 α fast path — template already has HEAD schema + shipped
+        # rows signed with the current K_db.  Copy takes ~1ms vs
+        # ~200ms to run 8 migrations + re-seed.
+        shutil.copy2(template, path)
+        return path
+
     from sentinel.migrations import check_and_upgrade_all_dbs
     from sentinel.seed_data import seed_all_baseline
 
-    path = tmp_path / "test.db"
     # IMPORTANT: do NOT call Database(path).create_schema() here.  That would
     # create Phase-1 tables first, which flips _db_has_tables() to True and
     # forces migrations.py into the safe-stamp branch (Branch 2) — stamping
@@ -199,33 +217,56 @@ def make_test_db(tmp_path: Path, *, seed: bool = True) -> Path:
     return path
 
 
-def signed_db_row(*_args, **_kwargs) -> dict:  # type: ignore[no-untyped-def]
-    """Return a dict containing a DB row plus a correct ``row_hmac`` column.
+def signed_db_row(
+    table: str,
+    pk: tuple,
+    row_data: dict,
+    *,
+    key: bytes | None = None,
+) -> dict:
+    """Return a dict of ``row_data`` plus a correct ``row_hmac`` column.
 
-    Stub for Phase 2 Task 6a (HMAC row signing).  The eventual signature is::
+    Phase 7 P2-11 α (per prod_imp.md § 12 Phase 1.5 Task 4 + § 12 Phase 2
+    Task 6a).  Computes the HMAC-SHA256 digest of
+    ``(table, pk, row_data)`` using ``hmac_keys.sign_row`` and returns
+    ``{**row_data, "row_hmac": <hex digest>}`` — directly insertable
+    into the HMAC-signed Phase-2 tables (``dangerous_actions``,
+    ``companion_rules``, etc.).
 
-        def signed_db_row(
-            table: str,
-            pk: tuple,
-            data: Mapping[str, object],
-            *,
-            key: Optional[bytes] = None,
-        ) -> dict
+    Args:
+        table: SQL table name (e.g. ``"dangerous_actions"``).
+        pk: Primary-key tuple — stringified at sign time.
+        row_data: All other columns, must NOT contain ``row_hmac``.
+        key: Optional bytes override — if supplied, recomputes the HMAC
+            with this key instead of the per-install K_db.  Used by
+            tests that want to inject a known key without touching
+            ``$SENTINEL_DATA_DIR``.
 
-    — it will derive the per-install HMAC key from
-    ``$SENTINEL_DATA_DIR/cache.key`` (or the ``key`` override) and return
-    ``{**data, "row_hmac": <hex digest>}`` ready for ``INSERT`` in test
-    fixtures.  Phase 1.5 ships only the import-surface stub so Phase 2 Task
-    6a can land without churning every test file.
-
-    Raises:
-        NotImplementedError: always — implementation deferred to Phase 2
-            Task 6a.  See ``prod_imp.md`` § 12 Phase 2 Task 6a.
+    Returns:
+        Shallow copy of ``row_data`` with ``row_hmac`` added.
     """
-    raise NotImplementedError(
-        "signed_db_row: pending Phase 2 Task 6a HMAC implementation — "
-        "see prod_imp.md § 12 Phase 2 Task 6a"
-    )
+    if key is None:
+        from sentinel.hmac_keys import sign_row
+
+        digest = sign_row(table, tuple(pk), row_data)
+    else:
+        # Custom-key variant — reimplement the same canonical serialization
+        # as hmac_keys.sign_row so forgery tests can use a known K.
+        import hashlib
+        import hmac as _hmac
+
+        if "row_hmac" in row_data:
+            raise ValueError("row_data must not include 'row_hmac' — it's the output")
+        parts: list[bytes] = [table.encode("utf-8")]
+        parts.extend(str(v).encode("utf-8") for v in pk)
+        for k in sorted(row_data.keys()):
+            parts.append(k.encode("utf-8"))
+            parts.append(b"\x1f")
+            parts.append(str(row_data[k]).encode("utf-8"))
+            parts.append(b"\x1e")
+        msg = b"\x1e".join(parts)
+        digest = _hmac.new(key, msg, hashlib.sha256).hexdigest()
+    return {**row_data, "row_hmac": digest}
 
 
 # ---------------------------------------------------------------------------
