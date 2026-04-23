@@ -768,6 +768,62 @@ class Database:
         service_prefix, action_name = parts
         return self.get_action(service_prefix, action_name) is not None
 
+    # -- P1-8 β shared-connection variants ----------------------------------
+    #
+    # Hot-path callers (``PolicyParser.validate_policy``) that classify many
+    # actions back-to-back can open one connection and reuse it via these
+    # ``_with_conn`` variants.  Saves ~2ms per action in cold SQLite.  The
+    # sqlite3 module requires the Connection to be used only by the thread
+    # that created it; all validate_policy use is single-thread.
+
+    def _service_exists_with_conn(self, conn: "sqlite3.Connection", service_prefix: str) -> bool:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM services WHERE service_prefix = ?",
+            (service_prefix,),
+        )
+        row = cursor.fetchone()
+        return bool(row and row[0] > 0)
+
+    def _get_action_with_conn(
+        self, conn: "sqlite3.Connection", service_prefix: str, action_name: str
+    ) -> "Action | None":
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT action_id, service_prefix, action_name,
+                   service_prefix || ':' || action_name as full_action,
+                   description, access_level, is_list, is_read, is_write,
+                   is_permissions_management, is_tagging_only, reference_url
+            FROM actions
+            WHERE service_prefix = ? AND action_name = ?
+            """,
+            (service_prefix, action_name),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return Action(
+            action_id=row["action_id"],
+            service_prefix=row["service_prefix"],
+            action_name=row["action_name"],
+            full_action=row["full_action"],
+            description=row["description"],
+            access_level=row["access_level"],
+            is_list=bool(row["is_list"]),
+            is_read=bool(row["is_read"]),
+            is_write=bool(row["is_write"]),
+            is_permissions_management=bool(row["is_permissions_management"]),
+            is_tagging_only=bool(row["is_tagging_only"]),
+            reference_url=row["reference_url"],
+        )
+
+    def _action_exists_with_conn(self, conn: "sqlite3.Connection", full_action: str) -> bool:
+        parts = full_action.split(":", 1)
+        if len(parts) != 2:
+            return False
+        return self._get_action_with_conn(conn, parts[0], parts[1]) is not None
+
     def service_exists(self, service_prefix: str) -> bool:
         """Check if service exists in database.
 

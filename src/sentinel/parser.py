@@ -456,6 +456,11 @@ class PolicyParser:
     def validate_policy(self, policy: Policy) -> List[ValidationResult]:
         """Validate all actions in policy.
 
+        P1-8 β — opens ONE DB connection outside the classify loop and
+        reuses it across every classify_action call, avoiding N*3 fresh
+        sqlite3.connect() round-trips.  Falls back to the per-call
+        classify_action() path if no database is wired.
+
         Args:
             policy: Policy object to validate
 
@@ -465,20 +470,26 @@ class PolicyParser:
         results = []
         seen_actions = set()
 
+        actions_flat: list[str] = []
         for statement in policy.statements:
-            # Validate both Action and NotAction entries
             actions_to_validate = list(statement.actions)
             if statement.not_actions:
                 actions_to_validate.extend(statement.not_actions)
             for action in actions_to_validate:
-                # Expand wildcards
-                expanded = self._expand_action_wildcard(action)
-
-                for expanded_action in expanded:
+                for expanded_action in self._expand_action_wildcard(action):
                     if expanded_action not in seen_actions:
                         seen_actions.add(expanded_action)
-                        result = self.classify_action(expanded_action)
-                        results.append(result)
+                        actions_flat.append(expanded_action)
+
+        if self.database is None:
+            for expanded in actions_flat:
+                results.append(self.classify_action(expanded))
+            return results
+
+        # Shared-connection fast path.
+        with self.database.get_connection() as conn:
+            for expanded in actions_flat:
+                results.append(self._classify_action_with_conn(expanded, conn))
 
         return results
 
@@ -581,6 +592,102 @@ class PolicyParser:
             )
 
         # Tier 3: Invalid
+        return ValidationResult(
+            action=action,
+            tier=ValidationTier.TIER_3_INVALID,
+            reason=self._get_invalid_reason(service_prefix, action_name),
+            suggestions=self._suggest_corrections(action),
+            confidence=0.0,
+        )
+
+    def _classify_action_with_conn(
+        self, action: str, conn: "sqlite3.Connection"
+    ) -> ValidationResult:
+        """P1-8 β — classify_action variant that reuses a shared DB conn.
+
+        Identical logic to ``classify_action`` but routes the three DB
+        lookups (``service_exists``, ``action_exists``, ``get_action``)
+        through the ``_with_conn`` helpers on the Database class, so a
+        caller iterating many actions can share a single connection.
+        Keeps the per-call ``try/except (sqlite3.Error, OSError,
+        DatabaseError)`` pattern for per-action isolation of mid-loop
+        DB errors.
+        """
+        # Wildcards / format checks are pure logic — identical to classify_action.
+        if action == "*" or action == "*:*":
+            return ValidationResult(
+                action=action,
+                tier=ValidationTier.TIER_2_UNKNOWN,
+                reason="Wildcard action grants all permissions",
+                confidence=0.5,
+            )
+        if not self.ACTION_PATTERN.match(action):
+            return ValidationResult(
+                action=action,
+                tier=ValidationTier.TIER_3_INVALID,
+                reason="Invalid action format. Expected 'service:ActionName'",
+                suggestions=self._suggest_corrections(action),
+                confidence=0.0,
+            )
+        parts = action.split(":", 1)
+        service_prefix = parts[0]
+        action_name = parts[1]
+
+        if "*" in action:
+            if not self._is_valid_wildcard(action):
+                return ValidationResult(
+                    action=action,
+                    tier=ValidationTier.TIER_3_INVALID,
+                    reason="Invalid wildcard pattern",
+                    confidence=0.0,
+                )
+            service_known = service_prefix in self.known_services
+            if not service_known and self.database:
+                try:
+                    service_known = self.database._service_exists_with_conn(conn, service_prefix)
+                except (sqlite3.Error, OSError, _DatabaseError):
+                    pass
+            if service_known:
+                return ValidationResult(
+                    action=action,
+                    tier=ValidationTier.TIER_2_UNKNOWN,
+                    reason=f"Wildcard action for known service '{service_prefix}'",
+                    confidence=0.5,
+                )
+            return ValidationResult(
+                action=action,
+                tier=ValidationTier.TIER_3_INVALID,
+                reason=f"Unknown service prefix: {service_prefix}",
+                suggestions=[
+                    f"{svc}:{action_name}" for svc in self._find_similar_services(service_prefix)
+                ],
+                confidence=0.0,
+            )
+
+        if self.database:
+            try:
+                if self.database._action_exists_with_conn(conn, action):
+                    db_action = self.database._get_action_with_conn(
+                        conn, service_prefix, action_name
+                    )
+                    return ValidationResult(
+                        action=action,
+                        tier=ValidationTier.TIER_1_VALID,
+                        reason="Action found in IAM database",
+                        access_level=db_action.access_level if db_action else None,
+                        confidence=1.0,
+                    )
+            except (sqlite3.Error, OSError, _DatabaseError):
+                pass
+
+        if self._is_plausible_action(service_prefix, action_name):
+            return ValidationResult(
+                action=action,
+                tier=ValidationTier.TIER_2_UNKNOWN,
+                reason=self._get_tier2_reason(service_prefix),
+                confidence=0.6,
+            )
+
         return ValidationResult(
             action=action,
             tier=ValidationTier.TIER_3_INVALID,
