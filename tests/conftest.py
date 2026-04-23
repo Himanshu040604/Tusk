@@ -81,6 +81,11 @@ def _sentinel_data_dir_per_worker(
     # Rebuild the default shared DB in-place so the row HMACs match the
     # shared key.  Filelock inside check_and_upgrade_all_dbs serializes
     # concurrent rebuilds; seed_all_baseline is idempotent (DELETE+INSERT).
+    #
+    # Phase 7.1: previously this was wrapped in `except Exception: pass` —
+    # a silent failure here means production is broken but the test suite
+    # still reports 715/715 green.  That is the exact P0-1 α fail-open
+    # pattern reintroduced at the test-harness layer.  Fail loudly instead.
     try:
         from pathlib import Path as _P
 
@@ -91,10 +96,8 @@ def _sentinel_data_dir_per_worker(
         _default_db.parent.mkdir(parents=True, exist_ok=True)
         check_and_upgrade_all_dbs(_default_db, None)
         seed_all_baseline(_default_db)
-    except Exception:
-        # Best-effort — tests that don't need the shared DB will still pass.
-        # Tests that do will surface the error explicitly via their own path.
-        pass
+    except Exception as exc:  # noqa: BLE001 — fail loudly; do not silence.
+        pytest.fail(f"Shared DB rebuild failed: {exc}")
 
     try:
         yield data_dir
