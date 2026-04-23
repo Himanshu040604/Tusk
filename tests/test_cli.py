@@ -101,6 +101,22 @@ def tmp_wildcard_policy(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def cli_db_path(tmp_path: Path, migrated_db_template: Path) -> str:
+    """v0.7.0 (Phase 7.3) — per-test DB path string for cmd_* handlers.
+
+    Returns the string path of a template-backed DB that's safe to pass
+    as ``database=`` on ``argparse.Namespace`` constructs used to drive
+    ``cmd_run``/``cmd_analyze``/``cmd_rewrite`` in isolation.  Previously
+    these tests relied on ``database=None`` which fell back to the shared
+    ``data/iam_actions.db`` at repo root — a shared-state source of
+    the v0.6.2 serial-mode HMAC failures.
+    """
+    from tests.conftest import make_test_db
+
+    return str(make_test_db(tmp_path, template=migrated_db_template))
+
+
+@pytest.fixture
 def fresh_db(tmp_path: Path) -> Database:
     """Create a fresh database with schema."""
     db = Database(tmp_path / "test.db")
@@ -340,10 +356,12 @@ class TestCmdValidate:
 class TestCmdRun:
     """Test the run subcommand handler."""
 
-    def test_run_pipeline_returns_exit_code(self, tmp_policy_file: Path):
+    def test_run_pipeline_returns_exit_code(
+        self, tmp_policy_file: Path, cli_db_path: str
+    ):
         args = Namespace(
             policy_file=str(tmp_policy_file),
-            database=None,
+            database=cli_db_path,
             inventory=None,
             output_format="text",
             output=None,
@@ -361,10 +379,12 @@ class TestCmdRun:
         # Without DB, self-check may find warnings
         assert code in (EXIT_SUCCESS, EXIT_ISSUES_FOUND)
 
-    def test_run_pipeline_with_intent(self, tmp_policy_file: Path):
+    def test_run_pipeline_with_intent(
+        self, tmp_policy_file: Path, cli_db_path: str
+    ):
         args = Namespace(
             policy_file=str(tmp_policy_file),
-            database=None,
+            database=cli_db_path,
             inventory=None,
             output_format="json",
             output=None,
@@ -381,10 +401,10 @@ class TestCmdRun:
         code = cmd_run(args)
         assert code in (EXIT_SUCCESS, EXIT_ISSUES_FOUND)
 
-    def test_run_strict_mode(self, tmp_wildcard_policy: Path):
+    def test_run_strict_mode(self, tmp_wildcard_policy: Path, cli_db_path: str):
         args = Namespace(
             policy_file=str(tmp_wildcard_policy),
-            database=None,
+            database=cli_db_path,
             inventory=None,
             output_format="text",
             output=None,
@@ -404,12 +424,12 @@ class TestCmdRun:
         # with EXIT_CRITICAL_FINDING (4) rather than EXIT_ISSUES_FOUND (1).
         assert code in (EXIT_ISSUES_FOUND, EXIT_CRITICAL_FINDING)
 
-    def test_run_invalid_json(self, tmp_path: Path):
+    def test_run_invalid_json(self, tmp_path: Path, cli_db_path: str):
         bad = tmp_path / "bad.json"
         bad.write_text("not json", encoding="utf-8")
         args = Namespace(
             policy_file=str(bad),
-            database=None,
+            database=cli_db_path,
             inventory=None,
             output_format="text",
             output=None,
@@ -685,7 +705,7 @@ class TestCmdAnalyze:
     """Test the analyze subcommand handler."""
 
     def test_analyze_policy_with_exfil_risk_exits_issues_found(
-        self, tmp_policy_file: Path
+        self, tmp_policy_file: Path, cli_db_path: str
     ):
         """v0.6.2 split (was `test_analyze_returns_success_for_safe_policy`):
         strict assertion that s3:GetObject is classified as MEDIUM
@@ -698,7 +718,7 @@ class TestCmdAnalyze:
         """
         args = Namespace(
             policy_file=str(tmp_policy_file),
-            database=None,
+            database=cli_db_path,
             inventory=None,
             output_format="text",
             output=None,
@@ -711,7 +731,9 @@ class TestCmdAnalyze:
             f"s3:GetObject exfil classification; got {code}."
         )
 
-    def test_analyze_truly_safe_policy_exits_success(self, tmp_path: Path):
+    def test_analyze_truly_safe_policy_exits_success(
+        self, tmp_path: Path, cli_db_path: str
+    ):
         """v0.6.2 split: a policy containing only a List-tier action with
         no exfil/destruction/escalation classification must return
         EXIT_SUCCESS strictly.
@@ -736,7 +758,7 @@ class TestCmdAnalyze:
         )
         args = Namespace(
             policy_file=str(safe),
-            database=None,
+            database=cli_db_path,
             inventory=None,
             output_format="text",
             output=None,
@@ -748,10 +770,12 @@ class TestCmdAnalyze:
             f"Expected EXIT_SUCCESS ({EXIT_SUCCESS}) for safe policy; got {code}."
         )
 
-    def test_analyze_wildcard_returns_issues(self, tmp_wildcard_policy: Path):
+    def test_analyze_wildcard_returns_issues(
+        self, tmp_wildcard_policy: Path, cli_db_path: str
+    ):
         args = Namespace(
             policy_file=str(tmp_wildcard_policy),
-            database=None,
+            database=cli_db_path,
             inventory=None,
             output_format="text",
             output=None,
@@ -771,10 +795,12 @@ class TestCmdAnalyze:
 class TestCmdRewrite:
     """Test the rewrite subcommand handler."""
 
-    def test_rewrite_returns_success(self, tmp_policy_file: Path):
+    def test_rewrite_returns_success(
+        self, tmp_policy_file: Path, cli_db_path: str
+    ):
         args = Namespace(
             policy_file=str(tmp_policy_file),
-            database=None,
+            database=cli_db_path,
             inventory=None,
             output_format="text",
             output=None,
@@ -788,11 +814,13 @@ class TestCmdRewrite:
         code = cmd_rewrite(args)
         assert code == EXIT_SUCCESS
 
-    def test_rewrite_json_output(self, tmp_policy_file: Path, tmp_path: Path):
+    def test_rewrite_json_output(
+        self, tmp_policy_file: Path, tmp_path: Path, cli_db_path: str
+    ):
         out_file = tmp_path / "rewritten.json"
         args = Namespace(
             policy_file=str(tmp_policy_file),
-            database=None,
+            database=cli_db_path,
             inventory=None,
             output_format="json",
             output=str(out_file),
