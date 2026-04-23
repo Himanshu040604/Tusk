@@ -194,18 +194,27 @@ class SelfCheckValidator:
         self,
         database: Database | None = None,
         inventory: ResourceInventory | None = None,
+        *,
+        risk_analyzer: RiskAnalyzer | None = None,
+        companion_detector: CompanionPermissionDetector | None = None,
     ):
         """Initialize self-check validator.
 
         Args:
             database: Optional Database instance for action lookups.
             inventory: Optional ResourceInventory for ARN validation.
+            risk_analyzer: P2-14 α DI slot — pre-built RiskAnalyzer
+                instance to reuse.  Falls back to ``RiskAnalyzer(database)``
+                if not provided (backward compat for direct callers).
+            companion_detector: P2-14 α DI slot — pre-built
+                CompanionPermissionDetector to reuse.  Falls back to
+                ``CompanionPermissionDetector(database)`` if absent.
         """
         self.database = database
         self.inventory = inventory
         self.parser = PolicyParser(database)
-        self.risk_analyzer = RiskAnalyzer(database)
-        self.companion_detector = CompanionPermissionDetector(database)
+        self.risk_analyzer = risk_analyzer or RiskAnalyzer(database)
+        self.companion_detector = companion_detector or CompanionPermissionDetector(database)
 
     def run_self_check(
         self,
@@ -829,6 +838,13 @@ class Pipeline:
         self.database = database
         self.inventory = inventory
         self.config = config
+        # P2-14 α — eagerly construct both analyzer + companion detector
+        # so Pipeline.run reuses one instance across pipeline stages AND
+        # across self-check retry iterations (up to
+        # ``config.max_self_check_retries``).  Previously
+        # ``Pipeline.run`` constructed fresh instances on every call,
+        # bypassing the bulk-load cache.
+        self._risk_analyzer = RiskAnalyzer(database)
         self._companion_detector = CompanionPermissionDetector(database)
 
     def run(
@@ -888,11 +904,9 @@ class Pipeline:
             if stmt.not_actions:
                 all_actions.extend(stmt.not_actions)
 
-        risk_analyzer = RiskAnalyzer(self.database)
-        risk_findings = risk_analyzer.analyze_actions(all_actions)
-
-        companion_detector = CompanionPermissionDetector(self.database)
-        missing_companions = companion_detector.detect_missing_companions(all_actions)
+        # P2-14 α — reuse the pre-built instances from __init__
+        risk_findings = self._risk_analyzer.analyze_actions(all_actions)
+        missing_companions = self._companion_detector.detect_missing_companions(all_actions)
 
         # Step 2.5: HITL - Interactive Tier 2 action review
         hitl = HITLSystem(interactive=config.interactive)
@@ -918,8 +932,15 @@ class Pipeline:
         rewrite_config = self._build_rewrite_config(config)
         rewrite_result = rewriter.rewrite_policy(policy, rewrite_config)
 
-        # Step 4: SELF-CHECK with loop-back
-        checker = SelfCheckValidator(self.database, self.inventory)
+        # Step 4: SELF-CHECK with loop-back.  P2-14 α — pass the
+        # already-built analyzer + detector so the SelfCheckValidator
+        # doesn't re-bulk-load from the DB.
+        checker = SelfCheckValidator(
+            self.database,
+            self.inventory,
+            risk_analyzer=self._risk_analyzer,
+            companion_detector=self._companion_detector,
+        )
         self_check_result = checker.run_self_check(rewrite_result, config)
 
         iterations = 1
