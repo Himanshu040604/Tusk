@@ -38,7 +38,7 @@ from urllib.parse import urlsplit, urlunsplit
 
 import structlog
 
-from ..hmac_keys import derive_cache_key
+from ..hmac_keys import HMACError, derive_cache_key
 
 _ENTRY_VERSION: Final[int] = 1
 _SIG_LABEL: Final[bytes] = b"sentinel-v1/cache-entry"
@@ -195,6 +195,16 @@ class DiskCache:
         if self._key is None:
             try:
                 self._key = derive_cache_key()
+            except HMACError:
+                # Security Low #3 (v0.6.2): broad-perms / corrupt key file is
+                # a security event, NOT a filesystem error.  Do not fall back
+                # to in-memory — re-raise so the operator is forced to rotate
+                # the key rather than silently running on an ephemeral key.
+                self._log.error(
+                    "cache_key_security_violation",
+                    note="HMACError propagated; rotate cache.key via `sentinel cache rotate-key`",
+                )
+                raise
             except OSError as exc:
                 # Cache-key storage itself unwritable — in-memory fallback.
                 self._log.warning(
