@@ -142,6 +142,14 @@ class IntentMapper:
         """
         self.database = database
         self._intent_keywords: Dict[str, Set[AccessLevel]] = self._load_intent_keywords()
+        # P2-15 α — precompile the word-boundary keyword patterns once
+        # at __init__ so hot-path methods (``map_intent``,
+        # ``_extract_access_levels``) don't re-compile them per call.
+        # Mirrors the precompile-in-__init__ precedent in ``RiskAnalyzer``.
+        self._compiled_keyword_patterns: list[tuple[re.Pattern[str], Set[AccessLevel]]] = [
+            (re.compile(r"\b" + re.escape(kw) + r"\b"), levels)
+            for kw, levels in self._intent_keywords.items()
+        ]
 
     @staticmethod
     def _load_intent_keywords() -> Dict[str, Set[AccessLevel]]:
@@ -203,11 +211,11 @@ class IntentMapper:
         if self.database and access_levels:
             actions = self._query_actions_by_access_levels(access_levels, services)
 
-        # Graduate confidence based on keyword match count and DB results
+        # Graduate confidence based on keyword match count and DB results.
+        # P2-15 α — iterate precompiled patterns instead of per-call
+        # re.search with string construction.
         keyword_hits = sum(
-            1
-            for kw in self.INTENT_KEYWORDS
-            if re.search(r"\b" + re.escape(kw) + r"\b", intent_lower)
+            1 for pattern, _ in self._compiled_keyword_patterns if pattern.search(intent_lower)
         )
         if keyword_hits >= 3:
             confidence = 1.0
@@ -243,11 +251,12 @@ class IntentMapper:
         """
         access_levels = set()
 
-        # Check each keyword pattern with word boundaries to avoid
-        # false positives (e.g. "target" matching "get", "blacklist"
-        # matching "list").
-        for keyword, levels in self.INTENT_KEYWORDS.items():
-            if re.search(r"\b" + re.escape(keyword) + r"\b", intent_lower):
+        # P2-15 α — check each PRECOMPILED pattern (word boundaries) to
+        # avoid false positives (e.g. "target" matching "get",
+        # "blacklist" matching "list") without rebuilding regex strings
+        # on every call.
+        for pattern, levels in self._compiled_keyword_patterns:
+            if pattern.search(intent_lower):
                 access_levels.update(levels)
 
         # If no keywords matched, default to read-only for safety
