@@ -5,6 +5,131 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2026-04-23
+
+Phase 7.2 full polish sweep.  Post-ship review (5 agents covering
+silent-failures, security, architecture, quality, tests) identified
+10 remaining gaps after v0.6.1 — 2 HIGH silent-fail patterns, 2 MEDIUM
+exception-handling gaps, 4 LOW hardening issues, plus coverage gaps
+and test-cleanup items.  This release closes all of them.  No external
+contract changes: only previously-unintended silent fallbacks are
+removed (see Amendment 8 in `prod_imp.md § 17`).
+
+### Fixed
+
+- **parser.py silent tier demotion on DB errors (silent-failure B1).**
+  6 `except (sqlite3.Error, OSError, DatabaseError): pass` sites in
+  the action-classification path silently demoted TIER_1 -> TIER_2/3
+  when the DB query failed.  A locked/corrupt DB produced "Tier 2
+  kept for review" findings instead of `EXIT_IO_ERROR`.  New
+  `ValidationError` subclass of `PolicyParserError` is raised with a
+  `logger.error` at each site; CLI handlers (`cmd_validate`,
+  `cmd_run`) catch `ValidationError` first and map to `EXIT_IO_ERROR`.
+  The init-time known_services fallback at parser.py line 187 is
+  kept as a defensible fallback but now emits a debug log for
+  forensic signal.
+- **config.py silent empty-dict on missing shipped defaults (silent-
+  failure B4).**  `load_settings()` previously guarded the shipped
+  `defaults.toml` layer with `if shipped.is_file(): ...` and no
+  else-branch — a broken wheel install would silently yield a
+  pydantic-field-only config (TTLs, retry budgets, allow-list all
+  lost).  Now raises `ConfigError` with reinstall instructions.
+- **analyzer.py unguarded `re.compile` on DB-sourced patterns
+  (Security #1).**  A malformed regex in a signed `dangerous_actions`
+  row crashed `RiskAnalyzer.__init__` with an uninformative
+  `re.error`.  Now wrapped in `try/except re.error` that converts to
+  `DatabaseError` naming the offending row (`action_name`, `category`).
+  Preserves HMAC tamper defense.
+- **migrations.py `_current_revision` broad except (Architect
+  Concern 2).**  Two `except Exception: return None` blocks masked
+  arbitrary errors as "no revision yet", letting corruption hide
+  from the safe-stamp check.  Narrowed to `(OSError,
+  sqlalchemy.exc.OperationalError)` for `create_engine` and
+  `(sqlalchemy.exc.OperationalError, sqlalchemy.exc.DatabaseError)`
+  for `MigrationContext.configure`; both paths now debug-log the
+  swallowed exception.
+- **cli.py cloudsplaining client leak (Architect Concern 3).**  The
+  `client = _build_live_client()` + manual `client.close()` pattern
+  leaked the httpx client if an exception fired between assignment
+  and the try-block.  Replaced with `with _build_live_client() as
+  client:` (the class already supports `__enter__`/`__exit__`).
+- **cmd_analyze / cmd_rewrite did not catch ConfigError (Architect
+  Concern 5).**  TOML misconfiguration triggered during
+  `RiskAnalyzer` / `PolicyRewriter` init (via lazy `get_settings()`)
+  bubbled as a bare traceback.  Now mapped to `EXIT_IO_ERROR` with
+  a clean stderr message alongside `DatabaseError`.
+- **net/cache.py HMACError silently masked (Security Low #3).**
+  `_derived_key` caught only `OSError` for the in-memory fallback,
+  so `HMACError` (raised by strict perm check) propagated unhandled
+  through `DiskCache`.  Now caught separately: `OSError` -> in-memory
+  fallback as before (legitimate I/O failure); `HMACError` -> logged
+  ERROR and re-raised so the operator rotates the key rather than
+  silently running on an ephemeral one.
+
+### Added
+
+- **Coverage tests for hmac_keys and migrations.**
+  `tests/test_hmac_keys_coverage.py` (7 tests) covers `_data_dir`
+  env-var precedence, corrupt-size regen on clean install,
+  `regenerate_root_key` sub-key reset, `verify_row` row_hmac
+  rejection, and `_write_key` OSError swallow.
+  `tests/test_migrations_coverage.py` (7 tests) covers
+  `_phase2_missing_tables` fast paths, skip-via-env-var + skip-via-
+  flag branches, `check_and_upgrade_db` alias, `_checkpoint_and_
+  backup` round-trip, and `_current_revision` on non-existent DBs.
+- **Phase 7 regression tests (6 new).**  Extends
+  `tests/test_phase7_regressions.py` with regressions for P0-1 α
+  (HMAC tamper → DatabaseError), P0-3 (cold-start import graph),
+  P1-5 (fetchers/refresh relocation import smoke), P1-8 (shared-
+  connection path used ≤ 2 get_connection), P2-14 (Pipeline DI
+  reuse), P2-15 (IntentMapper precompile).
+- **Fixture-wiring tests (5 new).**  `tests/test_fixture_wiring.py`
+  consumes the previously-orphaned `migrated_db_template` and
+  `signed_db_row` fixtures: template fast-copy path, K_db default
+  branch, custom-key branch, `row_hmac`-in-row_data rejection.
+- **CLI subcommand smoke coverage (23 new).**
+  `tests/test_cli_subcommands_coverage.py` covers `cmd_config`
+  (show/path/init/refuse-overwrite/unknown), `cmd_cache` (stats/ls/
+  purge/rotate-key abort/unknown), `cmd_compare` (text/json/missing),
+  `cmd_search` (token-required), `cmd_managed` (list/show-missing/
+  unknown), `cli_fetch._state_path` / `_check_alert`.
+- **Logging setup coverage (8 new).**
+  `tests/test_logging_setup_coverage.py` covers `configure` human/
+  json/level/NO_COLOR/FORCE_COLOR and `ssl_cert_file_audit` three
+  branches.
+- **Deviation 3 split test.**
+  `test_analyze_returns_success_for_safe_policy` (widened assertion
+  masking regressions) is replaced by two strict tests:
+  `test_analyze_policy_with_exfil_risk_exits_issues_found` (==
+  `EXIT_ISSUES_FOUND`) and `test_analyze_truly_safe_policy_exits_
+  success` (== `EXIT_SUCCESS`).
+
+### Changed
+
+- **Test migration: `pipeline.run(str)` -> `pipeline.run_text(str)`.**
+  60 of the 61 `DeprecationWarning`s emitted by the test suite came
+  from legacy `pipeline.run(policy_json_str)` calls.  Migrated all
+  test callers to `pipeline.run_text(...)` (a thin wrapper over the
+  run-with-PolicyInput path shipped in v0.5.0).
+
+### Internal
+
+- **Database `_with_conn` docstrings.**  Three private helpers
+  (`_service_exists_with_conn`, `_get_action_with_conn`,
+  `_action_exists_with_conn`) now have one-line Google-style
+  docstrings matching the rest of the file.
+- **Coverage: 74% -> 80%.**  Overall `src/sentinel` coverage now
+  clears the 80% Phase 6 exit criterion.  Per-module: `hmac_keys`
+  75 -> 84%, `migrations` 72 -> 81%, `cli_cache` 0 -> 78%,
+  `cli_config` 0 -> 84%, `cli_managed` 0 -> 37+%, `logging_setup`
+  0 -> 92%, `cli_misc` 0 -> partial (cmd_compare/cmd_search covered).
+
+### Docs
+
+- **Amendment 8 in prod_imp.md § 17.**  Documents the contract
+  tightening vs § 2 fail-closed principle; v0.6.2 patch bump
+  justification (no external contract changes).
+
 ## [0.6.1] - 2026-04-23
 
 Phase 7.1 completeness pass.  Post-ship review by 6 agents identified
