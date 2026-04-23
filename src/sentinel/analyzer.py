@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, List, Dict, Set, Optional, Tuple, Any
+from typing import TYPE_CHECKING, Any
 import re
 
 # P0-3 α — constants imports deferred to function scope to break the
@@ -56,9 +56,9 @@ class IntentMapping:
     """
 
     original_intent: str
-    access_levels: Set[AccessLevel]
-    services: Set[str] = field(default_factory=set)
-    actions: List[str] = field(default_factory=list)
+    access_levels: set[AccessLevel]
+    services: set[str] = field(default_factory=set)
+    actions: list[str] = field(default_factory=list)
     confidence: float = 1.0
     explanation: str = ""
 
@@ -81,7 +81,7 @@ class RiskFinding:
     action: str
     description: str
     remediation: str
-    additional_context: Dict[str, Any] = field(default_factory=dict)
+    additional_context: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -96,7 +96,7 @@ class CompanionPermission:
     """
 
     primary_action: str
-    companion_actions: List[str]
+    companion_actions: list[str]
     reason: str
     severity: RiskSeverity = RiskSeverity.MEDIUM
 
@@ -117,7 +117,7 @@ class HITLDecision:
     tier: str
     user_approved: bool
     user_comment: str | None = None
-    assumptions_validated: List[str] = field(default_factory=list)
+    assumptions_validated: list[str] = field(default_factory=list)
 
 
 class IntentMapper:
@@ -141,18 +141,18 @@ class IntentMapper:
             database: Optional Database instance for querying actions.
         """
         self.database = database
-        self._intent_keywords: Dict[str, Set[AccessLevel]] = self._load_intent_keywords()
+        self._intent_keywords: dict[str, set[AccessLevel]] = self._load_intent_keywords()
         # P2-15 α — precompile the word-boundary keyword patterns once
         # at __init__ so hot-path methods (``map_intent``,
         # ``_extract_access_levels``) don't re-compile them per call.
         # Mirrors the precompile-in-__init__ precedent in ``RiskAnalyzer``.
-        self._compiled_keyword_patterns: list[tuple[re.Pattern[str], Set[AccessLevel]]] = [
+        self._compiled_keyword_patterns: list[tuple[re.Pattern[str], set[AccessLevel]]] = [
             (re.compile(r"\b" + re.escape(kw) + r"\b"), levels)
             for kw, levels in self._intent_keywords.items()
         ]
 
     @staticmethod
-    def _load_intent_keywords() -> Dict[str, Set[AccessLevel]]:
+    def _load_intent_keywords() -> dict[str, set[AccessLevel]]:
         """Flatten the 8-bucket TOML schema into a keyword -> AccessLevel set.
 
         Each bucket in ``Settings.intent.keywords`` declares a list of
@@ -163,9 +163,9 @@ class IntentMapper:
         from .config import get_settings
 
         settings = get_settings()
-        out: Dict[str, Set[AccessLevel]] = {}
+        out: dict[str, set[AccessLevel]] = {}
         for bucket in settings.intent.keywords.values():
-            levels: Set[AccessLevel] = set()
+            levels: set[AccessLevel] = set()
             for lvl_name in bucket.levels:
                 try:
                     levels.add(AccessLevel[lvl_name])
@@ -181,11 +181,11 @@ class IntentMapper:
         return out
 
     @property
-    def INTENT_KEYWORDS(self) -> Dict[str, Set[AccessLevel]]:
+    def INTENT_KEYWORDS(self) -> dict[str, set[AccessLevel]]:
         """Backwards-compat shim — callers inside this class still read this."""
         return self._intent_keywords
 
-    def map_intent(self, intent: str, service_filter: List[str] | None = None) -> IntentMapping:
+    def map_intent(self, intent: str, service_filter: list[str] | None = None) -> IntentMapping:
         """Map developer intent to access levels and actions.
 
         Args:
@@ -240,7 +240,7 @@ class IntentMapper:
             explanation=explanation,
         )
 
-    def _extract_access_levels(self, intent_lower: str) -> Set[AccessLevel]:
+    def _extract_access_levels(self, intent_lower: str) -> set[AccessLevel]:
         """Extract access levels from intent string.
 
         Args:
@@ -265,7 +265,7 @@ class IntentMapper:
 
         return access_levels
 
-    def _extract_services(self, intent_lower: str) -> Set[str]:
+    def _extract_services(self, intent_lower: str) -> set[str]:
         """Extract AWS service hints from intent string.
 
         Args:
@@ -286,8 +286,8 @@ class IntentMapper:
         return services
 
     def _query_actions_by_access_levels(
-        self, access_levels: Set[AccessLevel], services: Set[str]
-    ) -> List[str]:
+        self, access_levels: set[AccessLevel], services: set[str]
+    ) -> list[str]:
         """Query database for actions matching access levels.
 
         Args:
@@ -342,7 +342,7 @@ class IntentMapper:
         return actions
 
     def _generate_explanation(
-        self, intent: str, access_levels: Set[AccessLevel], services: Set[str], actions: List[str]
+        self, intent: str, access_levels: set[AccessLevel], services: set[str], actions: list[str]
     ) -> str:
         """Generate human-readable explanation of mapping.
 
@@ -503,7 +503,7 @@ class RiskAnalyzer:
         self._perms_mgmt_patterns = tuple(perms_mgmt)
         return True
 
-    def analyze_actions(self, actions: List[str]) -> List[RiskFinding]:
+    def analyze_actions(self, actions: list[str]) -> list[RiskFinding]:
         """Analyze list of actions for security risks.
 
         Args:
@@ -538,7 +538,7 @@ class RiskAnalyzer:
 
         return findings
 
-    def _check_wildcards(self, action: str) -> List[RiskFinding]:
+    def _check_wildcards(self, action: str) -> list[RiskFinding]:
         """Check for wildcard usage and assess severity.
 
         Args:
@@ -600,7 +600,7 @@ class RiskAnalyzer:
 
         return RiskSeverity.LOW
 
-    def _check_privilege_escalation(self, action: str) -> List[RiskFinding]:
+    def _check_privilege_escalation(self, action: str) -> list[RiskFinding]:
         """Check for privilege escalation actions.
 
         Args:
@@ -625,7 +625,7 @@ class RiskAnalyzer:
 
         return findings
 
-    def _check_data_exfiltration(self, action: str) -> List[RiskFinding]:
+    def _check_data_exfiltration(self, action: str) -> list[RiskFinding]:
         """Check for data exfiltration risks.
 
         Args:
@@ -657,7 +657,7 @@ class RiskAnalyzer:
 
         return findings
 
-    def _check_destruction(self, action: str) -> List[RiskFinding]:
+    def _check_destruction(self, action: str) -> list[RiskFinding]:
         """Check for infrastructure destruction capabilities.
 
         Args:
@@ -692,7 +692,7 @@ class RiskAnalyzer:
 
         return findings
 
-    def _check_permissions_management(self, action: str) -> List[RiskFinding]:
+    def _check_permissions_management(self, action: str) -> list[RiskFinding]:
         """Check for permissions management actions.
 
         Args:
@@ -719,7 +719,7 @@ class RiskAnalyzer:
 
         return findings
 
-    def _check_dangerous_combinations(self, actions: List[str]) -> List[RiskFinding]:
+    def _check_dangerous_combinations(self, actions: list[str]) -> list[RiskFinding]:
         """Check for dangerous permission combinations.
 
         Args:
@@ -781,7 +781,7 @@ class RiskAnalyzer:
 
         return findings
 
-    def _check_redundancy(self, actions: List[str]) -> List[RiskFinding]:
+    def _check_redundancy(self, actions: list[str]) -> list[RiskFinding]:
         """Check for redundant or overlapping actions.
 
         Args:
@@ -842,7 +842,7 @@ class DangerousPermissionChecker:
         self.database = database
         self.risk_analyzer = RiskAnalyzer(database)
 
-    def check_action(self, action: str, resource: str = "*") -> List[RiskFinding]:
+    def check_action(self, action: str, resource: str = "*") -> list[RiskFinding]:
         """Check single action for dangerous patterns.
 
         Args:
@@ -988,8 +988,8 @@ class CompanionPermissionDetector:
         return True
 
     def detect_missing_companions(
-        self, actions: List[str], context: Dict[str, Any] | None = None
-    ) -> List[CompanionPermission]:
+        self, actions: list[str], context: dict[str, Any] | None = None
+    ) -> list[CompanionPermission]:
         """Detect missing companion permissions.
 
         Args:
@@ -1051,10 +1051,10 @@ class HITLSystem:
                 (safe for CI/CD and testing).
         """
         self.interactive = interactive
-        self.decisions: List[HITLDecision] = []
+        self.decisions: list[HITLDecision] = []
         self._skip_remaining = False
 
-    def flag_tier2_action(self, action: str, assumptions: List[str]) -> bool:
+    def flag_tier2_action(self, action: str, assumptions: list[str]) -> bool:
         """Flag Tier 2 action for human review.
 
         When interactive mode is enabled, prompts the user via stdin
@@ -1080,7 +1080,7 @@ class HITLSystem:
 
         return self._prompt_user(action, assumptions)
 
-    def _prompt_user(self, action: str, assumptions: List[str]) -> bool:
+    def _prompt_user(self, action: str, assumptions: list[str]) -> bool:
         """Prompt user via stdin for a Tier 2 action decision.
 
         Displays action details and reads user input. Accepts:
@@ -1150,7 +1150,7 @@ class HITLSystem:
         tier: str,
         approved: bool,
         comment: str | None = None,
-        assumptions: List[str] | None = None,
+        assumptions: list[str] | None = None,
     ) -> None:
         """Record a user decision.
 
@@ -1171,7 +1171,7 @@ class HITLSystem:
 
         self.decisions.append(decision)
 
-    def get_decision_history(self) -> List[HITLDecision]:
+    def get_decision_history(self) -> list[HITLDecision]:
         """Get all recorded decisions.
 
         Returns:
@@ -1179,7 +1179,7 @@ class HITLSystem:
         """
         return self.decisions.copy()
 
-    def get_approval_stats(self) -> Dict[str, float]:
+    def get_approval_stats(self) -> dict[str, float]:
         """Get approval statistics.
 
         Returns:

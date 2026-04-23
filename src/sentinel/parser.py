@@ -99,7 +99,7 @@ class ValidationResult:
     tier: ValidationTier
     reason: str
     access_level: str | None = None
-    suggestions: List[str] | None = None
+    suggestions: list[str] | None = None
     confidence: float = 1.0
 
     def __post_init__(self):
@@ -124,13 +124,13 @@ class Statement:
     """
 
     effect: str
-    actions: List[str]
-    resources: List[str]
+    actions: list[str]
+    resources: list[str]
     sid: str | None = None
-    conditions: Dict[str, Any] | None = None
-    principals: Dict[str, Any] | None = None
-    not_actions: List[str] | None = None
-    not_resources: List[str] | None = None
+    conditions: dict[str, Any] | None = None
+    principals: dict[str, Any] | None = None
+    not_actions: list[str] | None = None
+    not_resources: list[str] | None = None
 
 
 @dataclass
@@ -144,7 +144,7 @@ class Policy:
     """
 
     version: str
-    statements: List[Statement]
+    statements: list[Statement]
     id: str | None = None
 
 
@@ -173,7 +173,7 @@ class PolicyParser:
                 Also used to load service prefixes (Layer 1).
         """
         self.database = database
-        self.known_services: Set[str] = set()
+        self.known_services: set[str] = set()
         self._services_source: str = "none"
 
         # Layer 1: DB service prefixes (truth)
@@ -338,7 +338,7 @@ class PolicyParser:
             return self.parse_policy(content)
         raise PolicyParserError(f"Unsupported input format: {fmt}")
 
-    def _parse_policy_dict(self, data: Dict[str, Any]) -> Policy:
+    def _parse_policy_dict(self, data: dict[str, Any]) -> Policy:
         """Parse policy dictionary.
 
         Args:
@@ -375,7 +375,7 @@ class PolicyParser:
 
         return Policy(version=version, statements=statements, id=data.get("Id"))
 
-    def _parse_statement(self, stmt: Dict[str, Any]) -> Statement:
+    def _parse_statement(self, stmt: dict[str, Any]) -> Statement:
         """Parse statement dictionary.
 
         Args:
@@ -453,7 +453,7 @@ class PolicyParser:
             not_resources=not_resources,
         )
 
-    def validate_policy(self, policy: Policy) -> List[ValidationResult]:
+    def validate_policy(self, policy: Policy) -> list[ValidationResult]:
         """Validate all actions in policy.
 
         P1-8 β — opens ONE DB connection outside the classify loop and
@@ -810,7 +810,7 @@ class PolicyParser:
 
         return True
 
-    def _expand_action_wildcard(self, action: str) -> List[str]:
+    def _expand_action_wildcard(self, action: str) -> list[str]:
         """Expand wildcard actions if database available.
 
         Args:
@@ -864,7 +864,7 @@ class PolicyParser:
 
         return [action]
 
-    def _suggest_corrections(self, action: str) -> List[str]:
+    def _suggest_corrections(self, action: str) -> list[str]:
         """Suggest corrections for invalid action.
 
         Args:
@@ -894,7 +894,7 @@ class PolicyParser:
 
         return suggestions
 
-    def _find_similar_services(self, service_prefix: str) -> List[str]:
+    def _find_similar_services(self, service_prefix: str) -> list[str]:
         """Find similar service prefixes.
 
         Args:
@@ -939,7 +939,7 @@ class PolicyParser:
 
         return sorted(similar)[:5]
 
-    def extract_actions(self, policy: Policy) -> Set[str]:
+    def extract_actions(self, policy: Policy) -> set[str]:
         """Extract all unique actions from policy.
 
         Includes both Action and NotAction entries.
@@ -961,7 +961,7 @@ class PolicyParser:
 
         return actions
 
-    def get_policy_summary(self, policy: Policy) -> Dict[str, Any]:
+    def get_policy_summary(self, policy: Policy) -> dict[str, Any]:
         """Generate summary of policy.
 
         Args:

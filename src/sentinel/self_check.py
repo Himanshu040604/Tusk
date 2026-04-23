@@ -11,7 +11,7 @@ import copy
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import TYPE_CHECKING, List, Dict, Set, Optional, Tuple, Any
+from typing import TYPE_CHECKING, Any
 
 # P0-3 α+γ completion (phase 7.1) — constants imports deferred to function
 # scope to break the cold-start chain.  Module-level
@@ -109,12 +109,12 @@ class SelfCheckResult:
     """
 
     verdict: CheckVerdict
-    findings: List[CheckFinding]
+    findings: list[CheckFinding]
     completeness_score: float
     assumptions_valid: bool
     tier2_excluded: bool
     summary: str
-    confidence_summary: Dict[str, float] = field(default_factory=dict)
+    confidence_summary: dict[str, float] = field(default_factory=dict)
 
 
 @dataclass
@@ -170,14 +170,14 @@ class PipelineResult:
 
     original_policy: Policy
     rewritten_policy: Policy
-    validation_results: List[ValidationResult]
-    risk_findings: List[RiskFinding]
+    validation_results: list[ValidationResult]
+    risk_findings: list[RiskFinding]
     rewrite_result: RewriteResult
     self_check_result: SelfCheckResult
     iterations: int
     final_verdict: CheckVerdict
     pipeline_summary: str
-    hitl_decisions: List[HITLDecision] = field(default_factory=list)
+    hitl_decisions: list[HITLDecision] = field(default_factory=list)
     # M5 § 8.4 — provenance record of the input bytes.  Optional so
     # legacy callers that passed raw strings still work (a synthetic
     # stdin origin is attached via run_text()).
@@ -242,7 +242,7 @@ class SelfCheckValidator:
             config = PipelineConfig()
 
         policy = rewrite_result.rewritten_policy
-        findings: List[CheckFinding] = []
+        findings: list[CheckFinding] = []
 
         # Check 1: Validate actions
         findings.extend(self._validate_actions(policy))
@@ -300,7 +300,7 @@ class SelfCheckValidator:
             summary=summary,
         )
 
-    def _validate_actions(self, policy: Policy) -> List[CheckFinding]:
+    def _validate_actions(self, policy: Policy) -> list[CheckFinding]:
         """Re-validate every action in the rewritten policy.
 
         Flags Tier 3 (invalid) actions as ERROR and Tier 2 (unknown)
@@ -319,7 +319,7 @@ class SelfCheckValidator:
         Returns:
             List of CheckFinding objects.
         """
-        findings: List[CheckFinding] = []
+        findings: list[CheckFinding] = []
 
         if self.database is None:
             # Fallback: no DB -> per-action classify_action (which returns
@@ -344,7 +344,7 @@ class SelfCheckValidator:
 
     def _append_validate_finding(
         self,
-        findings: List[CheckFinding],
+        findings: list[CheckFinding],
         action: str,
         result: ValidationResult,
     ) -> None:
@@ -386,7 +386,7 @@ class SelfCheckValidator:
         self,
         policy: Policy,
         config: PipelineConfig | None = None,
-    ) -> List[CheckFinding]:
+    ) -> list[CheckFinding]:
         """Validate ARN formats in the rewritten policy.
 
         Checks for remaining wildcards, placeholder markers, and
@@ -398,7 +398,7 @@ class SelfCheckValidator:
         Returns:
             List of CheckFinding objects.
         """
-        findings: List[CheckFinding] = []
+        findings: list[CheckFinding] = []
 
         for stmt in policy.statements:
             # Check both resources and not_resources for ARN issues
@@ -457,7 +457,7 @@ class SelfCheckValidator:
         policy: Policy,
         rewrite_result: RewriteResult,
         config: PipelineConfig,
-    ) -> Tuple[List[CheckFinding], float]:
+    ) -> tuple[list[CheckFinding], float]:
         """Check if the rewritten policy preserves functional completeness.
 
         Verifies service coverage, companion permissions, access level
@@ -471,7 +471,7 @@ class SelfCheckValidator:
         Returns:
             Tuple of (findings list, completeness score 0.0-1.0).
         """
-        findings: List[CheckFinding] = []
+        findings: list[CheckFinding] = []
         original = rewrite_result.original_policy
 
         # Extract services from original and rewritten
@@ -583,7 +583,7 @@ class SelfCheckValidator:
         self,
         policy: Policy,
         config: PipelineConfig | None = None,
-    ) -> List[CheckFinding]:
+    ) -> list[CheckFinding]:
         """Check for surviving wildcard actions and resources.
 
         Full wildcards (*, *:*) are ERROR by default (fail-closed).
@@ -596,7 +596,7 @@ class SelfCheckValidator:
         Returns:
             List of CheckFinding objects.
         """
-        findings: List[CheckFinding] = []
+        findings: list[CheckFinding] = []
         allow_wc_actions = config.allow_wildcard_actions if config else False
 
         for stmt in policy.statements:
@@ -644,8 +644,8 @@ class SelfCheckValidator:
     def _check_tier2_exclusion(
         self,
         policy: Policy,
-        validation_results: List[ValidationResult],
-    ) -> List[CheckFinding]:
+        validation_results: list[ValidationResult],
+    ) -> list[CheckFinding]:
         """Verify no Tier 2 actions from original validation appear in rewritten policy.
 
         Cross-references the original validation results with the rewritten
@@ -658,7 +658,7 @@ class SelfCheckValidator:
         Returns:
             List of CheckFinding objects.
         """
-        findings: List[CheckFinding] = []
+        findings: list[CheckFinding] = []
 
         tier2_actions = {
             r.action for r in validation_results if r.tier == ValidationTier.TIER_2_UNKNOWN
@@ -692,7 +692,7 @@ class SelfCheckValidator:
     def _check_assumptions(
         self,
         rewrite_result: RewriteResult,
-    ) -> List[CheckFinding]:
+    ) -> list[CheckFinding]:
         """Validate that the rewrite result includes meaningful assumptions.
 
         Checks that at minimum the database/inventory availability is
@@ -704,7 +704,7 @@ class SelfCheckValidator:
         Returns:
             List of CheckFinding objects.
         """
-        findings: List[CheckFinding] = []
+        findings: list[CheckFinding] = []
 
         if not rewrite_result.assumptions:
             findings.append(
@@ -738,7 +738,7 @@ class SelfCheckValidator:
     def _check_low_confidence(
         self,
         rewrite_result: RewriteResult,
-    ) -> List[CheckFinding]:
+    ) -> list[CheckFinding]:
         """Flag rewrite changes with confidence below 0.5.
 
         Args:
@@ -747,7 +747,7 @@ class SelfCheckValidator:
         Returns:
             List of CheckFinding objects for low-confidence decisions.
         """
-        findings: List[CheckFinding] = []
+        findings: list[CheckFinding] = []
         for change in rewrite_result.changes:
             if change.confidence < 0.5:
                 findings.append(
@@ -765,7 +765,7 @@ class SelfCheckValidator:
 
     def _compute_verdict(
         self,
-        findings: List[CheckFinding],
+        findings: list[CheckFinding],
         strict_mode: bool,
     ) -> CheckVerdict:
         """Compute the overall verdict from findings.
@@ -793,7 +793,7 @@ class SelfCheckValidator:
 
         return CheckVerdict.PASS
 
-    def _extract_services(self, policy: Policy) -> Set[str]:
+    def _extract_services(self, policy: Policy) -> set[str]:
         """Extract unique service prefixes from a policy.
 
         Args:
@@ -802,7 +802,7 @@ class SelfCheckValidator:
         Returns:
             Set of service prefix strings.
         """
-        services: Set[str] = set()
+        services: set[str] = set()
         for stmt in policy.statements:
             all_actions = list(stmt.actions)
             if stmt.not_actions:
@@ -813,7 +813,7 @@ class SelfCheckValidator:
                     services.add(parts[0])
         return services
 
-    def _find_write_actions(self, policy: Policy) -> List[str]:
+    def _find_write_actions(self, policy: Policy) -> list[str]:
         """Find actions that are likely write-level.
 
         Args:
@@ -824,7 +824,7 @@ class SelfCheckValidator:
         """
         from .constants import WRITE_PREFIXES  # P0-3 α+γ deferred (phase 7.1)
 
-        write_actions: List[str] = []
+        write_actions: list[str] = []
         for stmt in policy.statements:
             if stmt.effect != "Allow":
                 continue
@@ -834,7 +834,7 @@ class SelfCheckValidator:
                     write_actions.append(action)
         return write_actions
 
-    def _collect_allow_actions(self, policy: Policy) -> List[str]:
+    def _collect_allow_actions(self, policy: Policy) -> list[str]:
         """Collect all actions from Allow statements.
 
         Args:
@@ -843,7 +843,7 @@ class SelfCheckValidator:
         Returns:
             List of action name strings.
         """
-        actions: List[str] = []
+        actions: list[str] = []
         for stmt in policy.statements:
             if stmt.effect == "Allow":
                 actions.extend(stmt.actions)
@@ -938,7 +938,7 @@ class Pipeline:
         validation_results = parser.validate_policy(policy)
 
         # Step 2: ANALYZE
-        all_actions: List[str] = []
+        all_actions: list[str] = []
         for stmt in policy.statements:
             all_actions.extend(stmt.actions)
             if stmt.not_actions:
@@ -951,7 +951,7 @@ class Pipeline:
         # Step 2.5: HITL - Interactive Tier 2 action review
         hitl = HITLSystem(interactive=config.interactive)
         tier2_actions = [r for r in validation_results if r.tier == ValidationTier.TIER_2_UNKNOWN]
-        rejected_actions: Set[str] = set()
+        rejected_actions: set[str] = set()
 
         if tier2_actions and config.interactive:
             for vr in tier2_actions:
@@ -1066,7 +1066,7 @@ class Pipeline:
     def _apply_self_check_fixes(
         self,
         policy: Policy,
-        findings: List[CheckFinding],
+        findings: list[CheckFinding],
     ) -> Policy:
         """Apply targeted fixes based on self-check findings.
 
@@ -1086,8 +1086,8 @@ class Pipeline:
         fixed = copy.deepcopy(policy)
 
         # Collect actions to remove
-        actions_to_remove: Set[str] = set()
-        companions_to_add: List[str] = []
+        actions_to_remove: set[str] = set()
+        companions_to_add: list[str] = []
 
         for finding in findings:
             # MISSING_COMPANION findings are WARNING severity but still
@@ -1127,7 +1127,7 @@ class Pipeline:
 
         # Add missing companion actions (skip those already in the policy)
         if companions_to_add:
-            existing_actions: Set[str] = set()
+            existing_actions: set[str] = set()
             for stmt in fixed.statements:
                 existing_actions.update(stmt.actions)
                 if stmt.not_actions:

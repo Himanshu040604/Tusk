@@ -40,12 +40,12 @@ class ServiceAuthorizationParser(HTMLParser):
         self.in_row: bool = False
         self.in_cell: bool = False
         self.cell_text: str = ""
-        self.current_row: List[str] = []
-        self.current_headers: List[str] = []
+        self.current_row: list[str] = []
+        self.current_headers: list[str] = []
 
-        self.actions: List[Dict[str, str]] = []
-        self.resource_types: List[Dict[str, str]] = []
-        self.condition_keys: List[Dict[str, str]] = []
+        self.actions: list[dict[str, str]] = []
+        self.resource_types: list[dict[str, str]] = []
+        self.condition_keys: list[dict[str, str]] = []
 
         self._table_index: int = -1
 
@@ -91,7 +91,7 @@ class ServiceAuthorizationParser(HTMLParser):
         if self.in_cell:
             self.cell_text += data
 
-    def _process_row(self, cells: List[str]) -> None:
+    def _process_row(self, cells: list[str]) -> None:
         """Route a data row to the appropriate table handler.
 
         Args:
@@ -107,7 +107,7 @@ class ServiceAuthorizationParser(HTMLParser):
         elif self._table_index == 2:
             self._process_condition_keys_row(cells)
 
-    def _process_actions_row(self, cells: List[str]) -> None:
+    def _process_actions_row(self, cells: list[str]) -> None:
         """Parse a row from the Actions table.
 
         Args:
@@ -123,14 +123,14 @@ class ServiceAuthorizationParser(HTMLParser):
         # Clean brackets, footnote markers, whitespace
         action_name = re.sub(r"\s*\[.*?\]", "", action_name).strip()
 
-        entry: Dict[str, str] = {
+        entry: dict[str, str] = {
             "privilege": action_name,
             "description": cells[1].strip() if len(cells) > 1 else "",
             "access_level": cells[2].strip() if len(cells) > 2 else "Read",
         }
         self.actions.append(entry)
 
-    def _process_resource_types_row(self, cells: List[str]) -> None:
+    def _process_resource_types_row(self, cells: list[str]) -> None:
         """Parse a row from the Resource types table.
 
         Args:
@@ -152,7 +152,7 @@ class ServiceAuthorizationParser(HTMLParser):
             }
         )
 
-    def _process_condition_keys_row(self, cells: List[str]) -> None:
+    def _process_condition_keys_row(self, cells: list[str]) -> None:
         """Parse a row from the Condition keys table.
 
         Args:
@@ -191,7 +191,7 @@ class AwsDocsScraper:
     def load_from_directory(
         self,
         html_dir: Path,
-    ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
+    ) -> tuple[RefreshStats, list[ChangelogEntry]]:
         """Load all ``*.html`` files from a directory.
 
         Args:
@@ -201,7 +201,7 @@ class AwsDocsScraper:
             Tuple of aggregate stats and changelog entries.
         """
         stats = RefreshStats()
-        changelog: List[ChangelogEntry] = []
+        changelog: list[ChangelogEntry] = []
 
         for html_file in sorted(html_dir.glob("*.html")):
             try:
@@ -221,7 +221,7 @@ class AwsDocsScraper:
     def load_from_file(
         self,
         html_file: Path,
-    ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
+    ) -> tuple[RefreshStats, list[ChangelogEntry]]:
         """Load from a single HTML file.
 
         Args:
@@ -231,7 +231,7 @@ class AwsDocsScraper:
             Tuple of stats and changelog.
         """
         stats = RefreshStats()
-        changelog: List[ChangelogEntry] = []
+        changelog: list[ChangelogEntry] = []
 
         content = html_file.read_text(encoding="utf-8", errors="replace")
         service_prefix = self._infer_service_prefix(html_file.name, content)
@@ -244,7 +244,7 @@ class AwsDocsScraper:
         parser.feed(content)
 
         # Build service data dict matching policy_sentry format
-        service_data: Dict[str, Any] = {
+        service_data: dict[str, Any] = {
             "prefix": service_prefix,
             "service_name": service_prefix,
             "privileges": parser.actions,
@@ -267,7 +267,7 @@ class AwsDocsScraper:
 
         return stats, changelog
 
-    def validate_data(self, data_path: Path) -> List[str]:
+    def validate_data(self, data_path: Path) -> list[str]:
         """Dry-run: parse HTML without writing to database.
 
         Args:
@@ -276,7 +276,7 @@ class AwsDocsScraper:
         Returns:
             List of validation error strings (empty = valid).
         """
-        errors: List[str] = []
+        errors: list[str] = []
 
         if data_path.is_dir():
             files = list(data_path.glob("*.html"))

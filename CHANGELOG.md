@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.6.0] - 2026-04-22
 
-Phase 7 hardening release.  Fourteen investigator-confirmed issues
+Phase 7 hardening release.  Sixteen investigator-confirmed issues
 fixed; Agents 1-3 + independent validation converged on a 14-step
 application plan which landed here.  No behaviour change for correct
 data+config paths; a number of previously-silent failure modes now

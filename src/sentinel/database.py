@@ -695,7 +695,7 @@ class Database:
                 )
             return None
 
-    def get_actions_by_service(self, service_prefix: str) -> List[Action]:
+    def get_actions_by_service(self, service_prefix: str) -> list[Action]:
         """Retrieve all actions for a service.
 
         Args:
@@ -737,7 +737,7 @@ class Database:
                 for row in cursor.fetchall()
             ]
 
-    def get_services(self) -> List[Service]:
+    def get_services(self) -> list[Service]:
         """Retrieve all services.
 
         Returns:

@@ -85,7 +85,7 @@ class TextFormatter:
 
     def format_validation(
         self,
-        results: List[ValidationResult],
+        results: list[ValidationResult],
         policy: Policy,
     ) -> str:
         """Format validation results as text.
@@ -129,7 +129,7 @@ class TextFormatter:
 
         return "\n".join(lines)
 
-    def format_risk_findings(self, findings: List[RiskFinding]) -> str:
+    def format_risk_findings(self, findings: list[RiskFinding]) -> str:
         """Format risk findings as text.
 
         Args:
@@ -255,7 +255,7 @@ class TextFormatter:
 
     def format_db_info(
         self,
-        metadata: Dict[str, str | None],
+        metadata: dict[str, str | None],
         service_count: int,
         action_count: int,
     ) -> str:
@@ -287,7 +287,7 @@ class JsonFormatter:
 
     def format_validation(
         self,
-        results: List[ValidationResult],
+        results: list[ValidationResult],
         policy: Policy,
     ) -> str:
         """Format validation results as JSON.
@@ -316,7 +316,7 @@ class JsonFormatter:
         }
         return json.dumps(data, indent=2)
 
-    def format_risk_findings(self, findings: List[RiskFinding]) -> str:
+    def format_risk_findings(self, findings: list[RiskFinding]) -> str:
         """Format risk findings as JSON.
 
         Args:
@@ -430,7 +430,7 @@ class JsonFormatter:
 
     def format_db_info(
         self,
-        metadata: Dict[str, str | None],
+        metadata: dict[str, str | None],
         service_count: int,
         action_count: int,
     ) -> str:
@@ -460,7 +460,7 @@ class MarkdownFormatter:
 
     def format_validation(
         self,
-        results: List[ValidationResult],
+        results: list[ValidationResult],
         policy: Policy,
     ) -> str:
         """Format validation results as Markdown.
@@ -487,7 +487,7 @@ class MarkdownFormatter:
 
         return "\n".join(lines)
 
-    def format_risk_findings(self, findings: List[RiskFinding]) -> str:
+    def format_risk_findings(self, findings: list[RiskFinding]) -> str:
         """Format risk findings as Markdown.
 
         Args:
@@ -636,7 +636,7 @@ class MarkdownFormatter:
 
     def format_db_info(
         self,
-        metadata: Dict[str, str | None],
+        metadata: dict[str, str | None],
         service_count: int,
         action_count: int,
     ) -> str:

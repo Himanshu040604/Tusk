@@ -250,7 +250,7 @@ class ResourceInventory:
 
     def get_resources_by_service(
         self, service_prefix: str, resource_type: str | None = None
-    ) -> List[Resource]:
+    ) -> list[Resource]:
         """Retrieve resources by service and optional type.
 
         Args:
@@ -300,7 +300,7 @@ class ResourceInventory:
                 for row in cursor.fetchall()
             ]
 
-    def get_resources_by_account(self, account_id: str) -> List[Resource]:
+    def get_resources_by_account(self, account_id: str) -> list[Resource]:
         """Retrieve all resources for an account.
 
         Args:
@@ -350,7 +350,7 @@ class ResourceInventory:
             cursor.execute("DELETE FROM resources WHERE resource_arn = ?", (arn,))
             return cursor.rowcount > 0
 
-    def get_statistics(self) -> Dict[str, Any]:
+    def get_statistics(self) -> dict[str, Any]:
         """Get inventory statistics.
 
         Returns:
@@ -444,7 +444,7 @@ class ResourceInventory:
 
     def resolve_wildcard_resource(
         self, service_prefix: str, resource_type: str | None = None
-    ) -> List[str]:
+    ) -> list[str]:
         """Look up real ARNs from inventory to replace wildcard resources.
 
         Args:
@@ -457,7 +457,7 @@ class ResourceInventory:
         resources = self.get_resources_by_service(service_prefix, resource_type)
         return [r.resource_arn for r in resources]
 
-    def get_arns_for_action(self, action: str) -> List[str]:
+    def get_arns_for_action(self, action: str) -> list[str]:
         """Find appropriate resource ARNs for a given IAM action.
 
         Parses the service prefix from the action name.  Task 8: the
@@ -532,7 +532,7 @@ class ResourceInventory:
         placeholder_name = f"PLACEHOLDER-{resource_type}-name"
         return f"arn:aws:{service_prefix}:{region}:{account_id}:{resource_type}/{placeholder_name}"
 
-    def get_resource_types_for_service(self, service_prefix: str) -> List[str]:
+    def get_resource_types_for_service(self, service_prefix: str) -> list[str]:
         """Get distinct resource types available for a service.
 
         Args:
@@ -554,7 +554,7 @@ class ResourceInventory:
             )
             return [row["resource_type"] for row in cursor.fetchall()]
 
-    def bulk_insert_resources(self, resources: List[Resource]) -> int:
+    def bulk_insert_resources(self, resources: list[Resource]) -> int:
         """Insert multiple resources efficiently in a single transaction.
 
         Args:

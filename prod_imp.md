@@ -108,6 +108,8 @@ All sources produce the same normalized `(policy_text, source_origin_metadata)` 
 
 ### 4.2 New directory layout after migration
 
+> **Note:** Amendment 7 (§ 17) relocated `fetchers/` and `refresh/` under `src/sentinel/`. The listing below is preserved for historical traceability; actual layout is `src/sentinel/fetchers/` and `src/sentinel/refresh/`.
+
 ```
 klarna/
 ├── pyproject.toml                   [NEW]

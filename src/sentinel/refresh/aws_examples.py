@@ -38,7 +38,7 @@ class RepoConfig:
     owner: str
     repo: str
     description: str
-    exclude_files: Set[str] = field(
+    exclude_files: set[str] = field(
         default_factory=lambda: {
             "package.json",
             "package-lock.json",
@@ -53,7 +53,7 @@ class RepoConfig:
         return f"{self.owner}/{self.repo}"
 
 
-DEFAULT_REPOS: List[RepoConfig] = [
+DEFAULT_REPOS: list[RepoConfig] = [
     RepoConfig(
         owner="aws-samples",
         repo="service-control-policy-examples",
@@ -167,7 +167,7 @@ def verify_gh_cli() -> None:
 def run_gh_api(
     endpoint: str,
     params: str | None = None,
-) -> Dict[str, Any] | None:
+) -> dict[str, Any] | None:
     """Execute a ``gh api`` call and return parsed JSON.
 
     Args:
@@ -207,7 +207,7 @@ def infer_category(relative_path: str) -> str:
     return "uncategorized"
 
 
-def infer_policy_type(relative_path: str, data: Dict[str, Any]) -> str:
+def infer_policy_type(relative_path: str, data: dict[str, Any]) -> str:
     """Infer the IAM policy type from path and content."""
     path_lower = relative_path.lower()
     if "scp" in path_lower or "service_control" in path_lower:
@@ -232,10 +232,10 @@ def infer_policy_type(relative_path: str, data: Dict[str, Any]) -> str:
 
 def write_manifest(
     output_dir: Path,
-    policies: List[NormalizedPolicy],
+    policies: list[NormalizedPolicy],
 ) -> Path:
     """Write manifest.json summarizing all normalized policies."""
-    manifest: Dict[str, Any] = {
+    manifest: dict[str, Any] = {
         "total_policies": len(policies),
         "by_type": {},
         "by_repo": {},
@@ -267,7 +267,7 @@ def format_pct(part: int, total: int) -> str:
     return f"{part / total * 100:.1f}%"
 
 
-def count_wildcards(actions: List[str]) -> int:
+def count_wildcards(actions: list[str]) -> int:
     """Count wildcard patterns in an action list.
 
     Counts full wildcards (*, *:*), service wildcards (s3:*),
@@ -282,9 +282,9 @@ def count_wildcards(actions: List[str]) -> int:
     return count
 
 
-def collect_policy_actions(policy: Any) -> List[str]:
+def collect_policy_actions(policy: Any) -> list[str]:
     """Extract all actions from a Policy object."""
-    actions: List[str] = []
+    actions: list[str] = []
     for stmt in policy.statements:
         actions.extend(stmt.actions)
         if stmt.not_actions:
@@ -310,16 +310,16 @@ class ExampleFetcher:
 
     def fetch_all(
         self,
-        repos: List[RepoConfig] | None = None,
-    ) -> List[Path]:
+        repos: list[RepoConfig] | None = None,
+    ) -> list[Path]:
         """Fetch JSON policy files from all configured repos."""
         repos = repos or DEFAULT_REPOS
-        downloaded: List[Path] = []
+        downloaded: list[Path] = []
         for repo_config in repos:
             downloaded.extend(self._fetch_repo(repo_config))
         return downloaded
 
-    def _fetch_repo(self, config: RepoConfig) -> List[Path]:
+    def _fetch_repo(self, config: RepoConfig) -> list[Path]:
         """Fetch all JSON files from a single repo."""
         tree = run_gh_api(
             f"repos/{config.owner}/{config.repo}/git/trees/main",
@@ -338,7 +338,7 @@ class ExampleFetcher:
             )
         ]
 
-        results: List[Path] = []
+        results: list[Path] = []
         repo_dir = self.output_dir / config.repo
         repo_dir.mkdir(parents=True, exist_ok=True)
 
@@ -355,7 +355,7 @@ class ExampleFetcher:
     def _download_file(
         config: RepoConfig,
         path: str,
-    ) -> Dict[str, Any] | None:
+    ) -> dict[str, Any] | None:
         """Download and decode a single JSON file from GitHub."""
         resp = run_gh_api(
             f"repos/{config.owner}/{config.repo}/contents/{path}",
@@ -386,10 +386,10 @@ class PolicyNormalizer:
         self.input_dir = input_dir
         self.output_dir = output_dir
 
-    def normalize_all(self) -> List[NormalizedPolicy]:
+    def normalize_all(self) -> list[NormalizedPolicy]:
         """Scan input_dir, validate and normalize all IAM policies."""
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        policies: List[NormalizedPolicy] = []
+        policies: list[NormalizedPolicy] = []
         for json_file in sorted(self.input_dir.rglob("*.json")):
             policy = self._try_normalize(json_file)
             if policy is not None:
@@ -448,8 +448,8 @@ class BenchmarkRunner:
 
     def run_benchmark(
         self,
-        policies: List[NormalizedPolicy],
-    ) -> List[BenchmarkEntry]:
+        policies: list[NormalizedPolicy],
+    ) -> list[BenchmarkEntry]:
         """Run all policies through the pipeline."""
         return [self._run_single(p) for p in policies]
 
@@ -508,8 +508,8 @@ class BenchmarkReporter:
 
     def generate_report(
         self,
-        entries: List[BenchmarkEntry],
-    ) -> Dict[str, Any]:
+        entries: list[BenchmarkEntry],
+    ) -> dict[str, Any]:
         """Generate aggregate benchmark report."""
         succeeded = [e for e in entries if e.success]
         failed = [e for e in entries if not e.success]
@@ -518,13 +518,13 @@ class BenchmarkReporter:
         t3 = sum(e.tier3_count for e in succeeded)
         total_actions = t1 + t2 + t3
 
-        verdicts: Dict[str, int] = {}
+        verdicts: dict[str, int] = {}
         for e in succeeded:
             v = e.verdict or "UNKNOWN"
             verdicts[v] = verdicts.get(v, 0) + 1
 
-        by_repo: Dict[str, int] = {}
-        by_cat: Dict[str, int] = {}
+        by_repo: dict[str, int] = {}
+        by_cat: dict[str, int] = {}
         for e in entries:
             by_repo[e.source_repo] = by_repo.get(e.source_repo, 0) + 1
             by_cat[e.category] = by_cat.get(e.category, 0) + 1
@@ -541,7 +541,7 @@ class BenchmarkReporter:
         wc_total = total_wc_resolved + total_wc_surviving
         wc_elim_pct = format_pct(total_wc_resolved, wc_total)
 
-        risk_dist: Dict[str, int] = {}
+        risk_dist: dict[str, int] = {}
         for e in succeeded:
             # Count risk findings by risk_count only (no severity yet)
             if e.risk_count > 0:
@@ -585,7 +585,7 @@ class BenchmarkReporter:
         }
 
     @staticmethod
-    def format_text(report: Dict[str, Any]) -> str:
+    def format_text(report: dict[str, Any]) -> str:
         """Format report as human-readable text."""
         s = report["summary"]
         t = report["tiers"]

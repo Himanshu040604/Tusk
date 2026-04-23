@@ -10,7 +10,7 @@ from __future__ import annotations
 import copy
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Dict, Set, Optional, Tuple, Any
+from typing import TYPE_CHECKING, Any
 
 # P0-3 α — constants imports deferred to function scope to break the
 # cold-start chain.  Module-level `from .constants import X` triggers
@@ -103,10 +103,10 @@ class RewriteResult:
 
     original_policy: Policy
     rewritten_policy: Policy
-    changes: List[RewriteChange] = field(default_factory=list)
-    assumptions: List[str] = field(default_factory=list)
-    warnings: List[str] = field(default_factory=list)
-    companion_permissions_added: List[CompanionPermission] = field(default_factory=list)
+    changes: list[RewriteChange] = field(default_factory=list)
+    assumptions: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    companion_permissions_added: list[CompanionPermission] = field(default_factory=list)
 
 
 class PolicyRewriter:
@@ -173,8 +173,8 @@ class PolicyRewriter:
         self.companion_detector = CompanionPermissionDetector(database)
 
         # Task 7 bulk-load — cached dicts read once at __init__ time.
-        self._action_resource_map: Dict[str, str] = {}
-        self._arn_templates: Dict[str, str] = {}
+        self._action_resource_map: dict[str, str] = {}
+        self._arn_templates: dict[str, str] = {}
         if database is not None:
             self._bulk_load_action_resource_map(database)
             self._bulk_load_arn_templates(database)
@@ -222,7 +222,7 @@ class PolicyRewriter:
             rows = conn.execute(
                 "SELECT service_prefix, resource_type, arn_template FROM arn_templates"
             ).fetchall()
-        out: Dict[str, str] = {}
+        out: dict[str, str] = {}
         for svc, rt, template in rows:
             key = svc if not rt else f"{svc}:{rt}"
             out[key] = template
@@ -273,13 +273,13 @@ class PolicyRewriter:
         # Auto-detect policy type if not explicitly set
         self._current_policy_type = config.policy_type or self.detect_policy_type(policy)
 
-        all_changes: List[RewriteChange] = []
-        assumptions: List[str] = []
-        warnings: List[str] = []
-        companions_added: List[CompanionPermission] = []
+        all_changes: list[RewriteChange] = []
+        assumptions: list[str] = []
+        warnings: list[str] = []
+        companions_added: list[CompanionPermission] = []
 
         # Deep copy to avoid mutating the original
-        new_statements: List[Statement] = []
+        new_statements: list[Statement] = []
 
         for idx, stmt in enumerate(policy.statements):
             # Preserve Deny statements as-is
@@ -366,7 +366,7 @@ class PolicyRewriter:
         statement: Statement,
         config: RewriteConfig,
         stmt_index: int = 0,
-    ) -> Tuple[Statement, List[RewriteChange]]:
+    ) -> tuple[Statement, list[RewriteChange]]:
         """Replace wildcard actions with specific actions from the database.
 
         Handles patterns: '*', '*:*', 'service:*', 'service:Get*'.
@@ -379,8 +379,8 @@ class PolicyRewriter:
         Returns:
             Tuple of (modified statement, list of changes)
         """
-        changes: List[RewriteChange] = []
-        new_actions: List[str] = []
+        changes: list[RewriteChange] = []
+        new_actions: list[str] = []
 
         for action in statement.actions:
             if "*" not in action:
@@ -413,7 +413,7 @@ class PolicyRewriter:
         self,
         action: str,
         config: RewriteConfig,
-    ) -> List[str]:
+    ) -> list[str]:
         """Expand a wildcard action pattern to specific actions.
 
         Args:
@@ -468,7 +468,7 @@ class PolicyRewriter:
 
         return [action]
 
-    def _intent_based_expansion(self, intent: str) -> List[str]:
+    def _intent_based_expansion(self, intent: str) -> list[str]:
         """Expand full wildcard based on developer intent.
 
         Args:
@@ -488,10 +488,10 @@ class PolicyRewriter:
         )
 
         intent_lower = intent.lower()
-        actions: List[str] = []
+        actions: list[str] = []
 
         # Extract service hints (word boundary to avoid e.g. "turkey" matching "key")
-        target_services: List[str] = []
+        target_services: list[str] = []
         for keyword, service in SERVICE_NAME_MAPPINGS.items():
             if re.search(r"\b" + re.escape(keyword) + r"\b", intent_lower):
                 if service not in target_services:
@@ -522,7 +522,7 @@ class PolicyRewriter:
         statement: Statement,
         config: RewriteConfig,
         stmt_index: int = 0,
-    ) -> Tuple[Statement, List[RewriteChange]]:
+    ) -> tuple[Statement, list[RewriteChange]]:
         """Replace wildcard resources with specific or placeholder ARNs.
 
         Args:
@@ -533,19 +533,19 @@ class PolicyRewriter:
         Returns:
             Tuple of (modified statement, list of changes)
         """
-        changes: List[RewriteChange] = []
+        changes: list[RewriteChange] = []
 
         if not any(r == "*" for r in statement.resources):
             return statement, changes
 
         # Determine which services are needed from the actions
-        services_needed: Set[str] = set()
+        services_needed: set[str] = set()
         for action in statement.actions:
             parts = action.split(":", 1)
             if len(parts) == 2:
                 services_needed.add(parts[0])
 
-        new_resources: List[str] = []
+        new_resources: list[str] = []
 
         for resource in statement.resources:
             if resource != "*":
@@ -589,8 +589,8 @@ class PolicyRewriter:
                     )
 
         # Deduplicate while preserving order
-        seen: Set[str] = set()
-        deduped: List[str] = []
+        seen: set[str] = set()
+        deduped: list[str] = []
         for r in new_resources:
             if r not in seen:
                 seen.add(r)
@@ -602,9 +602,9 @@ class PolicyRewriter:
     def _resolve_resource_arns_for_service(
         self,
         service_prefix: str,
-        actions: List[str],
+        actions: list[str],
         config: RewriteConfig,
-    ) -> List[str]:
+    ) -> list[str]:
         """Resolve real ARNs from inventory for a service.
 
         Args:
@@ -622,7 +622,7 @@ class PolicyRewriter:
             return []
 
         # Try action-specific resolution first
-        arns: Set[str] = set()
+        arns: set[str] = set()
         for action in actions:
             if action.startswith(f"{service_prefix}:"):
                 action_arns = self.inventory.get_arns_for_action(action)
@@ -638,7 +638,7 @@ class PolicyRewriter:
     def _generate_placeholder_arn(
         self,
         service_prefix: str,
-        actions: List[str],
+        actions: list[str],
         config: RewriteConfig,
     ) -> str:
         """Generate a placeholder ARN for a service.
@@ -688,7 +688,7 @@ class PolicyRewriter:
     def _infer_resource_type(
         self,
         service_prefix: str,
-        actions: List[str],
+        actions: list[str],
     ) -> str:
         """Infer resource type from service and actions.
 
@@ -708,7 +708,7 @@ class PolicyRewriter:
                     return self._action_resource_map[action]
 
         # Default resource types by service
-        defaults: Dict[str, str] = {
+        defaults: dict[str, str] = {
             "s3": "bucket",
             "ec2": "instance",
             "lambda": "function",
@@ -724,9 +724,9 @@ class PolicyRewriter:
 
     def _add_companion_permissions(
         self,
-        statements: List[Statement],
+        statements: list[Statement],
         config: RewriteConfig,
-    ) -> Tuple[List[Statement], List[RewriteChange], List[CompanionPermission]]:
+    ) -> tuple[list[Statement], list[RewriteChange], list[CompanionPermission]]:
         """Add missing companion permissions.
 
         Uses CompanionPermissionDetector to identify missing companions
@@ -739,14 +739,14 @@ class PolicyRewriter:
         Returns:
             Tuple of (updated statements, changes, companions added)
         """
-        changes: List[RewriteChange] = []
-        companions_added: List[CompanionPermission] = []
+        changes: list[RewriteChange] = []
+        companions_added: list[CompanionPermission] = []
 
         # Work on a copy to avoid mutating the input list
         statements = list(statements)
 
         # Collect all Allow actions across all statements
-        all_allow_actions: List[str] = []
+        all_allow_actions: list[str] = []
         for stmt in statements:
             if stmt.effect == "Allow":
                 all_allow_actions.extend(stmt.actions)
@@ -793,7 +793,7 @@ class PolicyRewriter:
         statement: Statement,
         config: RewriteConfig,
         stmt_index: int = 0,
-    ) -> Tuple[Statement, List[RewriteChange]]:
+    ) -> tuple[Statement, list[RewriteChange]]:
         """Add security-hardening condition keys to a statement.
 
         Adds conditions like aws:RequestedRegion and encryption requirements.
@@ -807,7 +807,7 @@ class PolicyRewriter:
         Returns:
             Tuple of (modified statement, list of changes)
         """
-        changes: List[RewriteChange] = []
+        changes: list[RewriteChange] = []
 
         if statement.effect != "Allow":
             return statement, changes
@@ -905,9 +905,9 @@ class PolicyRewriter:
 
     def _reorganize_statements(
         self,
-        statements: List[Statement],
+        statements: list[Statement],
         max_actions: int = 15,
-    ) -> List[Statement]:
+    ) -> list[Statement]:
         """Reorganize statements for clarity and readability.
 
         Groups related actions, splits large statements, and generates
@@ -920,8 +920,8 @@ class PolicyRewriter:
         Returns:
             Reorganized list of statements
         """
-        result: List[Statement] = []
-        used_sids: Set[str] = set()
+        result: list[Statement] = []
+        used_sids: set[str] = set()
 
         for stmt in statements:
             # Skip empty statements (no actions and no not_actions)
@@ -959,7 +959,7 @@ class PolicyRewriter:
         self,
         statement: Statement,
         max_actions: int,
-    ) -> List[Statement]:
+    ) -> list[Statement]:
         """Split a large statement into smaller ones by access level.
 
         Groups actions into read, write, and admin categories, then
@@ -972,10 +972,10 @@ class PolicyRewriter:
         Returns:
             List of split statements
         """
-        read_actions: List[str] = []
-        write_actions: List[str] = []
-        admin_actions: List[str] = []
-        other_actions: List[str] = []
+        read_actions: list[str] = []
+        write_actions: list[str] = []
+        admin_actions: list[str] = []
+        other_actions: list[str] = []
 
         for action in statement.actions:
             action_name = action.split(":")[-1] if ":" in action else action
@@ -989,7 +989,7 @@ class PolicyRewriter:
             else:
                 other_actions.append(action)
 
-        result: List[Statement] = []
+        result: list[Statement] = []
 
         for group_actions, label in [
             (read_actions, "Read"),
@@ -1023,7 +1023,7 @@ class PolicyRewriter:
 
         return result if result else [statement]
 
-    def _generate_sid(self, actions: List[str], effect: str) -> str:
+    def _generate_sid(self, actions: list[str], effect: str) -> str:
         """Generate a descriptive Sid from actions list.
 
         Creates human-readable statement IDs like 'AllowS3ReadAccess'
@@ -1040,8 +1040,8 @@ class PolicyRewriter:
             return f"{effect}GeneralAccess"
 
         # Extract service and action patterns
-        services: Set[str] = set()
-        action_verbs: Set[str] = set()
+        services: set[str] = set()
+        action_verbs: set[str] = set()
 
         for action in actions:
             parts = action.split(":", 1)
@@ -1083,9 +1083,9 @@ class PolicyRewriter:
 
     def _generate_unique_sid(
         self,
-        actions: List[str],
+        actions: list[str],
         effect: str,
-        used_sids: Set[str],
+        used_sids: set[str],
     ) -> str:
         """Generate a unique Sid, appending a counter if needed.
 
@@ -1105,7 +1105,7 @@ class PolicyRewriter:
             counter += 1
         return f"{base_sid}{counter}"
 
-    def to_policy_json(self, policy: Policy) -> Dict[str, Any]:
+    def to_policy_json(self, policy: Policy) -> dict[str, Any]:
         """Convert Policy dataclass to IAM policy JSON format.
 
         Thin instance-method wrapper around the module-level
@@ -1125,7 +1125,7 @@ class PolicyRewriter:
         return serialize_policy(policy)
 
 
-def serialize_policy(policy: Policy) -> Dict[str, Any]:
+def serialize_policy(policy: Policy) -> dict[str, Any]:
     """Convert a :class:`Policy` dataclass to an IAM policy JSON dict.
 
     Pure transform — no DB, no inventory, no side effects.  Split out of
@@ -1142,21 +1142,21 @@ def serialize_policy(policy: Policy) -> Dict[str, Any]:
         Statement[Effect, Sid, Action|NotAction, Resource|NotResource,
         Condition, Principal]).
     """
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         "Version": policy.version,
     }
 
     if policy.id:
         result["Id"] = policy.id
 
-    statements: List[Dict[str, Any]] = []
+    statements: list[dict[str, Any]] = []
     for stmt in policy.statements:
         # Skip statements with no actions at all (can happen after
         # loop-back removes all invalid actions from a statement).
         if not stmt.actions and not stmt.not_actions:
             continue
 
-        stmt_dict: Dict[str, Any] = {
+        stmt_dict: dict[str, Any] = {
             "Effect": stmt.effect,
         }
 

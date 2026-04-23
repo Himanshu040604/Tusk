@@ -32,7 +32,7 @@ class RefreshStats:
     actions_added: int = 0
     resource_types_added: int = 0
     condition_keys_added: int = 0
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -53,7 +53,7 @@ class ChangelogEntry:
 
 
 # Mapping from policy_sentry access_level strings to boolean flag columns.
-_ACCESS_LEVEL_MAP: Dict[str, str] = {
+_ACCESS_LEVEL_MAP: dict[str, str] = {
     "List": "is_list",
     "Read": "is_read",
     "Write": "is_write",
@@ -93,7 +93,7 @@ class PolicySentryLoader:
     def load_from_directory(
         self,
         data_dir: Path,
-    ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
+    ) -> tuple[RefreshStats, list[ChangelogEntry]]:
         """Load all ``*.json`` files from a directory.
 
         Args:
@@ -103,7 +103,7 @@ class PolicySentryLoader:
             Tuple of aggregate stats and changelog entries.
         """
         stats = RefreshStats()
-        changelog: List[ChangelogEntry] = []
+        changelog: list[ChangelogEntry] = []
 
         for json_file in sorted(data_dir.glob("*.json")):
             try:
@@ -126,7 +126,7 @@ class PolicySentryLoader:
     def load_from_file(
         self,
         data_file: Path,
-    ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
+    ) -> tuple[RefreshStats, list[ChangelogEntry]]:
         """Load from a single JSON file.
 
         The file may contain a single service object or a dict of
@@ -139,7 +139,7 @@ class PolicySentryLoader:
             Tuple of aggregate stats and changelog entries.
         """
         stats = RefreshStats()
-        changelog: List[ChangelogEntry] = []
+        changelog: list[ChangelogEntry] = []
 
         raw = json.loads(data_file.read_text(encoding="utf-8"))
 
@@ -168,7 +168,7 @@ class PolicySentryLoader:
         self._update_metadata()
         return stats, changelog
 
-    def validate_data(self, data_path: Path) -> List[str]:
+    def validate_data(self, data_path: Path) -> list[str]:
         """Dry-run: parse data without writing to database.
 
         Args:
@@ -177,7 +177,7 @@ class PolicySentryLoader:
         Returns:
             List of validation error strings (empty = valid).
         """
-        errors: List[str] = []
+        errors: list[str] = []
 
         if data_path.is_dir():
             files = list(data_path.glob("*.json"))
@@ -209,8 +209,8 @@ class PolicySentryLoader:
 
     def _process_service_data(
         self,
-        data: Dict[str, Any],
-    ) -> Tuple[RefreshStats, List[ChangelogEntry]]:
+        data: dict[str, Any],
+    ) -> tuple[RefreshStats, list[ChangelogEntry]]:
         """Process a single service data object.
 
         Args:
@@ -220,7 +220,7 @@ class PolicySentryLoader:
             Tuple of stats and changelog.
         """
         stats = RefreshStats()
-        changelog: List[ChangelogEntry] = []
+        changelog: list[ChangelogEntry] = []
 
         prefix = data.get("prefix", "")
         service_name = data.get("service_name", prefix)
@@ -275,9 +275,9 @@ class PolicySentryLoader:
     def _insert_action(
         self,
         service_prefix: str,
-        priv_data: Dict[str, Any],
+        priv_data: dict[str, Any],
         stats: RefreshStats,
-        changelog: List[ChangelogEntry],
+        changelog: list[ChangelogEntry],
     ) -> None:
         """Insert a single action from privilege data.
 
@@ -326,9 +326,9 @@ class PolicySentryLoader:
     def _insert_resource_type(
         self,
         service_prefix: str,
-        rt_data: Dict[str, Any],
+        rt_data: dict[str, Any],
         stats: RefreshStats,
-        changelog: List[ChangelogEntry],
+        changelog: list[ChangelogEntry],
     ) -> None:
         """Insert a resource type via raw SQL.
 
@@ -365,9 +365,9 @@ class PolicySentryLoader:
     def _insert_condition_key(
         self,
         service_prefix: str,
-        ck_data: Dict[str, Any],
+        ck_data: dict[str, Any],
         stats: RefreshStats,
-        changelog: List[ChangelogEntry],
+        changelog: list[ChangelogEntry],
     ) -> None:
         """Insert a condition key via raw SQL.
 
@@ -426,9 +426,9 @@ class PolicySentryLoader:
 
     def _validate_service_data(
         self,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         source_name: str,
-        errors: List[str],
+        errors: list[str],
     ) -> None:
         """Validate a service data dict without writing.
 

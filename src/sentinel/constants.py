@@ -57,13 +57,13 @@ def _settings() -> Any:
     return get_settings()
 
 
-def _verb_prefix(bucket: str) -> Tuple[str, ...]:
+def _verb_prefix(bucket: str) -> tuple[str, ...]:
     """Return one of the ``[intent.verb_prefixes]`` TOML lists as a tuple."""
     vp = _settings().intent.verb_prefixes
     return tuple(getattr(vp, bucket, ()) or ())
 
 
-def _intent_keyword_bucket_values(bucket: str) -> Tuple[str, ...]:
+def _intent_keyword_bucket_values(bucket: str) -> tuple[str, ...]:
     """Flatten one ``[intent.keywords.<bucket>]`` values list to a tuple."""
     kw = _settings().intent.keywords.get(bucket)
     if kw is None:
@@ -71,7 +71,7 @@ def _intent_keyword_bucket_values(bucket: str) -> Tuple[str, ...]:
     return tuple(kw.values)
 
 
-def _read_intent_keywords() -> Tuple[str, ...]:
+def _read_intent_keywords() -> tuple[str, ...]:
     """Union of the ``read``, ``read_write`` and ``list`` keyword buckets.
 
     Matches the legacy ``READ_INTENT_KEYWORDS`` semantics: any synonym that
@@ -85,7 +85,7 @@ def _read_intent_keywords() -> Tuple[str, ...]:
     return tuple(seen)
 
 
-def _write_intent_keywords() -> Tuple[str, ...]:
+def _write_intent_keywords() -> tuple[str, ...]:
     """Union of the ``write``, ``read_write`` and ``admin`` buckets."""
     seen: list[str] = []
     for bucket in ("write", "read_write", "admin", "deploy"):
@@ -137,7 +137,7 @@ def __dir__() -> list[str]:
 _JSON_PATH: Path = Path(__file__).resolve().parent.parent.parent / "data" / "known_services.json"
 
 
-def load_known_services(json_path: Path | None = None) -> Set[str]:
+def load_known_services(json_path: Path | None = None) -> set[str]:
     """Load known AWS service prefixes from JSON cache file.
 
     Args:
