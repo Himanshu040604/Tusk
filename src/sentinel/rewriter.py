@@ -52,15 +52,15 @@ class RewriteConfig:
         policy_type: Policy type hint (identity/resource/scp/boundary/None for auto-detect)
         condition_profile: Condition injection profile (strict/moderate/none)
     """
-    intent: Optional[str] = None
-    account_id: Optional[str] = None
-    region: Optional[str] = None
+    intent: str | None = None
+    account_id: str | None = None
+    region: str | None = None
     add_companions: bool = True
     add_conditions: bool = True
     placeholder_format: str = "PLACEHOLDER"
     preserve_deny_statements: bool = True
     max_actions_per_statement: int = 15
-    policy_type: Optional[str] = None
+    policy_type: str | None = None
     condition_profile: str = "moderate"
 
 
@@ -83,7 +83,7 @@ class RewriteChange:
     new_value: str
     statement_index: int = 0
     confidence: float = 1.0
-    rationale: Optional[str] = None
+    rationale: str | None = None
 
 
 @dataclass
@@ -126,8 +126,8 @@ class PolicyRewriter:
 
     def __init__(
         self,
-        database: Optional[Database] = None,
-        inventory: Optional[ResourceInventory] = None,
+        database: Database | None = None,
+        inventory: ResourceInventory | None = None,
     ):
         """Initialize policy rewriter with bulk-loaded lookup tables.
 
@@ -250,7 +250,7 @@ class PolicyRewriter:
     def rewrite_policy(
         self,
         policy: Policy,
-        config: Optional[RewriteConfig] = None
+        config: RewriteConfig | None = None
     ) -> RewriteResult:
         """Rewrite an IAM policy to enforce least privilege.
 

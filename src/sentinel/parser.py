@@ -95,8 +95,8 @@ class ValidationResult:
     action: str
     tier: ValidationTier
     reason: str
-    access_level: Optional[str] = None
-    suggestions: Optional[List[str]] = None
+    access_level: str | None = None
+    suggestions: List[str] | None = None
     confidence: float = 1.0
 
     def __post_init__(self):
@@ -122,11 +122,11 @@ class Statement:
     effect: str
     actions: List[str]
     resources: List[str]
-    sid: Optional[str] = None
-    conditions: Optional[Dict[str, Any]] = None
-    principals: Optional[Dict[str, Any]] = None
-    not_actions: Optional[List[str]] = None
-    not_resources: Optional[List[str]] = None
+    sid: str | None = None
+    conditions: Dict[str, Any] | None = None
+    principals: Dict[str, Any] | None = None
+    not_actions: List[str] | None = None
+    not_resources: List[str] | None = None
 
 
 @dataclass
@@ -140,7 +140,7 @@ class Policy:
     """
     version: str
     statements: List[Statement]
-    id: Optional[str] = None
+    id: str | None = None
 
 
 class PolicyParser:
@@ -155,7 +155,7 @@ class PolicyParser:
     # Pattern for action names (must start with uppercase or *, no spaces)
     ACTION_NAME_PATTERN = re.compile(r'^[A-Z*][A-Za-z0-9*]*$')
 
-    def __init__(self, database: Optional[Database] = None):
+    def __init__(self, database: Database | None = None):
         """Initialize parser.
 
         Two-layer service resolution:

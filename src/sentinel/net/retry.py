@@ -130,7 +130,7 @@ class RetryPolicy:
     def retrying(
         self,
         source: str,
-        retry_after_hook: Optional[Callable[[], float | None]] = None,
+        retry_after_hook: Callable[[], float | None] | None = None,
     ) -> Retrying:
         """Build a :class:`tenacity.Retrying` iterator for ``source``.
 

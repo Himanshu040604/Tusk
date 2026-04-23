@@ -81,9 +81,9 @@ class CheckFinding:
     check_type: str
     severity: CheckSeverity
     message: str
-    action: Optional[str] = None
-    resource: Optional[str] = None
-    remediation: Optional[str] = None
+    action: str | None = None
+    resource: str | None = None
+    remediation: str | None = None
 
 
 @dataclass
@@ -126,15 +126,15 @@ class PipelineConfig:
         allow_wildcard_actions: Downgrade wildcard action ERRORs to WARNINGs.
         allow_wildcard_resources: Downgrade wildcard resource ERRORs to WARNINGs.
     """
-    intent: Optional[str] = None
-    account_id: Optional[str] = None
-    region: Optional[str] = None
+    intent: str | None = None
+    account_id: str | None = None
+    region: str | None = None
     strict_mode: bool = False
     max_self_check_retries: int = 3
     add_companions: bool = True
     add_conditions: bool = True
     interactive: bool = False
-    policy_type: Optional[str] = None
+    policy_type: str | None = None
     condition_profile: str = "moderate"
     allow_wildcard_actions: bool = False
     allow_wildcard_resources: bool = False
@@ -170,7 +170,7 @@ class PipelineResult:
     # M5 § 8.4 — provenance record of the input bytes.  Optional so
     # legacy callers that passed raw strings still work (a synthetic
     # stdin origin is attached via run_text()).
-    origin: Optional[PolicyOrigin] = None
+    origin: PolicyOrigin | None = None
 
 
 # ARN format: starts with arn: and has at least 5 colon-separated parts
@@ -186,8 +186,8 @@ class SelfCheckValidator:
 
     def __init__(
         self,
-        database: Optional[Database] = None,
-        inventory: Optional[ResourceInventory] = None,
+        database: Database | None = None,
+        inventory: ResourceInventory | None = None,
     ):
         """Initialize self-check validator.
 
@@ -204,7 +204,7 @@ class SelfCheckValidator:
     def run_self_check(
         self,
         rewrite_result: RewriteResult,
-        config: Optional[PipelineConfig] = None,
+        config: PipelineConfig | None = None,
     ) -> SelfCheckResult:
         """Run all self-check validations on a rewritten policy.
 
@@ -345,7 +345,7 @@ class SelfCheckValidator:
     def _check_arn_formats(
         self,
         policy: Policy,
-        config: Optional[PipelineConfig] = None,
+        config: PipelineConfig | None = None,
     ) -> List[CheckFinding]:
         """Validate ARN formats in the rewritten policy.
 
@@ -542,7 +542,7 @@ class SelfCheckValidator:
     def _check_overly_broad_permissions(
         self,
         policy: Policy,
-        config: Optional[PipelineConfig] = None,
+        config: PipelineConfig | None = None,
     ) -> List[CheckFinding]:
         """Check for surviving wildcard actions and resources.
 
@@ -823,9 +823,9 @@ class Pipeline:
 
     def __init__(
         self,
-        database: Optional[Database] = None,
-        inventory: Optional[ResourceInventory] = None,
-        config: Optional[PipelineConfig] = None,
+        database: Database | None = None,
+        inventory: ResourceInventory | None = None,
+        config: PipelineConfig | None = None,
     ):
         """Initialize pipeline.
 
@@ -847,7 +847,7 @@ class Pipeline:
     def run(
         self,
         policy_input: "PolicyInput | str",
-        config: Optional[PipelineConfig] = None,
+        config: PipelineConfig | None = None,
     ) -> PipelineResult:
         """Run the full pipeline on a :class:`PolicyInput`.
 
@@ -1020,7 +1020,7 @@ class Pipeline:
     def run_text(
         self,
         policy_text: str,
-        config: Optional[PipelineConfig] = None,
+        config: PipelineConfig | None = None,
     ) -> PipelineResult:
         """Legacy string-in wrapper around :meth:`run`.
 

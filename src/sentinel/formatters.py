@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 _SHA_PREFIX_LEN = 12
 
 
-def _origin_text(origin: Optional["PolicyOrigin"]) -> str:
+def _origin_text(origin: "PolicyOrigin" | None) -> str:
     """One-line text badge or ``""`` when origin is absent."""
     if origin is None:
         return ""
@@ -42,7 +42,7 @@ def _origin_text(origin: Optional["PolicyOrigin"]) -> str:
     )
 
 
-def _origin_json(origin: Optional["PolicyOrigin"]) -> dict[str, str] | None:
+def _origin_json(origin: "PolicyOrigin" | None) -> dict[str, str] | None:
     """JSON-serialisable origin sub-tree or None."""
     if origin is None:
         return None
@@ -55,7 +55,7 @@ def _origin_json(origin: Optional["PolicyOrigin"]) -> dict[str, str] | None:
     }
 
 
-def _origin_markdown(origin: Optional["PolicyOrigin"]) -> str:
+def _origin_markdown(origin: "PolicyOrigin" | None) -> str:
     """Markdown badge or ``""``."""
     if origin is None:
         return ""
@@ -255,7 +255,7 @@ class TextFormatter:
 
     def format_db_info(
         self,
-        metadata: Dict[str, Optional[str]],
+        metadata: Dict[str, str | None],
         service_count: int,
         action_count: int,
     ) -> str:
@@ -434,7 +434,7 @@ class JsonFormatter:
 
     def format_db_info(
         self,
-        metadata: Dict[str, Optional[str]],
+        metadata: Dict[str, str | None],
         service_count: int,
         action_count: int,
     ) -> str:
@@ -649,7 +649,7 @@ class MarkdownFormatter:
 
     def format_db_info(
         self,
-        metadata: Dict[str, Optional[str]],
+        metadata: Dict[str, str | None],
         service_count: int,
         action_count: int,
     ) -> str:

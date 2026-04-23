@@ -26,9 +26,9 @@ class Service:
     """
     service_prefix: str
     service_name: str
-    service_authorization_url: Optional[str] = None
-    api_reference_url: Optional[str] = None
-    data_version: Optional[str] = None
+    service_authorization_url: str | None = None
+    api_reference_url: str | None = None
+    data_version: str | None = None
 
 
 @dataclass
@@ -49,18 +49,18 @@ class Action:
         is_tagging_only: Whether this only modifies tags
         reference_url: URL to action documentation
     """
-    action_id: Optional[int]
+    action_id: int | None
     service_prefix: str
     action_name: str
     full_action: str
-    description: Optional[str]
+    description: str | None
     access_level: str
     is_list: bool = False
     is_read: bool = False
     is_write: bool = False
     is_permissions_management: bool = False
     is_tagging_only: bool = False
-    reference_url: Optional[str] = None
+    reference_url: str | None = None
 
 
 @dataclass
@@ -74,11 +74,11 @@ class ResourceType:
         arn_pattern: ARN pattern template
         reference_url: URL to resource documentation
     """
-    resource_type_id: Optional[int]
+    resource_type_id: int | None
     service_prefix: str
     resource_name: str
     arn_pattern: str
-    reference_url: Optional[str] = None
+    reference_url: str | None = None
 
 
 @dataclass
@@ -95,14 +95,14 @@ class ConditionKey:
         is_global: Whether this is a global aws:* condition key
         reference_url: URL to condition key documentation
     """
-    condition_key_id: Optional[int]
+    condition_key_id: int | None
     service_prefix: str
     condition_key_name: str
     full_condition_key: str
-    description: Optional[str]
-    condition_type: Optional[str]
+    description: str | None
+    condition_type: str | None
     is_global: bool = False
-    reference_url: Optional[str] = None
+    reference_url: str | None = None
 
 
 class DatabaseError(Exception):
@@ -599,7 +599,7 @@ class Database:
             ))
             return cursor.lastrowid
 
-    def get_action(self, service_prefix: str, action_name: str) -> Optional[Action]:
+    def get_action(self, service_prefix: str, action_name: str) -> Action | None:
         """Retrieve action by service and name.
 
         Args:
@@ -703,7 +703,7 @@ class Database:
                 for row in cursor.fetchall()
             ]
 
-    def get_metadata(self, key: str) -> Optional[str]:
+    def get_metadata(self, key: str) -> str | None:
         """Retrieve metadata value.
 
         Args:

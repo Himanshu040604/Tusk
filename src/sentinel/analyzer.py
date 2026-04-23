@@ -108,7 +108,7 @@ class HITLDecision:
     action: str
     tier: str
     user_approved: bool
-    user_comment: Optional[str] = None
+    user_comment: str | None = None
     assumptions_validated: List[str] = field(default_factory=list)
 
 
@@ -126,7 +126,7 @@ class IntentMapper:
     redeploy.
     """
 
-    def __init__(self, database: Optional[Database] = None):
+    def __init__(self, database: Database | None = None):
         """Initialize intent mapper.
 
         Args:
@@ -171,7 +171,7 @@ class IntentMapper:
         """Backwards-compat shim — callers inside this class still read this."""
         return self._intent_keywords
 
-    def map_intent(self, intent: str, service_filter: Optional[List[str]] = None) -> IntentMapping:
+    def map_intent(self, intent: str, service_filter: List[str] | None = None) -> IntentMapping:
         """Map developer intent to access levels and actions.
 
         Args:
@@ -365,7 +365,7 @@ class RiskAnalyzer:
     and other security issues in IAM policies.
     """
 
-    def __init__(self, database: Optional["Database"] = None):
+    def __init__(self, database: "Database" | None = None):
         """Initialize risk analyzer with bulk-loaded classification tables.
 
         Task 6 bulk-load pattern: reads ``dangerous_actions`` from the DB
@@ -797,7 +797,7 @@ class DangerousPermissionChecker:
     Provides detailed analysis of high-risk permissions and their context.
     """
 
-    def __init__(self, database: Optional[Database] = None):
+    def __init__(self, database: Database | None = None):
         """Initialize dangerous permission checker.
 
         Args:
@@ -857,7 +857,7 @@ class CompanionPermissionDetector:
     # fallback-reconstruction block deleted.  Rules live exclusively in
     # the `companion_rules` DB table (migration 0004 + seed_all_baseline).
 
-    def __init__(self, database: Optional["Database"] = None):
+    def __init__(self, database: "Database" | None = None):
         """Initialize companion permission detector.
 
         Task 6 bulk-load: reads ``companion_rules`` once at construction
@@ -960,7 +960,7 @@ class CompanionPermissionDetector:
     def detect_missing_companions(
         self,
         actions: List[str],
-        context: Optional[Dict[str, Any]] = None
+        context: Dict[str, Any] | None = None
     ) -> List[CompanionPermission]:
         """Detect missing companion permissions.
 
@@ -994,7 +994,7 @@ class CompanionPermissionDetector:
 
         return missing
 
-    def suggest_companions(self, action: str) -> Optional[CompanionPermission]:
+    def suggest_companions(self, action: str) -> CompanionPermission | None:
         """Suggest companion permissions for a single action.
 
         Args:
@@ -1120,8 +1120,8 @@ class HITLSystem:
         action: str,
         tier: str,
         approved: bool,
-        comment: Optional[str] = None,
-        assumptions: Optional[List[str]] = None
+        comment: str | None = None,
+        assumptions: List[str] | None = None
     ) -> None:
         """Record a user decision.
 

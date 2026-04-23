@@ -124,13 +124,13 @@ class BenchmarkEntry:
     source_repo: str
     category: str
     success: bool
-    error: Optional[str] = None
+    error: str | None = None
     tier1_count: int = 0
     tier2_count: int = 0
     tier3_count: int = 0
     risk_count: int = 0
     rewrite_changes: int = 0
-    verdict: Optional[str] = None
+    verdict: str | None = None
     original_action_count: int = 0
     rewritten_action_count: int = 0
     wildcards_resolved: int = 0
@@ -168,8 +168,8 @@ def verify_gh_cli() -> None:
 
 def run_gh_api(
     endpoint: str,
-    params: Optional[str] = None,
-) -> Optional[Dict[str, Any]]:
+    params: str | None = None,
+) -> Dict[str, Any] | None:
     """Execute a ``gh api`` call and return parsed JSON.
 
     Args:
@@ -317,7 +317,7 @@ class ExampleFetcher:
 
     def fetch_all(
         self,
-        repos: Optional[List[RepoConfig]] = None,
+        repos: List[RepoConfig] | None = None,
     ) -> List[Path]:
         """Fetch JSON policy files from all configured repos."""
         repos = repos or DEFAULT_REPOS
@@ -364,7 +364,7 @@ class ExampleFetcher:
     def _download_file(
         config: RepoConfig,
         path: str,
-    ) -> Optional[Dict[str, Any]]:
+    ) -> Dict[str, Any] | None:
         """Download and decode a single JSON file from GitHub."""
         resp = run_gh_api(
             f"repos/{config.owner}/{config.repo}/contents/{path}",
@@ -405,7 +405,7 @@ class PolicyNormalizer:
         write_manifest(self.output_dir, policies)
         return policies
 
-    def _try_normalize(self, path: Path) -> Optional[NormalizedPolicy]:
+    def _try_normalize(self, path: Path) -> NormalizedPolicy | None:
         """Attempt to normalize a single JSON file."""
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -453,8 +453,8 @@ class BenchmarkRunner:
 
     def __init__(
         self,
-        database: Optional[Database] = None,
-        inventory: Optional[ResourceInventory] = None,
+        database: Database | None = None,
+        inventory: ResourceInventory | None = None,
     ) -> None:
         self.database = database
         self.inventory = inventory

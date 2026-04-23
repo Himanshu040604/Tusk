@@ -27,14 +27,14 @@ class Resource:
         account_id: AWS account ID (12-digit number)
         metadata: JSON string with additional resource metadata
     """
-    resource_id: Optional[int]
+    resource_id: int | None
     service_prefix: str
     resource_type: str
     resource_arn: str
-    resource_name: Optional[str] = None
-    region: Optional[str] = None
-    account_id: Optional[str] = None
-    metadata: Optional[str] = None
+    resource_name: str | None = None
+    region: str | None = None
+    account_id: str | None = None
+    metadata: str | None = None
 
 
 class InventoryError(Exception):
@@ -207,7 +207,7 @@ class ResourceInventory:
             ))
             return cursor.lastrowid
 
-    def get_resource_by_arn(self, arn: str) -> Optional[Resource]:
+    def get_resource_by_arn(self, arn: str) -> Resource | None:
         """Retrieve resource by ARN.
 
         Args:
@@ -242,7 +242,7 @@ class ResourceInventory:
     def get_resources_by_service(
         self,
         service_prefix: str,
-        resource_type: Optional[str] = None
+        resource_type: str | None = None
     ) -> List[Resource]:
         """Retrieve resources by service and optional type.
 
@@ -383,7 +383,7 @@ class ResourceInventory:
                 'by_account': by_account
             }
 
-    def get_metadata(self, key: str) -> Optional[str]:
+    def get_metadata(self, key: str) -> str | None:
         """Retrieve metadata value.
 
         Args:
@@ -429,7 +429,7 @@ class ResourceInventory:
     def resolve_wildcard_resource(
         self,
         service_prefix: str,
-        resource_type: Optional[str] = None
+        resource_type: str | None = None
     ) -> List[str]:
         """Look up real ARNs from inventory to replace wildcard resources.
 

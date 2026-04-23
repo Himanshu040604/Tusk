@@ -148,7 +148,7 @@ _JSON_PATH: Path = (
 )
 
 
-def load_known_services(json_path: Optional[Path] = None) -> Set[str]:
+def load_known_services(json_path: Path | None = None) -> Set[str]:
     """Load known AWS service prefixes from JSON cache file.
 
     Args:

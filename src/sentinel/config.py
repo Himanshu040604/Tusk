@@ -169,13 +169,13 @@ class ProfileConfig(BaseModel):
     """Per-profile override block.  All fields optional; merge via dict
     update onto the base :class:`Settings`."""
 
-    account_id: Optional[str] = None
-    region: Optional[str] = None
-    log_level: Optional[str] = None
-    log_format: Optional[str] = None
-    max_retries: Optional[int] = None
-    fail_fast: Optional[bool] = None
-    security_critical_services: Optional[list[str]] = None
+    account_id: str | None = None
+    region: str | None = None
+    log_level: str | None = None
+    log_format: str | None = None
+    max_retries: int | None = None
+    fail_fast: bool | None = None
+    security_critical_services: list[str] | None = None
 
     model_config = {"extra": "allow"}
 
@@ -308,7 +308,7 @@ class Settings(BaseSettings):
     """
 
     # --- persistable config ---
-    profile: Optional[str] = None
+    profile: str | None = None
     account_id: str = "123456789012"
     region: str = "us-east-1"
 
@@ -327,7 +327,7 @@ class Settings(BaseSettings):
 
     # --- credentials ---
     # L7 / § 7.5: SecretStr guarantees `sentinel config show` redacts it.
-    github_token: Optional[SecretStr] = Field(default=None)
+    github_token: SecretStr | None = Field(default=None)
 
     # --- ephemeral (CLI-only) fields ---
     # These are surfaced for runtime consumers but NEVER loaded from TOML
@@ -339,7 +339,7 @@ class Settings(BaseSettings):
     skip_migrations: bool = False
 
     # Paths — resolved later by ``load_settings``.
-    config_path: Optional[Path] = None
+    config_path: Path | None = None
 
     model_config = SettingsConfigDict(
         extra="ignore",
@@ -474,9 +474,9 @@ def _env_overlay() -> dict[str, Any]:
 
 
 def load_settings(
-    cli_overrides: Optional[dict[str, Any]] = None,
-    config_path_override: Optional[Path] = None,
-    profile_override: Optional[str] = None,
+    cli_overrides: dict[str, Any] | None = None,
+    config_path_override: Path | None = None,
+    profile_override: str | None = None,
 ) -> Settings:
     """Build a :class:`Settings` by merging all six precedence layers.
 
@@ -566,7 +566,7 @@ def load_settings(
 # ---------------------------------------------------------------------------
 
 
-_SETTINGS: Optional[Settings] = None
+_SETTINGS: Settings | None = None
 
 
 def get_settings() -> Settings:
