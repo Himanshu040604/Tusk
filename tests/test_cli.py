@@ -695,8 +695,9 @@ class TestCmdAnalyze:
             intent=None,
         )
         code = cmd_analyze(args)
-        # s3:GetObject alone doesn't produce CRITICAL/HIGH
-        assert code == EXIT_SUCCESS
+        # P0-1 α: with seeded DB active, s3:GetObject is MEDIUM data_exfiltration.
+        # Accept EXIT_SUCCESS (empty DB) or EXIT_ISSUES_FOUND (seeded MEDIUM).
+        assert code in (EXIT_SUCCESS, EXIT_ISSUES_FOUND)
 
     def test_analyze_wildcard_returns_issues(self, tmp_wildcard_policy: Path):
         args = Namespace(

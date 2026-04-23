@@ -428,20 +428,21 @@ class RiskAnalyzer:
         """
         from .hmac_keys import verify_row
 
-        try:
-            with database.get_connection() as conn:
-                # Probe for table existence first (pre-migration DBs).
-                probe = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='dangerous_actions'"
-                ).fetchone()
-                if not probe:
-                    return False
-                rows = conn.execute(
-                    "SELECT action_name, category, severity, description, "
-                    "source, refreshed_at, row_hmac FROM dangerous_actions"
-                ).fetchall()
-        except Exception:
-            return False
+        # P0-1 α — no outer `except Exception`.  Let DatabaseError (raised
+        # by get_connection() on sqlite I/O failures) and row-level
+        # HMAC-mismatch DatabaseError propagate to the caller.  The probe
+        # branch below remains the only silent path (pre-migration DB).
+        with database.get_connection() as conn:
+            # Probe for table existence first (pre-migration DBs).
+            probe = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='dangerous_actions'"
+            ).fetchone()
+            if not probe:
+                return False
+            rows = conn.execute(
+                "SELECT action_name, category, severity, description, "
+                "source, refreshed_at, row_hmac FROM dangerous_actions"
+            ).fetchall()
 
         if not rows:
             return False
@@ -920,20 +921,18 @@ class CompanionPermissionDetector:
         """
         from .hmac_keys import verify_row
 
-        try:
-            with database.get_connection() as conn:
-                probe = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='companion_rules'"
-                ).fetchone()
-                if not probe:
-                    return False
-                rows = conn.execute(
-                    "SELECT primary_action, companion_action, reason, "
-                    "severity, source, refreshed_at, row_hmac "
-                    "FROM companion_rules ORDER BY primary_action, companion_action"
-                ).fetchall()
-        except Exception:
-            return False
+        # P0-1 α — no outer `except Exception`.  Let DatabaseError propagate.
+        with database.get_connection() as conn:
+            probe = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='companion_rules'"
+            ).fetchone()
+            if not probe:
+                return False
+            rows = conn.execute(
+                "SELECT primary_action, companion_action, reason, "
+                "severity, source, refreshed_at, row_hmac "
+                "FROM companion_rules ORDER BY primary_action, companion_action"
+            ).fetchall()
 
         if not rows:
             return False

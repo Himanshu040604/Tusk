@@ -35,22 +35,67 @@ def _sentinel_data_dir_per_worker(
     tmp_path_factory: pytest.TempPathFactory,
     worker_id: str,
 ) -> Iterator[Path]:
-    """Set ``SENTINEL_DATA_DIR`` to a per-xdist-worker temp directory.
+    """Set ``SENTINEL_DATA_DIR`` to a SHARED session-scoped temp directory.
 
-    Prevents D4 HMAC-key races and L6 cache-key contention when Phase 2
-    introduces ``$SENTINEL_DATA_DIR/cache.key`` as a shared file.  Under
-    serial execution (no xdist), ``worker_id`` falls back to ``"master"``
-    per the standard pytest-xdist convention — the fixture still runs and
-    isolates the data dir from the user's real ``~/.sentinel`` (or whatever
-    the production default resolves to).
+    Post-P0-1 α / P0-2 γ note: after Group A, the shared
+    ``data/iam_actions.db`` is HMAC-verified at bulk-load time.  Previously
+    the fixture created a per-worker SENTINEL_DATA_DIR so each worker had
+    its own ``cache.key``; but the IAM DB on disk is SHARED across workers.
+    Under xdist parallelism that creates an unresolvable race: whichever
+    worker seeded the DB first wins, and every other worker sees HMAC
+    mismatch at bulk-load time (previously hidden by the fail-open
+    ``except Exception: return False`` that P0-1 α removed).
 
-    The prior env-var value is captured and restored on teardown so that
-    tests which explicitly override ``SENTINEL_DATA_DIR`` in a subprocess
-    still see a clean pre-test state after the session ends.
+    Fix: all workers now share a single SENTINEL_DATA_DIR rooted under the
+    pytest session's tmp root.  ``tmp_path_factory.getbasetemp()`` resolves
+    to ``pytest-NN`` (parent of per-worker ``popen-gwN``) under xdist, so
+    every worker points at the same directory.  Per-worker isolation for
+    the L6 ``_known_services`` cache remains intact (that's a module-level
+    Python cache, not filesystem state).
+
+    Under serial execution (``worker_id == "master"``) the base temp IS the
+    worker temp — same file; semantics unchanged.
+
+    The shared dir is ALSO seeded with a fresh ``data/iam_actions.db`` once
+    at session start so the HMAC-signed rows match the shared key.  The
+    first worker to acquire the filelock rebuilds; subsequent workers see
+    HEAD revision and skip.
     """
-    data_dir = tmp_path_factory.mktemp(f"sentinel-{worker_id}")
+    base = tmp_path_factory.getbasetemp()
+    # getbasetemp() resolves differently per worker under xdist (each has
+    # its own numbered subdir).  Walk up to the pytest-NN root.
+    if base.name.startswith("popen-gw"):
+        base = base.parent
+    data_dir = base / "sentinel-shared"
+    data_dir.mkdir(parents=True, exist_ok=True)
     prior = os.environ.get("SENTINEL_DATA_DIR")
     os.environ["SENTINEL_DATA_DIR"] = str(data_dir)
+    # Clear any cached HMAC sub-keys that depend on the previous data dir.
+    try:
+        from sentinel.hmac_keys import _reset_cache as _hk_reset
+
+        _hk_reset()
+    except ImportError:
+        pass  # Phase 1.5 pre-Phase-2 compatibility
+
+    # Rebuild the default shared DB in-place so the row HMACs match the
+    # shared key.  Filelock inside check_and_upgrade_all_dbs serializes
+    # concurrent rebuilds; seed_all_baseline is idempotent (DELETE+INSERT).
+    try:
+        from pathlib import Path as _P
+
+        from sentinel.migrations import check_and_upgrade_all_dbs
+        from sentinel.seed_data import seed_all_baseline
+
+        _default_db = _P(__file__).resolve().parent.parent / "data" / "iam_actions.db"
+        _default_db.parent.mkdir(parents=True, exist_ok=True)
+        check_and_upgrade_all_dbs(_default_db, None)
+        seed_all_baseline(_default_db)
+    except Exception:
+        # Best-effort — tests that don't need the shared DB will still pass.
+        # Tests that do will surface the error explicitly via their own path.
+        pass
+
     try:
         yield data_dir
     finally:

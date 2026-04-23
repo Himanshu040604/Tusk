@@ -170,19 +170,17 @@ class PolicyRewriter:
         this is deterministic.  Missing table / empty rowset leaves the
         instance dict empty; callers hit their per-service default path.
         """
-        try:
-            with database.get_connection() as conn:
-                probe = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' "
-                    "AND name='action_resource_map'"
-                ).fetchone()
-                if not probe:
-                    return
-                rows = conn.execute(
-                    "SELECT action_name, resource_type FROM action_resource_map"
-                ).fetchall()
-        except Exception:
-            return
+        # P0-1 α — no outer `except Exception`.  Let DatabaseError propagate.
+        with database.get_connection() as conn:
+            probe = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name='action_resource_map'"
+            ).fetchone()
+            if not probe:
+                return
+            rows = conn.execute(
+                "SELECT action_name, resource_type FROM action_resource_map"
+            ).fetchall()
         # dict constructor collapses duplicates; first-wins via reversed().
         self._action_resource_map = {
             action_name: resource_type for action_name, resource_type in reversed(rows)
@@ -197,18 +195,16 @@ class PolicyRewriter:
         (service, resource_type) composite rows remain addressable via
         ``"{svc}:{rt}"`` lookup keys.
         """
-        try:
-            with database.get_connection() as conn:
-                probe = conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' AND name='arn_templates'"
-                ).fetchone()
-                if not probe:
-                    return
-                rows = conn.execute(
-                    "SELECT service_prefix, resource_type, arn_template FROM arn_templates"
-                ).fetchall()
-        except Exception:
-            return
+        # P0-1 α — no outer `except Exception`.  Let DatabaseError propagate.
+        with database.get_connection() as conn:
+            probe = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='arn_templates'"
+            ).fetchone()
+            if not probe:
+                return
+            rows = conn.execute(
+                "SELECT service_prefix, resource_type, arn_template FROM arn_templates"
+            ).fetchall()
         out: Dict[str, str] = {}
         for svc, rt, template in rows:
             key = svc if not rt else f"{svc}:{rt}"

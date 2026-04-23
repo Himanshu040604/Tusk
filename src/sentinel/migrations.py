@@ -127,6 +127,76 @@ def _db_has_tables(db_path: Path) -> bool:
         conn.close()
 
 
+# P0-2 γ — Fail-closed table verification.
+#
+# Phase 2 introduced 7 tables that the analyzer/rewriter bulk-load at startup.
+# If the Alembic head says 0008+ but the DB was safe-stamped from a pre-Alembic
+# install that only had Phase-1 tables, these tables will be missing silently.
+# Combined with the previous fail-open bulk-load (`except Exception: return
+# False`), the tool would produce zero findings on a broken DB.
+#
+# Option C (fail-closed): at startup, after migrations settle, verify the
+# expected Phase-2 tables are present.  If any are missing, abort with a
+# clear recovery message.
+_PHASE2_EXPECTED_TABLES: frozenset[str] = frozenset({
+    "dangerous_actions",
+    "companion_rules",
+    "dangerous_combinations",
+    "action_resource_map",
+    "arn_templates",
+    "managed_policies",
+    "verb_prefixes",
+})
+
+
+def _phase2_missing_tables(db_path: Path) -> list[str]:
+    """Return the sorted list of expected Phase-2 tables absent from ``db_path``.
+
+    Returns ``[]`` if all expected tables are present or the DB is not the
+    IAM DB (Phase-2 tables only live on iam_actions.db — inventory DB has
+    its own schema).  Uses a read-only URI so no WAL interaction.
+    """
+    if not db_path.exists():
+        return []
+    try:
+        conn = sqlite3.connect(f"file:{db_path.resolve()}?mode=ro", uri=True)
+    except sqlite3.Error:
+        return []
+    try:
+        existing = {
+            r[0] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table'"
+            ).fetchall()
+        }
+        return sorted(_PHASE2_EXPECTED_TABLES - existing)
+    finally:
+        conn.close()
+
+
+def verify_phase2_tables(db_path: Path) -> None:
+    """P0-2 γ — abort with recovery message if expected Phase-2 tables missing.
+
+    Called from ``check_and_upgrade_all_dbs`` after the per-DB upgrade/stamp
+    branches settle.  Only runs against the IAM DB (caller wires this only
+    for ``iam_actions.db`` — inventory DB skips).
+
+    Raises:
+        DatabaseError: DB is stamped at Alembic head but is missing one or
+            more Phase-2 tables.  Exit code EXIT_IO_ERROR (3) when the
+            caller catches.
+    """
+    from .database import DatabaseError
+
+    missing = _phase2_missing_tables(db_path)
+    if not missing:
+        return
+    current = _current_revision(db_path) or "<unstamped>"
+    raise DatabaseError(
+        f"DB is stamped at {current} but missing expected tables: {missing}. "
+        f"Recovery: delete {db_path} and re-run 'sentinel info' to rebuild from scratch."
+    )
+
+
 def _head_revision(cfg: Config) -> str | None:
     """Return Alembic HEAD revision for the given config."""
     script = ScriptDirectory.from_config(cfg)
@@ -283,6 +353,12 @@ def check_and_upgrade_all_dbs(
 
     _upgrade_single_db(iam_db_path, "iam")
 
+    # P0-2 γ — after migrations/stamp settle, verify Phase-2 tables exist.
+    # Catches the mis-stamped-DB case (DB stamped at 0008+ but only has
+    # Phase-1 tables) which the safe-stamp branch would otherwise let slide.
+    # Only enforced on the IAM DB — inventory DB has its own schema.
+    verify_phase2_tables(iam_db_path)
+
     if inventory_db_path is not None and inventory_db_path.exists():
         _upgrade_single_db(inventory_db_path, "inventory")
 
@@ -302,4 +378,5 @@ __all__ = [
     "FILELOCK_TIMEOUT_SECONDS",
     "check_and_upgrade_all_dbs",
     "check_and_upgrade_db",
+    "verify_phase2_tables",
 ]
