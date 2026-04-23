@@ -200,18 +200,22 @@ def _make_policy_file(tmp_path: Path, name: str, actions: list[str]) -> Path:
 
 
 def test_cmd_compare_two_policies_produces_diff(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    migrated_db_template: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """`sentinel compare` runs against two policies and emits a diff."""
     from sentinel.cli_misc import cmd_compare
+    from tests.conftest import make_test_db
 
     p_a = _make_policy_file(tmp_path, "a.json", ["s3:GetObject"])
     p_b = _make_policy_file(tmp_path, "b.json", ["s3:PutObject"])
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
 
     ns = argparse.Namespace(
         policy_a=str(p_a),
         policy_b=str(p_b),
-        database=None,
+        database=str(db_path),
         inventory=None,
         output_format="text",
     )
@@ -223,20 +227,24 @@ def test_cmd_compare_two_policies_produces_diff(
 
 
 def test_cmd_compare_json_output(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    migrated_db_template: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     """`sentinel compare --output-format json` emits a parseable payload."""
     import json as _json
 
     from sentinel.cli_misc import cmd_compare
+    from tests.conftest import make_test_db
 
     p_a = _make_policy_file(tmp_path, "a.json", ["s3:GetObject"])
     p_b = _make_policy_file(tmp_path, "b.json", ["s3:PutObject"])
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
 
     ns = argparse.Namespace(
         policy_a=str(p_a),
         policy_b=str(p_b),
-        database=None,
+        database=str(db_path),
         inventory=None,
         output_format="json",
     )
