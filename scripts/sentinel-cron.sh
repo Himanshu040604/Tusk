@@ -27,6 +27,15 @@ SENTINEL_HOME="${SENTINEL_HOME:-/opt/sentinel}"
 SENTINEL_PYTHON="${SENTINEL_PYTHON:-uv run sentinel}"
 SENTINEL_LOCKFILE="${SENTINEL_LOCKFILE:-/var/lock/sentinel.lock}"
 
+# P1-7 α — array form avoids word-splitting + glob-expansion pitfalls
+# on the SENTINEL_PYTHON variable.  A user setting `SENTINEL_PYTHON="uv
+# run sentinel"` previously relied on unquoted variable expansion to
+# split into three tokens; that path is also vulnerable to glob
+# injection if someone ever set a value like `/opt/*/bin/sentinel`.
+# ``read -ra`` + ``"${array[@]}"`` expansion is ShellCheck SC2086-clean
+# and produces the same three-token result without either failure mode.
+read -ra _SENTINEL_CMD <<< "${SENTINEL_PYTHON}"
+
 # Trap-based exit logging — fires on ANY exit path (success, fail, signal).
 trap 'rc=$?; printf "[sentinel-cron] exit=%d at %s\n" "$rc" "$(date -u +%FT%TZ)" >> "$SENTINEL_LOG"; exit $rc' EXIT
 
@@ -44,6 +53,6 @@ cd "$SENTINEL_HOME"
     # --all walks every source; --live triggers the scrapers.  The CLI
     # already aggregates worst-exit-code so a non-zero from this call
     # propagates out through set -e.
-    $SENTINEL_PYTHON refresh --all --live
+    "${_SENTINEL_CMD[@]}" refresh --all --live
     printf "[sentinel-cron] refresh complete\n"
 } >> "$SENTINEL_LOG" 2>&1
