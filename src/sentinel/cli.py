@@ -1386,15 +1386,17 @@ def _refresh_live(db, source: str) -> int:
     if source == "cloudsplaining":
         from .refresh.cloudsplaining import CloudSplainingLiveFetcher
 
-        client = _build_live_client()
-        try:
-            fetcher = CloudSplainingLiveFetcher(db, client)
-            stats = fetcher.fetch_and_load(_CLOUDSPLAINING_RULESET_URL)
-        except Exception as exc:  # noqa: BLE001
-            client.close()
-            print(f"Error: cloudsplaining live fetch failed: {exc}", file=sys.stderr)
-            return EXIT_IO_ERROR
-        client.close()
+        # Architect Concern 3 (v0.6.2): use context manager so the client is
+        # closed even if an exception fires between _build_live_client() and
+        # the try-block.  SentinelHTTPClient.__enter__/__exit__ is defined
+        # in net/client.py.
+        with _build_live_client() as client:
+            try:
+                fetcher = CloudSplainingLiveFetcher(db, client)
+                stats = fetcher.fetch_and_load(_CLOUDSPLAINING_RULESET_URL)
+            except Exception as exc:  # noqa: BLE001
+                print(f"Error: cloudsplaining live fetch failed: {exc}", file=sys.stderr)
+                return EXIT_IO_ERROR
         print(
             f"Refresh complete: {stats.actions_added} dangerous actions, "
             f"{stats.combinations_added} combinations, "
