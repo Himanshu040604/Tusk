@@ -12,16 +12,16 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, List, Dict, Set, Optional, Tuple, Any
 
+# P0-3 α — constants imports deferred to function scope to break the
+# cold-start chain.  Module-level `from .constants import X` triggers
+# constants.__getattr__ which calls get_settings() which loads
+# pydantic-settings (~635ms).  By moving into the hot-path functions
+# that actually read these values, `sentinel --version` avoids the
+# pydantic load entirely.  DEFAULT_ACCOUNT_ID and DEFAULT_REGION are
+# pure constants (not __getattr__-backed) so safe to import eagerly.
 from .constants import (
-    READ_PREFIXES as _READ_PREFIXES,
-    WRITE_PREFIXES as _WRITE_PREFIXES,
-    ADMIN_PREFIXES as _ADMIN_PREFIXES,
     DEFAULT_ACCOUNT_ID,
     DEFAULT_REGION,
-    REGION_LESS_GLOBAL_SERVICES,
-    SERVICE_NAME_MAPPINGS,
-    READ_INTENT_KEYWORDS,
-    WRITE_INTENT_KEYWORDS,
 )
 from .parser import Policy, Statement
 from .analyzer import (
@@ -120,10 +120,27 @@ class PolicyRewriter:
     - Reorganizing statements with descriptive Sids
     """
 
-    # Access-level keywords used to classify actions for statement grouping
-    READ_PREFIXES = _READ_PREFIXES
-    WRITE_PREFIXES = _WRITE_PREFIXES
-    ADMIN_PREFIXES = _ADMIN_PREFIXES
+    # P0-3 α — lazy properties avoid triggering constants.__getattr__
+    # (and the pydantic-settings chain) at class-definition time.  These
+    # read from ``constants`` each access; the constants layer caches
+    # the underlying Settings so repeated access is cheap.
+    @property
+    def READ_PREFIXES(self) -> tuple[str, ...]:
+        from .constants import READ_PREFIXES
+
+        return READ_PREFIXES
+
+    @property
+    def WRITE_PREFIXES(self) -> tuple[str, ...]:
+        from .constants import WRITE_PREFIXES
+
+        return WRITE_PREFIXES
+
+    @property
+    def ADMIN_PREFIXES(self) -> tuple[str, ...]:
+        from .constants import ADMIN_PREFIXES
+
+        return ADMIN_PREFIXES
 
     def __init__(
         self,
@@ -462,6 +479,13 @@ class PolicyRewriter:
         """
         if not self.database:
             return ["*"]
+
+        # P0-3 α — deferred imports; see module docstring.
+        from .constants import (
+            SERVICE_NAME_MAPPINGS,
+            READ_INTENT_KEYWORDS,
+            WRITE_INTENT_KEYWORDS,
+        )
 
         intent_lower = intent.lower()
         actions: List[str] = []
@@ -802,6 +826,8 @@ class PolicyRewriter:
 
         # Add region restriction if region is specified
         if config.region:
+            from .constants import REGION_LESS_GLOBAL_SERVICES  # P0-3 α deferred
+
             services_in_stmt = {a.split(":")[0] for a in statement.actions if ":" in a}
             # Only add for regional services (not IAM, S3 buckets, etc.)
             regional_services = services_in_stmt - REGION_LESS_GLOBAL_SERVICES

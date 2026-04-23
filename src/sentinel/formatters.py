@@ -9,7 +9,10 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, List, Dict, Any, Optional
 
-from .rewriter import serialize_policy
+# P0-3 γ — defer `serialize_policy` import to function scope so importing
+# formatters (e.g., `sentinel --version` touches sentinel/__init__.py
+# lazy exports that reference formatters) doesn't pull the rewriter
+# stack → analyzer → constants → pydantic-settings (~635ms cold-start).
 
 if TYPE_CHECKING:
     from .parser import Policy, ValidationResult
@@ -17,6 +20,13 @@ if TYPE_CHECKING:
     from .rewriter import RewriteResult
     from .self_check import PipelineResult
     from .models import PolicyOrigin
+
+
+def _serialize_policy(*args: Any, **kwargs: Any) -> Any:
+    """Lazy shim — imports rewriter.serialize_policy only on first call."""
+    from .rewriter import serialize_policy as _impl
+
+    return _impl(*args, **kwargs)
 
 
 # ---------------------------------------------------------------------------
@@ -181,7 +191,7 @@ class TextFormatter:
 
         lines.append("")
         lines.append("Rewritten policy:")
-        policy_dict = serialize_policy(result.rewritten_policy)
+        policy_dict = _serialize_policy(result.rewritten_policy)
         lines.append(json.dumps(policy_dict, indent=2))
 
         return "\n".join(lines)
@@ -238,7 +248,7 @@ class TextFormatter:
 
         # Rewritten policy
         lines.append("Rewritten policy:")
-        policy_dict = serialize_policy(result.rewritten_policy)
+        policy_dict = _serialize_policy(result.rewritten_policy)
         lines.append(json.dumps(policy_dict, indent=2))
 
         return "\n".join(lines)
@@ -360,7 +370,7 @@ class JsonFormatter:
                 }
                 for cp in result.companion_permissions_added
             ],
-            "rewritten_policy": serialize_policy(result.rewritten_policy),
+            "rewritten_policy": _serialize_policy(result.rewritten_policy),
         }
         return json.dumps(data, indent=2)
 
@@ -411,7 +421,7 @@ class JsonFormatter:
                 "completeness_score": result.self_check_result.completeness_score,
                 "findings_count": len(result.self_check_result.findings),
             },
-            "rewritten_policy": serialize_policy(result.rewritten_policy),
+            "rewritten_policy": _serialize_policy(result.rewritten_policy),
         }
         origin_sub = _origin_json(getattr(result, "origin", None))
         if origin_sub is not None:
@@ -545,7 +555,7 @@ class MarkdownFormatter:
         lines.append("## Rewritten Policy")
         lines.append("")
         lines.append("```json")
-        policy_dict = serialize_policy(result.rewritten_policy)
+        policy_dict = _serialize_policy(result.rewritten_policy)
         lines.append(json.dumps(policy_dict, indent=2))
         lines.append("```")
 
@@ -618,7 +628,7 @@ class MarkdownFormatter:
         lines.append("## Rewritten Policy")
         lines.append("")
         lines.append("```json")
-        policy_dict = serialize_policy(result.rewritten_policy)
+        policy_dict = _serialize_policy(result.rewritten_policy)
         lines.append(json.dumps(policy_dict, indent=2))
         lines.append("```")
 

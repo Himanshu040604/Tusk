@@ -11,10 +11,12 @@ from enum import Enum
 from typing import TYPE_CHECKING, List, Dict, Set, Optional, Tuple, Any
 import re
 
-from .constants import (
-    SERVICE_NAME_MAPPINGS,
-    SECURITY_CRITICAL_SERVICES,
-)
+# P0-3 α — constants imports deferred to function scope to break the
+# cold-start chain: module-level `from .constants import ...` pulls the
+# pydantic-settings stack at import time (~635ms).  Moving into the
+# specific functions that need SERVICE_NAME_MAPPINGS /
+# SECURITY_CRITICAL_SERVICES means `sentinel --version` doesn't load
+# constants or pydantic-settings at all.
 
 if TYPE_CHECKING:
     from .database import Database
@@ -263,6 +265,8 @@ class IntentMapper:
         Returns:
             Set of service prefix strings
         """
+        from .constants import SERVICE_NAME_MAPPINGS  # P0-3 α deferred
+
         services = set()
 
         for keyword, service in SERVICE_NAME_MAPPINGS.items():
@@ -571,6 +575,8 @@ class RiskAnalyzer:
         Returns:
             RiskSeverity level
         """
+        from .constants import SECURITY_CRITICAL_SERVICES  # P0-3 α deferred
+
         # service:* is HIGH severity
         if action.endswith(":*"):
             service = action.split(":")[0]
