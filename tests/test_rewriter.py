@@ -27,14 +27,17 @@ from tests.conftest import make_test_db
 
 
 @pytest.fixture
-def tmp_db(tmp_path):
+def tmp_db(tmp_path, migrated_db_template):
     """Create a migrated + seeded IAM actions DB with sample actions.
 
     Task 0 migration: make_test_db supplies the Phase 2 tables
     (action_resource_map / arn_templates / dangerous_actions /
     companion_rules) so PolicyRewriter's Task 7 bulk-load finds rows.
+
+    v0.7.0 (Phase 7.3): uses ``template=migrated_db_template`` for the
+    session-scoped fast-copy path (~1ms per test vs ~200ms migration).
     """
-    db_path = make_test_db(tmp_path)
+    db_path = make_test_db(tmp_path, template=migrated_db_template)
     db = Database(db_path)
 
     # Insert services
