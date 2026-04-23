@@ -109,22 +109,99 @@ def _load_or_create_root_key() -> bytes:
                 )
         key = key_path.read_bytes()
         if len(key) != _ROOT_KEY_SIZE:
-            # Truncated / corrupted file: regenerate.  Log via stderr so
-            # forensic replay is possible; callers may choose to invalidate
-            # cache entries on key mismatch.
+            # Phase 7.1 silent-failure B2: truncated/corrupted key with
+            # HMAC-signed DB rows present would be silently regenerated,
+            # invalidating every signed row without an ERROR event.
+            # Fail loudly if the DB has signed rows; auto-regenerate only
+            # on a truly first-install state (no DB / no signed rows).
+            if _db_has_signed_rows(data_dir):
+                raise HMACError(
+                    f"Root key at {key_path} has unexpected size ({len(key)} bytes) "
+                    f"but DB has signed rows.  Either restore the key or run "
+                    f"'sentinel cache rotate-key' to fully reset."
+                )
             print(
                 f"[WARN] {key_path} has unexpected size ({len(key)} bytes); "
-                f"regenerating.  Prior cache entries will fail HMAC.",
+                f"regenerating.  No signed DB rows detected.",
                 file=sys.stderr,
             )
             key = secrets.token_bytes(_ROOT_KEY_SIZE)
             _write_key(key_path, key)
     else:
+        # Phase 7.1 silent-failure B2: if the key is missing but the DB
+        # already has HMAC-signed rows, a fresh key would invalidate them
+        # all without warning.  Fail loudly with recovery instructions.
+        # Auto-generate only on a genuinely first-install state.
+        if _db_has_signed_rows(data_dir):
+            raise HMACError(
+                f"Root key at {key_path} is missing but DB has signed rows.  "
+                f"Either restore the key or run 'sentinel cache rotate-key' "
+                f"to fully reset."
+            )
         key = secrets.token_bytes(_ROOT_KEY_SIZE)
         _write_key(key_path, key)
 
     _root_key_cached = key
     return key
+
+
+def _db_has_signed_rows(data_dir: Path) -> bool:
+    """Probe for HMAC-signed rows in the IAM DB co-located with the key.
+
+    Returns True if any row in dangerous_actions / companion_rules /
+    dangerous_combinations / managed_policies carries a non-null HMAC
+    signature.  Returns False on a first-install state: no DB file, or
+    DB exists but the signed tables haven't been created yet.
+
+    Probes ONLY ``data_dir / iam_actions.db`` — the key's sibling DB.
+    A DB at another location (e.g. a developer's repo checkout used by
+    the test suite) is irrelevant: the key that signs it lives in the
+    data_dir of whichever SENTINEL_DATA_DIR seeded it.  This scope match
+    keeps the test-harness (fresh data_dir, external DB) working while
+    still catching the real failure mode (persistent data_dir, key
+    deleted, signed DB left behind).
+
+    Never raises: the probe MUST NOT itself abort the key-load path on
+    a missing-table or corrupt-DB error — the upstream caller will then
+    fail-closed at DB use time with a clearer error.  A DB error here
+    yields False (treat as "first install" for the auto-gen decision),
+    and the downstream HMAC load will still detect tampering via the
+    row_hmac check.
+    """
+    import sqlite3
+
+    db_path = data_dir / "iam_actions.db"
+    if not db_path.exists():
+        return False
+    try:
+        # Read-only URI so we never lock or write.
+        uri = f"file:{db_path}?mode=ro"
+        with sqlite3.connect(uri, uri=True, timeout=0.5) as conn:
+            # Tables with row_hmac / policy_document_hmac columns per
+            # Theme D design.  Missing tables -> treat as first install.
+            for table, hmac_col in (
+                ("dangerous_actions", "row_hmac"),
+                ("companion_rules", "row_hmac"),
+                ("dangerous_combinations", "row_hmac"),
+                ("managed_policies", "policy_document_hmac"),
+            ):
+                try:
+                    cur = conn.execute(
+                        f'SELECT 1 FROM "{table}" '
+                        f'WHERE "{hmac_col}" IS NOT NULL LIMIT 1'
+                    )
+                    if cur.fetchone() is not None:
+                        return True
+                except sqlite3.Error:
+                    # Missing table or missing column: not yet seeded.
+                    continue
+    except sqlite3.Error:
+        # DB file exists but unreadable / corrupted: upstream will catch
+        # this at use time.  Treat as first install for key auto-gen
+        # purposes (the DB-load path will still fail-closed with a
+        # clearer error if the key was recently regenerated).
+        return False
+    return False
 
 
 def _write_key(path: Path, key: bytes) -> None:
