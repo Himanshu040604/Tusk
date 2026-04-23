@@ -14,7 +14,7 @@ from unittest.mock import patch
 import pytest
 
 from src.sentinel.constants import load_known_services
-from src.sentinel.parser import PolicyParser, ValidationTier, _known_services
+from src.sentinel.parser import PolicyParser, ValidationError, ValidationTier, _known_services
 from src.sentinel.database import Database, Service
 from src.sentinel.cli import (
     build_parser,
@@ -239,23 +239,25 @@ class TestCorruptedDBFallback:
         assert parser._services_source == "json_cache"
         assert "s3" in parser.known_services
 
-    def test_corrupted_db_classify_uses_json(self, tmp_path: Path):
-        """Classification still works using JSON data when DB is broken."""
+    def test_corrupted_db_classify_raises(self, tmp_path: Path):
+        """Per B1 fix (v0.6.2): classification raises ValidationError on DB
+        errors rather than silently demoting to Tier 2.  § 2 fail-closed.
+        """
         db = Database(tmp_path / "bad.db")
 
         parser = PolicyParser(db)
-        result = parser.classify_action("s3:GetObject")
-        # No DB to confirm Tier 1, but s3 is in JSON cache -> Tier 2
-        assert result.tier == ValidationTier.TIER_2_UNKNOWN
-        assert "recognized (cached)" in result.reason
+        with pytest.raises(ValidationError):
+            parser.classify_action("s3:GetObject")
 
-    def test_corrupted_db_unknown_service_invalid(self, tmp_path: Path):
-        """Unknown service still classified as Tier 3 even with broken DB."""
+    def test_corrupted_db_unknown_service_raises(self, tmp_path: Path):
+        """Per B1 fix (v0.6.2): unknown-service classify raises on DB error
+        rather than silently demoting to Tier 3.
+        """
         db = Database(tmp_path / "bad.db")
 
         parser = PolicyParser(db)
-        result = parser.classify_action("madeupservice:DoSomething")
-        assert result.tier == ValidationTier.TIER_3_INVALID
+        with pytest.raises(ValidationError):
+            parser.classify_action("madeupservice:DoSomething")
 
 
 # -----------------------------------------------------------------------

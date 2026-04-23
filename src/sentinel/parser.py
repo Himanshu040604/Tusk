@@ -7,6 +7,7 @@ for IAM policies.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -14,6 +15,8 @@ from enum import Enum
 from functools import cache
 from typing import TYPE_CHECKING, List, Dict, Any, Optional, Set
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 try:
     import yaml
@@ -78,6 +81,18 @@ class ValidationTier(Enum):
 
 class PolicyParserError(Exception):
     """Base exception for policy parsing errors."""
+
+    pass
+
+
+class ValidationError(PolicyParserError):
+    """Raised when action classification cannot complete due to an
+    underlying DB error.
+
+    Distinguishes real I/O failures from legitimate tier demotion so that
+    callers can map this to ``EXIT_IO_ERROR`` rather than treat the action
+    as TIER_2_UNKNOWN silently.  Per § 2 fail-closed principle.
+    """
 
     pass
 
@@ -183,8 +198,14 @@ class PolicyParser:
                 if db_prefixes:
                     self.known_services = db_prefixes
                     self._services_source = "database"
-            except (sqlite3.Error, OSError, _DatabaseError):
-                pass  # DB failed, fall through to JSON cache
+            except (sqlite3.Error, OSError, _DatabaseError) as exc:
+                # Defensible: init-time failure falls through to JSON cache so
+                # the CLI stays usable for pure-format checks.  Debug-log so
+                # operators have forensic signal for otherwise-silent DB issues.
+                logger.debug(
+                    "parser.__init__: DB get_services failed, falling back to JSON cache: %s",
+                    exc,
+                )
 
         # Layer 2: JSON cache via lazy Settings-backed loader (fallback or
         # supplement).  See _known_services() docstring for wiring details.
@@ -546,8 +567,15 @@ class PolicyParser:
             if not service_known and self.database:
                 try:
                     service_known = self.database.service_exists(service_prefix)
-                except (sqlite3.Error, OSError, _DatabaseError):
-                    pass
+                except (sqlite3.Error, OSError, _DatabaseError) as exc:
+                    logger.error(
+                        "classify_action: DB service_exists(%r) failed: %s",
+                        service_prefix,
+                        exc,
+                    )
+                    raise ValidationError(
+                        f"DB lookup failed during action classification: {exc}"
+                    ) from exc
             if service_known:
                 return ValidationResult(
                     action=action,
@@ -578,8 +606,15 @@ class PolicyParser:
                         access_level=db_action.access_level if db_action else None,
                         confidence=1.0,
                     )
-            except (sqlite3.Error, OSError, _DatabaseError):
-                pass  # DB query failed, fall through to Tier 2
+            except (sqlite3.Error, OSError, _DatabaseError) as exc:
+                logger.error(
+                    "classify_action: DB action_exists/get_action(%r) failed: %s",
+                    action,
+                    exc,
+                )
+                raise ValidationError(
+                    f"DB lookup failed during action classification: {exc}"
+                ) from exc
 
         # Tier 2: Plausible but not in database
         if self._is_plausible_action(service_prefix, action_name):
@@ -645,8 +680,15 @@ class PolicyParser:
             if not service_known and self.database:
                 try:
                     service_known = self.database._service_exists_with_conn(conn, service_prefix)
-                except (sqlite3.Error, OSError, _DatabaseError):
-                    pass
+                except (sqlite3.Error, OSError, _DatabaseError) as exc:
+                    logger.error(
+                        "_classify_action_with_conn: DB _service_exists_with_conn(%r) failed: %s",
+                        service_prefix,
+                        exc,
+                    )
+                    raise ValidationError(
+                        f"DB lookup failed during action classification: {exc}"
+                    ) from exc
             if service_known:
                 return ValidationResult(
                     action=action,
@@ -677,8 +719,15 @@ class PolicyParser:
                         access_level=db_action.access_level if db_action else None,
                         confidence=1.0,
                     )
-            except (sqlite3.Error, OSError, _DatabaseError):
-                pass
+            except (sqlite3.Error, OSError, _DatabaseError) as exc:
+                logger.error(
+                    "_classify_action_with_conn: DB action lookup(%r) failed: %s",
+                    action,
+                    exc,
+                )
+                raise ValidationError(
+                    f"DB lookup failed during action classification: {exc}"
+                ) from exc
 
         if self._is_plausible_action(service_prefix, action_name):
             return ValidationResult(
@@ -711,8 +760,15 @@ class PolicyParser:
         if not service_known and self.database:
             try:
                 service_known = self.database.service_exists(service_prefix)
-            except (sqlite3.Error, OSError, _DatabaseError):
-                pass
+            except (sqlite3.Error, OSError, _DatabaseError) as exc:
+                logger.error(
+                    "_is_plausible_action: DB service_exists(%r) failed: %s",
+                    service_prefix,
+                    exc,
+                )
+                raise ValidationError(
+                    f"DB lookup failed during action classification: {exc}"
+                ) from exc
 
         # In lenient mode (no services loaded), accept valid format
         if not service_known and self._services_source == "none":
@@ -758,8 +814,15 @@ class PolicyParser:
         if not service_known and self.database:
             try:
                 service_known = self.database.service_exists(service_prefix)
-            except (sqlite3.Error, OSError, _DatabaseError):
-                pass
+            except (sqlite3.Error, OSError, _DatabaseError) as exc:
+                logger.error(
+                    "_get_invalid_reason: DB service_exists(%r) failed: %s",
+                    service_prefix,
+                    exc,
+                )
+                raise ValidationError(
+                    f"DB lookup failed during action classification: {exc}"
+                ) from exc
         if not service_known:
             return f"Unknown AWS service: {service_prefix}"
 

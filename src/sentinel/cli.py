@@ -768,7 +768,7 @@ def cmd_validate(args: argparse.Namespace) -> int:
     Returns:
         Exit code.
     """
-    from .parser import PolicyParser, PolicyParserError
+    from .parser import PolicyParser, PolicyParserError, ValidationError
     from .parser import ValidationTier
 
     try:
@@ -782,11 +782,18 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
     try:
         policy = parser.parse_policy_auto(content, fmt)
+    except ValidationError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
     except PolicyParserError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_INVALID_ARGS
 
-    results = parser.validate_policy(policy)
+    try:
+        results = parser.validate_policy(policy)
+    except ValidationError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
 
     formatter = _get_formatter(args)
     output = formatter.format_validation(results, policy)
@@ -912,7 +919,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     Returns:
         Exit code.
     """
-    from .parser import PolicyParser, PolicyParserError
+    from .parser import PolicyParser, PolicyParserError, ValidationError
     from .self_check import Pipeline, PipelineConfig
     from .models import PolicyInput, PolicyOrigin
     from .fetchers.local import LocalFileFetcher, StdinFetcher
@@ -1010,6 +1017,9 @@ def cmd_run(args: argparse.Namespace) -> int:
 
     try:
         result = pipeline.run(policy_input, config=config)
+    except ValidationError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return EXIT_IO_ERROR
     except PolicyParserError as e:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_INVALID_ARGS

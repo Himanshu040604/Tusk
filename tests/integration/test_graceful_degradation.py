@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from src.sentinel.parser import PolicyParser, PolicyParserError, ValidationTier
+from src.sentinel.parser import PolicyParser, PolicyParserError, ValidationError, ValidationTier
 from src.sentinel.database import Database, DatabaseError, Service, Action
 from src.sentinel.inventory import ResourceInventory, Resource
 from src.sentinel.self_check import (
@@ -625,35 +625,37 @@ class TestCorruptedDatabase:
         assert parser._services_source == "json_cache"
         assert "s3" in parser.known_services
 
-    def test_corrupted_db_classify_works_via_json(self, tmp_path):
-        """Classification still works using JSON data when DB is broken."""
+    def test_corrupted_db_classify_raises_validation_error(self, tmp_path):
+        """Per B1 fix (v0.6.2): classification raises ValidationError on DB
+        errors rather than silently demoting the tier.  § 2 fail-closed.
+        """
         bad_db = Database(tmp_path / "corrupted.db")
         # No schema
 
         parser = PolicyParser(bad_db)
 
-        # s3 is in JSON cache, so recognized but not confirmed via DB
-        result = parser.classify_action("s3:GetObject")
-        assert result.tier == ValidationTier.TIER_2_UNKNOWN
-        assert "recognized (cached)" in result.reason
+        # s3 is in JSON cache (known_services), so the DB query happens in
+        # Tier 1 and must raise now instead of falling through silently.
+        with pytest.raises(ValidationError):
+            parser.classify_action("s3:GetObject")
 
-    def test_corrupted_db_unknown_service_invalid(self, tmp_path):
-        """Unknown service stays Tier 3 even with broken DB."""
+    def test_corrupted_db_unknown_service_raises(self, tmp_path):
+        """Per B1 fix (v0.6.2): unknown-service lookup raises on DB error
+        rather than silently demoting to Tier 3.
+        """
         bad_db = Database(tmp_path / "corrupted.db")
 
         parser = PolicyParser(bad_db)
-        result = parser.classify_action("madeupservice:DoSomething")
-        assert result.tier == ValidationTier.TIER_3_INVALID
+        with pytest.raises(ValidationError):
+            parser.classify_action("madeupservice:DoSomething")
 
-    def test_corrupted_db_pipeline_completes(self, tmp_path):
-        """Full pipeline completes with corrupted DB, using JSON fallback."""
+    def test_corrupted_db_pipeline_raises(self, tmp_path):
+        """Per B1 fix (v0.6.2): full pipeline raises on DB error rather than
+        silently continuing with empty classifications.
+        """
         bad_db = Database(tmp_path / "corrupted.db")
 
         pipeline = Pipeline(database=bad_db)
         policy_json = _make_policy_json(actions=["s3:GetObject"])
-        result = pipeline.run(policy_json)
-
-        assert isinstance(result, PipelineResult)
-        assert result.original_policy is not None
-        assert result.rewritten_policy is not None
-        assert result.iterations >= 1
+        with pytest.raises(ValidationError):
+            pipeline.run(policy_json)
