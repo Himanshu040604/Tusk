@@ -10,20 +10,44 @@ Key behaviors:
   ``resource_inventory.db`` only if the file exists on disk (inventory is
   opt-in).
 * **Safe-stamp branch** (§ 6.3): pre-Alembic DBs with data tables but no
-  ``alembic_version`` table are stamped at HEAD instead of upgraded —
+  ``alembic_version`` table are stamped at HEAD instead of upgraded --
   one-time migration for existing users.
+* **Phase-2 verify after safe-stamp** (P0-2 γ, v0.6.0): a safe-stamped
+  DB that is missing Phase-2 tables (the "stamped-at-HEAD but no
+  backfill" corruption case) is detected via
+  ``_phase2_missing_tables``. If tables are absent, aborts with
+  ``DatabaseError`` + recovery instructions rather than proceeding on
+  a broken DB. The sqlite3-error branch also raises (v0.7.0 NEW-A
+  regression fix) -- no silent fail-open on introspection failure.
 * **File locking** (C5): per-DB ``filelock.FileLock(<db>.migrate.lock)``
-  with 60s timeout.  Inside the lock we double-check version before
+  with 60s timeout. Inside the lock we double-check version before
   upgrading (another process may have upgraded while we waited).
-* **Pre-migration backup** (H5/H27): ``PRAGMA wal_checkpoint(FULL)`` then
-  ``shutil.copy2`` before ``upgrade``.  Delete on success, keep on
+* **Pre-migration backup** (H5 / H27): ``PRAGMA wal_checkpoint(FULL)``
+  then ``shutil.copy2`` before ``upgrade``. Delete on success, keep on
   failure with stderr restore instructions.
 * **WAL activation** (H27): ``PRAGMA journal_mode=WAL`` +
-  ``PRAGMA synchronous=NORMAL`` on first read-write open.  Persistent —
+  ``PRAGMA synchronous=NORMAL`` on first read-write open. Persistent --
   no-op on subsequent runs.
-* **Skip paths**: ``SENTINEL_SKIP_MIGRATIONS=1`` env var, ``--skip-migrations``
-  CLI flag, or ``skip=True`` programmatic call emit a loud stderr ``[WARN]``
+* **Narrowed ``_current_revision`` except** (Architect Concern 2,
+  v0.6.2): catches only ``(OSError,
+  sqlalchemy.exc.OperationalError, sqlalchemy.exc.DatabaseError)``
+  rather than a broad ``Exception``; both paths debug-log the swallowed
+  exception so corruption cannot hide behind a "no revision yet" return.
+* **Skip paths**: ``SENTINEL_SKIP_MIGRATIONS=1`` env var (Amendment 6
+  Theme F3 carve-out for read-only filesystems / Docker :ro mounts),
+  ``--skip-migrations`` CLI flag (ephemeral; HARD-FAIL in TOML / env),
+  or ``skip=True`` programmatic call emit a loud stderr ``[WARN]``
   and return.
+* **Alembic logging silencing** (Issue 4, v0.8.0): the alembic logger
+  family is pinned to WARNING by ``logging_setup.configure`` unless root
+  is DEBUG. Removes the `setup plugin ...` / `Context impl SQLiteImpl` /
+  `Will assume non-transactional DDL` chatter from every CLI invocation.
+
+Test-harness note: per-test DB isolation is provided by the
+``migrated_db_template`` fixture (v0.7.0 Amendment 9). Session-scoped
+per xdist worker, stamped at Alembic HEAD + seeded; individual tests
+get a fast ``shutil.copy2`` via ``make_test_db(..., template=...)``.
+See ``tests/conftest.py`` and ``prod_imp.md § 17 Amendment 9``.
 """
 
 from __future__ import annotations
