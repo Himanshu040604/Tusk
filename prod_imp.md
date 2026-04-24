@@ -595,7 +595,9 @@ Data sources:
 
 **Where `check_and_upgrade_db()` is called from:** `cli.main()`, after argparse `parse_args()` but before subcommand dispatch. It is **skipped for `sentinel --version`, `sentinel --help`, `sentinel config path`** to keep those responsive.
 
-**Library users (D1 resolution — HARD-FAIL / RAISE):** `Database.__init__` **raises `DatabaseError`** (not just warns) when it detects `alembic_version` behind head. Library API consumers must call `check_and_upgrade_db()` themselves before constructing `Database`.
+**Library users (D1 resolution — HARD-FAIL / RAISE):** `Database.__init__` **raises `DatabaseError`** (not just warns) when it detects `alembic_version` behind head.
+
+> **v0.8.1 (D2) update:** migration is CLI-entry-only (`cli.main`); library callers should NOT call `check_and_upgrade_db()` directly as it is a private function. If a library embedding is needed, use `Database(path)` against a DB that is already at head revision — the schema-probe path raises a `DatabaseError` with remediation guidance if the DB is stale.
 
 **`:memory:` exemption:** `Database(Path(":memory:"))` and any in-memory SQLite URI (`sqlite:///:memory:`, `file::memory:?cache=shared`) skip the schema-version probe entirely — in-memory DBs have no `alembic_version` table by design. Used by the `refresh` command (three call sites at `cli.py:723/730/743`).
 
