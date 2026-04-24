@@ -1922,6 +1922,39 @@ This is a plan-premise correction, not a design change. No implementation impact
 
 ---
 
+### Amendment 10 — 2026-04-24: Tier-2 action preservation semantics (v0.8.0)
+
+**Decision:** Tier-2 (unknown) actions are now PRESERVED in the rewritten policy rather than silently removed. TIER2_IN_POLICY findings downgrade from ERROR to WARNING severity. The formatter renames the output heading to "Suggested additions" when the rewrite contains only companion permissions without original-action narrowing.
+
+**Before (v0.7.0):**
+- `_check_tier2_exclusion` emitted findings at `CheckSeverity.ERROR`.
+- `_apply_self_check_fixes` removed Tier-2 actions from the rewrite via `actions_to_remove.add(finding.action)`.
+- On an empty-corpus DB, ALL actions became Tier-2 → all stripped → rewrite contained only companions.
+- User pipes `sentinel run policy.json > out.json`, deploys — loses all their original actions silently.
+
+**After (v0.8.0):**
+- `_check_tier2_exclusion` emits findings at `CheckSeverity.WARNING` — verdict becomes WARNING (not FAIL) when Tier-2 is the only issue.
+- `_apply_self_check_fixes` only removes INVALID (Tier-3 / `ACTION_VALIDATION`) actions; TIER2_IN_POLICY findings are no-ops for the fixer.
+- Tier-2 actions preserved in `rewritten_policy.statements`.
+- Formatter output includes a `"semantic": "additions_only" | "complete_policy"` field (JSON) or heading rename (text/markdown) when the rewrite is companion-only.
+- `--strict` mode preserves pre-v0.8.0 safety: WARNING escalates to FAIL, and under Issue 5 the rewrite emission is then suppressed.
+
+**Rationale:** "Fail-closed" principle (§ 2 principle 4) means refusing to silently drop user-provided actions, not "drop everything we can't verify." The user's original intent is preserved; the WARNING tells them to run `sentinel refresh` for full verification. Combined with Issue 3 (empty-corpus banner) and Issue 5 (refuse-on-FAIL suppression), the v0.8.0 flow guides the operator through the degraded-mode situation without destroying their work.
+
+**Breaking changes for callers:**
+- `SelfCheckResult.tier2_excluded: bool` renamed → `tier2_preserved_actions: list[str]`. A backward-compat `@property tier2_excluded` returning `not tier2_preserved_actions` is retained for one release cycle; slated for removal in v1.0.
+- Policies that previously produced FAIL verdict due to Tier-2 action presence now produce WARNING (unless wildcard-action or other ERROR-severity findings independently drive FAIL).
+- JSON formatter adds a top-level `"semantic"` key under the non-suppressed path.
+- Formatter APIs gain keyword-only `force_emit: bool = False` parameter on all three `format_pipeline_result` implementations (Issue 5 sibling change shipped in the same release).
+
+**Snapshot regeneration:** `tests/fixtures/snapshots/missing_companions.snapshot` and `tests/fixtures/snapshots/wildcard_overuse.snapshot` regenerated. Hand-audited diffs confirm the new `rewritten_actions` lists reflect preserved originals + companion additions (not just companions alone, as v0.7.0 snapshots showed).
+
+**No plan-contract violations** — § 2 principle 4 (fail-closed) is BETTER satisfied by preservation-with-WARNING than by silent-removal. Silent drops were a fail-open in practice: the operator got a "PASS" verdict alongside a policy that had lost its intent.
+
+**Version impact:** v0.8.0 (minor bump signals external schema evolution: new `"semantic"` JSON field + renamed dataclass field).
+
+---
+
 ## End of plan
 
 Next step: you review this document. If approved, Phase 1 begins. If anything needs changing, we amend this file before any code is written.
