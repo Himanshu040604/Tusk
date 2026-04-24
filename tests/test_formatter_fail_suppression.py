@@ -310,6 +310,40 @@ def test_cmd_managed_emits_structlog_bypass_warning() -> None:
     assert 'subcommand="managed"' in src
 
 
+def test_bypass_audit_fires_on_every_force_emit_not_only_fail() -> None:
+    """SEC-L4: audit log must NOT be gated on ``verdict == CheckVerdict.FAIL``.
+
+    Prior to SEC-L4, the audit only fired when self-check FAILed, so
+    belt-and-suspenders CI usage of --force-emit-rewrite on PASS runs
+    was silent — an OWASP A09 gap.  Pin the fix so any regression that
+    re-adds the FAIL guard breaks this test.
+    """
+    for relpath in ("cli.py", "cli_fetch.py", "cli_managed.py"):
+        src = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "sentinel"
+            / relpath
+        ).read_text(encoding="utf-8")
+        # The emission must be inside a plain ``if force_emit:`` guard
+        # — NOT ``if force_emit and ... verdict == CheckVerdict.FAIL:``.
+        assert (
+            "if force_emit and result.self_check_result.verdict"
+            not in src
+        ), (
+            f"{relpath}: audit emission is gated on verdict == FAIL; "
+            "SEC-L4 requires emitting on every --force-emit-rewrite use "
+            "to close the OWASP A09 bypass-visibility gap."
+        )
+        # New contract: bypass_of_failure boolean field distinguishes
+        # genuine failure override from flag-set-on-PASS usage.
+        assert "bypass_of_failure" in src, (
+            f"{relpath}: audit event must include "
+            "``bypass_of_failure`` field so SIEMs can still distinguish "
+            "genuine bypass (true) from belt-and-suspenders usage (false)."
+        )
+
+
 # ---------------------------------------------------------------------------
 # v0.8.1 (L3): _is_additions_only inclusion-based allowlist tests.
 # ---------------------------------------------------------------------------

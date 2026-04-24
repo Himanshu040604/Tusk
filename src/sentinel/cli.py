@@ -1070,18 +1070,25 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Issue 5 (v0.8.0): thread --force-emit-rewrite through to the formatter
     # so FAIL verdicts suppress rewrite output unless the operator bypassed.
     force_emit = getattr(args, "force_emit_rewrite", False)
-    # v0.8.1 (M2): when bypass is active AND self-check would have FAILed,
-    # emit a structlog audit trail entry so downstream log aggregators /
-    # SIEMs can alert on bypass events (OWASP A09 — Security Logging &
-    # Monitoring Failure closure).
+    # SEC-L4 (v0.8.2): emit a structlog audit trail entry on EVERY use
+    # of --force-emit-rewrite — not only when the self-check verdict is
+    # FAIL.  OWASP A09 (Security Logging & Monitoring Failure) asks for
+    # privileged-action logging regardless of outcome; the prior
+    # FAIL-only gate left belt-and-suspenders CI usage unaudited.
+    # Level stays WARNING so the event survives ``SENTINEL_LOG_LEVEL=
+    # WARNING`` SIEM filters; the ``bypass_of_failure`` boolean field
+    # lets downstream alerting distinguish a genuine failure override
+    # (true) from a flag that happened to be set on a PASS run (false).
     from .self_check import CheckVerdict
 
-    if force_emit and result.self_check_result.verdict == CheckVerdict.FAIL:
+    if force_emit:
         import structlog
 
+        verdict = result.self_check_result.verdict
         structlog.get_logger("sentinel.safety").warning(
             "force_emit_rewrite_bypass",
-            verdict="FAIL",
+            verdict=verdict.value,
+            bypass_of_failure=(verdict == CheckVerdict.FAIL),
             subcommand="run",
         )
     output = formatter.format_pipeline_result(result, force_emit=force_emit)
