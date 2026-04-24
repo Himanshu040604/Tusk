@@ -77,6 +77,26 @@ def _origin_markdown(origin: "PolicyOrigin" | None) -> str:
     )
 
 
+def _is_additions_only(result: "PipelineResult") -> bool:
+    """Return True when the rewrite emits ONLY companion-add statements.
+
+    Issue 2 (v0.8.0, Amendment 10): when the rewrite pipeline changes are
+    limited to COMPANION_ADDED entries — no WILDCARD_REPLACED, no
+    RESOURCE_SCOPED — the output is a PARTIAL rewrite (additions) rather
+    than a complete narrowed policy.  The formatter relabels the output
+    section so operators know to MERGE the additions with their original
+    policy instead of wholesale-replacing it.
+    """
+    rewrite = result.rewrite_result
+    has_companions = bool(getattr(rewrite, "companion_permissions_added", []))
+    if not has_companions:
+        return False
+    for change in getattr(rewrite, "changes", []):
+        if change.change_type in ("WILDCARD_REPLACED", "RESOURCE_SCOPED"):
+            return False
+    return True
+
+
 class TextFormatter:
     """Human-readable terminal output formatter.
 
@@ -268,7 +288,15 @@ class TextFormatter:
                 "--force-emit-rewrite to bypass (NOT recommended for deployment)."
             )
         else:
-            lines.append("Rewritten policy:")
+            # Issue 2 (v0.8.0): rename heading to "Suggested additions"
+            # when the rewrite only contains companion permissions (no
+            # wildcard replacement or resource scoping).
+            policy_label = (
+                "Suggested additions (merge with your original policy)"
+                if _is_additions_only(result)
+                else "Rewritten policy"
+            )
+            lines.append(f"{policy_label}:")
             policy_dict = _serialize_policy(result.rewritten_policy)
             lines.append(json.dumps(policy_dict, indent=2))
 
@@ -467,6 +495,13 @@ class JsonFormatter:
             )
         else:
             data["rewritten_policy"] = _serialize_policy(result.rewritten_policy)
+            # Issue 2 (v0.8.0, Amendment 10): semantic tag so JSON
+            # consumers (CI tooling, dashboards) can distinguish between
+            # a complete-rewrite policy and an additions-only delta that
+            # must be merged with the operator's original.
+            data["semantic"] = (
+                "additions_only" if _is_additions_only(result) else "complete_policy"
+            )
         origin_sub = _origin_json(getattr(result, "origin", None))
         if origin_sub is not None:
             data["origin"] = origin_sub
@@ -688,7 +723,14 @@ class MarkdownFormatter:
                 "or re-run with `--force-emit-rewrite` to bypass (NOT recommended)."
             )
         else:
-            lines.append("## Rewritten Policy")
+            # Issue 2 (v0.8.0): heading renames to "Suggested Additions"
+            # when the output is companion-only.
+            heading = (
+                "## Suggested Additions (merge with your original policy)"
+                if _is_additions_only(result)
+                else "## Rewritten Policy"
+            )
+            lines.append(heading)
             lines.append("")
             lines.append("```json")
             policy_dict = _serialize_policy(result.rewritten_policy)
