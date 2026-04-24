@@ -18,7 +18,14 @@ import sys
 from pathlib import Path
 
 # Make ``src`` importable when running this script from the repo root.
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+# Idempotent: re-running or importing demo.py in a process where
+# the path is already present (tests, notebooks) does not duplicate
+# the entry.  The insert intentionally takes precedence over any
+# installed sentinel wheel — the demo must exercise the current
+# checkout's code, not a stale pip/uv install.
+_SRC_DIR = str(Path(__file__).parent / "src")
+if _SRC_DIR not in sys.path:
+    sys.path.insert(0, _SRC_DIR)
 
 from sentinel import (  # noqa: E402
     Database,
