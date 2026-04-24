@@ -249,7 +249,30 @@ class Database:
             True iff both the ``services`` and ``actions`` tables exist
             AND contain at least one row apiece.  Falsy otherwise.
         """
-        return not self.is_empty("services") and not self.is_empty("actions")
+        # U25: single-connection variant — intentionally duplicates
+        # the sqlite_master + LIMIT-1 probe from is_empty() to avoid
+        # the 2x open/close cycle cost (~6ms on WSL2/NTFS) that a
+        # naive ``not is_empty(a) and not is_empty(b)`` incurred on
+        # every corpus-dependent CLI invocation.  Do NOT DRY this
+        # back into is_empty — that's the regression we're fixing.
+        with self.get_connection() as conn:
+            for table in ("services", "actions"):
+                if table not in _EXPECTED_TABLES:
+                    return False
+                probe = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name = ? LIMIT 1",
+                    (table,),
+                ).fetchone()
+                if not probe:
+                    return False
+                # probe[0] is the SQLite-round-tripped identifier —
+                # safe to interpolate inside ANSI quotes.
+                row = conn.execute(
+                    f'SELECT 1 FROM "{probe[0]}" LIMIT 1'
+                ).fetchone()
+                if row is None:
+                    return False
+            return True
 
     def create_schema(self) -> None:
         """Create database schema with all tables and indexes.
