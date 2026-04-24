@@ -843,6 +843,19 @@ Local files get `Origin: local file at /path/to/policy.json`.
 - `reraise=True` on every decorator so callers see the real exception
 - GitHub: require `SENTINEL_GITHUB_TOKEN` for bulk operations (search, batch fetch); allow single fetches without token with a WARNING
 
+### 8.7 JSON output schema for `sentinel run` / `sentinel fetch` / `sentinel managed analyze`
+
+The JSON formatter emits a top-level document with these fields (names stable across v0.8.x):
+
+- `final_verdict`: `"PASS"` / `"WARNING"` / `"FAIL"`.
+- `iterations`: self-check loop-back iteration count.
+- `pipeline_summary`: human-readable one-line summary.
+- `validation`, `tier2_actions_for_review`, `risk_findings`, `rewrite_changes`, `self_check`, `rewritten_policy`: detail blocks (see formatter source).
+- **`"semantic"`** (v0.8.0, Amendment 10): `"additions_only"` when the rewrite contains only companion-addition changes (operator should MERGE with original); `"complete_policy"` otherwise (operator can wholesale-replace). Only present when `rewrite_suppressed` is false.
+- `rewrite_suppressed`, `rewrite_suppression_reason`: present when self-check FAILed and `--force-emit-rewrite` was NOT passed. `rewritten_policy` is `null` in this case.
+- **`"force_emit_rewrite_bypass"`** (v0.8.1, M2): `true` when `--force-emit-rewrite` overrode a FAIL verdict. Accompanied by `"bypass_reason": "self-check FAIL verdict overridden by --force-emit-rewrite"`. Absent when no bypass occurred. Closes OWASP A09 (Security Logging & Monitoring) by giving SIEMs a structural signal for bypass audits.
+- `origin`: present for fetched policies; nested `{source_type, source_spec, sha256, fetched_at, cache_status}` block per § 8.4.
+
 ---
 
 ## 9. Continuous monitoring
