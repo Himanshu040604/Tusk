@@ -258,6 +258,81 @@ class TestInsecureWarn:
         # At least one call mentions TLS disabled.
         assert any("tls_verify_disabled" in str(c) for c in mock_warn.call_args_list)
 
+    def test_insecure_does_not_populate_cache_on_2xx(
+        self,
+        settings: Settings,
+        allow_list: AllowList,
+        cache: DiskCache,
+        retry: RetryPolicy,
+    ) -> None:
+        """SEC-M3: --insecure responses must NOT persist to HMAC cache.
+
+        Prevents persistent MITM poisoning of future secure runs: a
+        tampered body from an insecure session would otherwise be
+        signed and served (with HMAC valid) on every subsequent run.
+        """
+        insecure_client = SentinelHTTPClient(
+            settings=settings,
+            allow_list=allow_list,
+            cache=cache,
+            retry_policy=retry,
+            insecure=True,
+        )
+        fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
+        live = httpx.Response(
+            status_code=200,
+            content=b"live-body-over-insecure",
+            headers={"Content-Type": "text/plain"},
+            request=httpx.Request("GET", "https://example.com/insecure"),
+        )
+        with patch("socket.getaddrinfo", return_value=fake_info):
+            with patch.object(insecure_client._client, "get", return_value=live):
+                resp = insecure_client.get(
+                    "https://example.com/insecure", source="user_url"
+                )
+        # Response still returned to caller.
+        assert resp.status_code == 200
+        assert resp.content == b"live-body-over-insecure"
+        # Cache must NOT be populated.
+        assert cache.get("https://example.com/insecure", "user_url") is None
+
+    def test_secure_run_can_still_read_prior_secure_cache_entry(
+        self,
+        settings: Settings,
+        allow_list: AllowList,
+        cache: DiskCache,
+        retry: RetryPolicy,
+    ) -> None:
+        """Read path unchanged: prior legitimate entries remain usable.
+
+        Pre-populating cache via the secure path must still be served
+        by later insecure runs (the design explicitly allows reads —
+        only writes are blocked during --insecure).
+        """
+        cache.put(
+            url="https://example.com/prior",
+            source="user_url",
+            body=b"secure-cached-body",
+            headers={"Content-Type": "text/plain"},
+            etag=None,
+        )
+        insecure_client = SentinelHTTPClient(
+            settings=settings,
+            allow_list=allow_list,
+            cache=cache,
+            retry_policy=retry,
+            insecure=True,
+        )
+        with patch.object(
+            insecure_client._client, "get",
+            side_effect=AssertionError("should not hit network on HIT"),
+        ):
+            resp = insecure_client.get(
+                "https://example.com/prior", source="user_url"
+            )
+        assert resp.content == b"secure-cached-body"
+        assert resp.headers.get("X-Sentinel-Cache") == "HIT"
+
     def test_insecure_sets_httpx_verify_false(
         self,
         settings: Settings,

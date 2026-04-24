@@ -24,6 +24,7 @@ an async variant can be added without breaking callers.
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Optional
 from urllib.parse import urljoin
 
@@ -324,14 +325,47 @@ class SentinelHTTPClient:
                 span.set_attribute("sentinel.cache_status", cache_status)
                 span.set_attribute("http.status_code", resp.status_code)
                 if 200 <= resp.status_code < 300:
-                    # Cache keyed on ORIGINAL url, not current_url.
-                    self._cache.put(
-                        url=url,
-                        source=source,
-                        body=resp.content,
-                        headers=dict(resp.headers),
-                        etag=resp.headers.get("ETag"),
-                    )
+                    if self._insecure:
+                        # SEC-M3: do NOT persist responses fetched under
+                        # --insecure into the HMAC-signed DiskCache.  HMAC
+                        # proves "entry unchanged since stored", not
+                        # "content came from a trusted origin"; a MITM
+                        # response captured in an insecure session would
+                        # otherwise be silently re-served on future
+                        # secure runs and pass verification.  Read path
+                        # is unchanged: legitimate prior-secure entries
+                        # remain valid and may be served during insecure
+                        # sessions.
+                        # Credential-stripping regex requires ``:`` between
+                        # user and password (RFC 3986 authority form) to
+                        # avoid false-positive redaction of ``@`` chars
+                        # legally appearing in query strings.
+                        safe_url = re.sub(
+                            r"//[^/@]+:[^@/]+@", "//**redacted**@", url
+                        )
+                        self._log.warning(
+                            "cache_write_suppressed_insecure",
+                            url=safe_url,
+                            source=source,
+                            note=(
+                                "--insecure active; response NOT written "
+                                "to HMAC cache to prevent persistent MITM "
+                                "poisoning of future secure runs.  Run "
+                                "'sentinel cache purge' or rotate the "
+                                "HMAC key (sentinel cache rotate-key) to "
+                                "evict any entries written before this "
+                                "fix."
+                            ),
+                        )
+                    else:
+                        # Cache keyed on ORIGINAL url, not current_url.
+                        self._cache.put(
+                            url=url,
+                            source=source,
+                            body=resp.content,
+                            headers=dict(resp.headers),
+                            etag=resp.headers.get("ETag"),
+                        )
                 self._log.info(
                     "http_response",
                     url=url,
