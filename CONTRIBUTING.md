@@ -27,9 +27,10 @@ hygiene and audit-trail discipline are non-negotiable.
 
 Sentinel has two test-run modes. Both are required to pass before a PR is
 merged. Current working-tree baseline: **856 tests, 1 skipped** (VCR
-cassette regen gated behind `-m live`). v0.8.1 shipped at 813; the
-v0.8.1 post-ship audit cycle (U1-U33 + H1/H2/SEC-* findings) added the
-remaining tests.
+cassette regen gated behind `-m live`). v0.8.1 shipped at 813; v0.8.2
+shipped at 856 after the post-v0.8.1 audit cycle (U1-U33 + H1/H2/SEC-*
+findings) landed, together with new `tests/test_retry.py` and
+`tests/test_net_urls.py` covering SEC-M2 and SEC-L1.
 
 ```bash
 # Parallel — primary dev loop. ~45s wall time.
@@ -62,7 +63,7 @@ uv run mypy
 Targets and `explicit_package_bases` live in `pyproject.toml`
 `[tool.mypy]` (see `files = ["src/sentinel"]`), so the bare
 invocation picks the right scope uniformly across CI, pre-commit,
-and local dev. Prior to U32 in the v0.8.1 post-ship audit, CI and
+and local dev. Prior to U32 in the v0.8.2 audit cycle, CI and
 docs called `uv run mypy src/sentinel --explicit-package-bases`
 directly, which produced `error: Source file found twice under
 different module names` under certain `sys.path` permutations. That
@@ -134,29 +135,48 @@ Common scopes:
 ## Release process
 
 1. **Apply fixes** as small commits (one issue per commit when possible).
-2. **Bump version** in `src/sentinel/__init__.py`:
+2. **Bump version** in `src/sentinel/__init__.py` (single source of truth;
+   `pyproject.toml` reads it dynamically via `dynamic = ["version"]`):
    ```python
-   __version__ = "0.8.1"
+   __version__ = "X.Y.Z"
    ```
-3. **Add CHANGELOG entry** in the Keep-a-Changelog format:
+3. **Add CHANGELOG entry** in the Keep-a-Changelog format. Land the
+   entry *first* under `[Unreleased]`, then rename to `[X.Y.Z] - DATE`
+   at release time; avoid leaving both sections around — if you cut a
+   tag with an unconsolidated `[Unreleased]`, follow the v0.8.2 recipe
+   (consolidate in a follow-up commit + force-move the annotated tag
+   while it's still local-only):
    ```markdown
-   ## [0.8.1] - YYYY-MM-DD
+   ## [X.Y.Z] - YYYY-MM-DD
    ### Fixed
    - ...
-   ### Deprecated
+   ### Security
    - ...
-   ### Internal
+   ### Performance
+   - ...
+   ### Tests
+   - ...
+   ### Documentation
    - ...
    ```
-4. **Verify green** — both test modes, ruff, mypy, cold-start budget.
-5. **Commit release**: `chore(release): v0.8.1`.
-6. **Annotated tag**:
+4. **Verify green** — both test modes (parallel + serial), ruff check,
+   ruff format --check, mypy, cold-start budget.
+5. **Sync prose version locations** — update version references in
+   `README.md` (landing header), `docs/FEATURES.md` (top paragraph),
+   `docs/USAGE.md` (top paragraph), `CLAUDE.md` (Current Phase). One
+   commit per doc keeps history granular.
+6. **Commit release**: `chore(release): vX.Y.Z — <short summary>`.
+7. **Annotated tag**:
    ```bash
-   git tag -a v0.8.1 -m "Phase 8.1 — ..."
+   git tag -a vX.Y.Z -m "vX.Y.Z — <summary>"
    ```
-7. **Wait for owner approval** before any `git push`. See the GitHub Push
-   Approval policy: no push without explicit "yes you can push it" from
-   the owner. This applies to `git push`, `git push --tags`, and
+8. **Add an Amendment entry** to `prod_imp.md § 17` if the release
+   changes any contract (exit codes, JSON schema, log events, ephemeral
+   vs persistable flags, cache semantics). Amendment 12 is the worked
+   template for combined audit-cycle + docs releases.
+9. **Wait for owner approval** before any `git push`. See the GitHub
+   Push Approval policy: no push without explicit "yes you can push it"
+   from the owner. This applies to `git push`, `git push --tags`, and
    `gh pr create`.
 
 ### 3-agent investigation pipeline
@@ -174,6 +194,9 @@ sequential investigation pipeline before fixes are applied:
    regressions, and test-harness interactions before commit.
 
 The pattern is intentionally serial (not parallel) so each agent sees
-the previous agent's output. See `phase8_1_implementation_report.md`,
-`CHANGELOG.md [Unreleased]`, and `prod_imp.md § 17 Amendment 11` for
-a worked example across the v0.8.1 maintenance release.
+the previous agent's output. See `CHANGELOG.md [0.8.2]` and
+`prod_imp.md § 17 Amendment 12` for a worked example across the
+v0.8.2 audit cycle + documentation release (8 findings: H1, H2,
+SEC-M1/M2/M3, SEC-L1, SEC-L4, H1-perf, plus PE5).  See
+`prod_imp.md § 17 Amendment 11` for the v0.8.1 maintenance release
+with 8 findings for a smaller-scope example.
