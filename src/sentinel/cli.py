@@ -29,31 +29,12 @@ from .exit_codes import (
     EXIT_CRITICAL_FINDING,
 )
 from .formatters import TextFormatter, JsonFormatter, MarkdownFormatter
-
-
-def _finding_severity(f: object) -> str:
-    """Return the severity string for a finding (dataclass or dict).
-
-    Handles both attribute-style (``f.severity``) and dict-style
-    (``f["severity"]``) access.  Enum values are unwrapped via ``.value``.
-    """
-    sev = f.get("severity", "") if isinstance(f, dict) else getattr(f, "severity", "")
-    sev = getattr(sev, "value", sev)
-    return str(sev or "").upper()
-
-
-def _verdict_to_exit_code(findings: list) -> int:
-    """Map a finding list to the 5-level exit code scheme (Section 7.4).
-
-    Returns EXIT_CRITICAL_FINDING (4) if any finding has severity
-    'CRITICAL' or 'HIGH'; EXIT_ISSUES_FOUND (1) if any lower-severity
-    findings exist; EXIT_SUCCESS (0) otherwise.
-    """
-    if not findings:
-        return EXIT_SUCCESS
-    if any(_finding_severity(f) in {"CRITICAL", "HIGH"} for f in findings):
-        return EXIT_CRITICAL_FINDING
-    return EXIT_ISSUES_FOUND
+from .cli_utils import (
+    _finding_severity,
+    get_formatter,
+    verdict_to_exit_code,
+    write_output,
+)
 
 
 def export_services_json(
@@ -658,39 +639,6 @@ def read_policy_input(
     return path.read_text(encoding="utf-8"), fmt
 
 
-def _get_formatter(
-    args: argparse.Namespace,
-) -> TextFormatter | JsonFormatter | MarkdownFormatter:
-    """Get the appropriate formatter based on args.
-
-    Args:
-        args: Parsed arguments.
-
-    Returns:
-        Formatter instance.
-    """
-    fmt = getattr(args, "output_format", "text")
-    if fmt == "json":
-        return JsonFormatter()
-    if fmt == "markdown":
-        return MarkdownFormatter()
-    return TextFormatter()
-
-
-def _write_output(args: argparse.Namespace, content: str) -> None:
-    """Write formatted output to file or stdout.
-
-    Args:
-        args: Parsed arguments.
-        content: Formatted output string.
-    """
-    output_path = getattr(args, "output", None)
-    if output_path:
-        Path(output_path).write_text(content, encoding="utf-8")
-    else:
-        print(content)
-
-
 def _resolve_db_path_for_migration(args: argparse.Namespace) -> Path:
     """Return an absolute path to the IAM DB for migration purposes.
 
@@ -835,9 +783,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_IO_ERROR
 
-    formatter = _get_formatter(args)
+    formatter = get_formatter(args)
     output = formatter.format_validation(results, policy)
-    _write_output(args, output)
+    write_output(args, output)
 
     has_invalid = any(r.tier == ValidationTier.TIER_3_INVALID for r in results)
     return EXIT_ISSUES_FOUND if has_invalid else EXIT_SUCCESS
@@ -888,11 +836,11 @@ def cmd_analyze(args: argparse.Namespace) -> int:
         raise
     findings = risk_analyzer.analyze_actions(all_actions)
 
-    formatter = _get_formatter(args)
+    formatter = get_formatter(args)
     output = formatter.format_risk_findings(findings)
-    _write_output(args, output)
+    write_output(args, output)
 
-    return _verdict_to_exit_code(findings)
+    return verdict_to_exit_code(findings)
 
 
 def cmd_rewrite(args: argparse.Namespace) -> int:
@@ -945,9 +893,9 @@ def cmd_rewrite(args: argparse.Namespace) -> int:
         raise
     result = rewriter.rewrite_policy(policy, config)
 
-    formatter = _get_formatter(args)
+    formatter = get_formatter(args)
     output = formatter.format_rewrite_result(result)
-    _write_output(args, output)
+    write_output(args, output)
 
     return EXIT_SUCCESS
 
@@ -1066,7 +1014,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_INVALID_ARGS
 
-    formatter = _get_formatter(args)
+    formatter = get_formatter(args)
     # Issue 5 (v0.8.0): thread --force-emit-rewrite through to the formatter
     # so FAIL verdicts suppress rewrite output unless the operator bypassed.
     force_emit = getattr(args, "force_emit_rewrite", False)
@@ -1092,10 +1040,10 @@ def cmd_run(args: argparse.Namespace) -> int:
             subcommand="run",
         )
     output = formatter.format_pipeline_result(result, force_emit=force_emit)
-    _write_output(args, output)
+    write_output(args, output)
 
     findings = list(result.risk_findings) + list(getattr(result.self_check_result, "findings", []))
-    return _verdict_to_exit_code(findings)
+    return verdict_to_exit_code(findings)
 
 
 def _cmd_run_batch(args: argparse.Namespace) -> int:
@@ -1164,7 +1112,7 @@ def _cmd_run_batch(args: argparse.Namespace) -> int:
             sev = _finding_severity(f).lower()
             if sev in tally:
                 tally[sev] += 1
-        rc = _verdict_to_exit_code(findings)
+        rc = verdict_to_exit_code(findings)
         entries.append(
             {
                 "source": fr.origin.source_spec,
@@ -1573,9 +1521,9 @@ def cmd_info(args: argparse.Namespace) -> int:
         metadata.setdefault("alembic_revision", f"<error: {exc}>")
         alembic_probe_failed = True
 
-    formatter = _get_formatter(args)
+    formatter = get_formatter(args)
     output = formatter.format_db_info(metadata, service_count, action_count)
-    _write_output(args, output)
+    write_output(args, output)
 
     # Issue 3 (v0.8.0): also surface the empty-corpus banner from `sentinel
     # info` so operators see it even when they're diagnosing DB state.

@@ -154,13 +154,8 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     import httpx
 
     from .fetchers.base import FetcherError
-    from .cli import (
-        resolve_database,
-        resolve_inventory,
-        _get_formatter,
-        _write_output,
-        _verdict_to_exit_code,
-    )
+    from .cli import resolve_database, resolve_inventory
+    from .cli_utils import get_formatter, write_output, verdict_to_exit_code
     from .models import PolicyInput
     from .self_check import Pipeline, PipelineConfig
 
@@ -215,7 +210,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     except Exception as exc:  # noqa: BLE001 — surface any downstream error.
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_IO_ERROR
-    formatter = _get_formatter(args)
+    formatter = get_formatter(args)
     # Issue 5 (v0.8.0): thread --force-emit-rewrite so FAIL suppresses output.
     force_emit = getattr(args, "force_emit_rewrite", False)
     # SEC-L4 (v0.8.2): emit audit event on every --force-emit-rewrite use,
@@ -233,9 +228,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             bypass_of_failure=(verdict == CheckVerdict.FAIL),
             subcommand="fetch",
         )
-    _write_output(args, formatter.format_pipeline_result(result, force_emit=force_emit))
+    write_output(args, formatter.format_pipeline_result(result, force_emit=force_emit))
     findings = list(result.risk_findings) + list(getattr(result.self_check_result, "findings", []))
-    return _verdict_to_exit_code(findings)
+    return verdict_to_exit_code(findings)
 
 
 __all__ = ["cmd_fetch"]

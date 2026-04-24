@@ -21,13 +21,8 @@ def cmd_managed(args: argparse.Namespace) -> int:
     """Dispatch to ``list`` / ``show`` / ``analyze``."""
     from .fetchers.aws_managed import AWSManagedFetcher
     from .fetchers.base import PolicyNotFoundError
-    from .cli import (
-        resolve_database,
-        resolve_inventory,
-        _get_formatter,
-        _write_output,
-        _verdict_to_exit_code,
-    )
+    from .cli import resolve_database, resolve_inventory
+    from .cli_utils import get_formatter, write_output, verdict_to_exit_code
 
     sub = getattr(args, "managed_cmd", None)
     db = resolve_database(args)
@@ -81,7 +76,7 @@ def cmd_managed(args: argparse.Namespace) -> int:
         except Exception as exc:  # noqa: BLE001 — best-effort one-shot.
             print(f"Error: {exc}", file=sys.stderr)
             return EXIT_IO_ERROR
-        formatter = _get_formatter(args)
+        formatter = get_formatter(args)
         # Issue 5 (v0.8.0): thread --force-emit-rewrite through so FAIL
         # verdicts on managed-policy analysis suppress rewrite output too.
         force_emit = getattr(args, "force_emit_rewrite", False)
@@ -100,13 +95,13 @@ def cmd_managed(args: argparse.Namespace) -> int:
                 bypass_of_failure=(verdict == CheckVerdict.FAIL),
                 subcommand="managed",
             )
-        _write_output(
+        write_output(
             args, formatter.format_pipeline_result(result, force_emit=force_emit)
         )
         findings = list(result.risk_findings) + list(
             getattr(result.self_check_result, "findings", [])
         )
-        return _verdict_to_exit_code(findings)
+        return verdict_to_exit_code(findings)
 
     print(f"Unknown managed subcommand: {sub!r}", file=sys.stderr)
     return EXIT_INVALID_ARGS
