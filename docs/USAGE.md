@@ -1,6 +1,6 @@
 # IAM Policy Sentinel -- Usage guide
 
-End-user how-to guide for v0.8.1. Task-oriented. For the feature
+End-user how-to guide for v0.8.2. Task-oriented. For the feature
 catalogue, see [`FEATURES.md`](FEATURES.md); for the landing page, see
 [`../README.md`](../README.md); for design rationale, see
 [`../prod_imp.md`](../prod_imp.md).
@@ -349,8 +349,9 @@ non-fatal -- the pipeline still runs, but every action becomes Tier 2
 ### Cold-start feels slow
 
 `sentinel --version` is gated at 0.3 s by
-`tests/test_performance.py::test_cold_start_budget`. Post-v0.8.1
-median is ~113 ms. If your measurement exceeds the budget:
+`tests/test_performance.py::test_cold_start_budget`. Median on v0.8.2
+is ~113 ms (steady since v0.8.1's C2 deferred-yaml-import fix). If
+your measurement exceeds the budget:
 
 - Run `time .venv/bin/sentinel --version` 5 times; take the median.
 - Check that no new top-level import pulls pydantic-settings (see
