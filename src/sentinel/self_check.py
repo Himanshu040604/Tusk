@@ -250,6 +250,20 @@ class SelfCheckValidator:
         self.parser = PolicyParser(database)
         self.risk_analyzer = risk_analyzer or RiskAnalyzer(database)
         self.companion_detector = companion_detector or CompanionPermissionDetector(database)
+        # U27: precompile READ_INTENT_KEYWORDS word-boundary patterns
+        # once at __init__ so _check_functional_completeness doesn't
+        # rebuild ~12 regexes on every self-check run.  Mirrors the
+        # P2-15 α/β precompile-in-__init__ precedent in
+        # analyzer.IntentMapper (analyzer.py:148-166).  The deferred
+        # import preserves the P0-3 α cold-start contract —
+        # SelfCheckValidator is never instantiated on
+        # ``sentinel --version`` / metadata-only paths.
+        from .constants import READ_INTENT_KEYWORDS
+
+        self._compiled_read_intent_patterns: list[re.Pattern[str]] = [
+            re.compile(r"\b" + re.escape(kw) + r"\b")
+            for kw in READ_INTENT_KEYWORDS
+        ]
 
     def run_self_check(
         self,
@@ -546,12 +560,11 @@ class SelfCheckValidator:
         # Score component 2: Access level match with intent (weight 0.3)
         access_level_score = 1.0
         if config.intent:
-            from .constants import READ_INTENT_KEYWORDS  # P0-3 α+γ deferred (phase 7.1)
-
+            # U27: iterate precompiled patterns built at __init__ time.
             intent_lower = config.intent.lower()
             is_read_only = any(
-                re.search(r"\b" + re.escape(kw) + r"\b", intent_lower)
-                for kw in READ_INTENT_KEYWORDS
+                pat.search(intent_lower)
+                for pat in self._compiled_read_intent_patterns
             )
             if is_read_only:
                 write_actions = self._find_write_actions(policy)
