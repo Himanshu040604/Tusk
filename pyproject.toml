@@ -150,7 +150,15 @@ select = ["UP006", "UP007", "UP045", "FA102"]
 # -----------------------------------------------------------------------------
 [tool.mypy]
 python_version = "3.11"
-files = ["src"]
+# U32: narrow to src/sentinel + explicit_package_bases so a bare
+# ``uv run mypy`` works uniformly across CI (ci.yml), pre-commit
+# (.pre-commit-config.yaml), and local-dev (CONTRIBUTING.md).  The
+# bare ``files = ["src"]`` form caused "Source file found twice
+# under different module names" under certain sys.path permutations
+# because mypy auto-discovery found both ``sentinel.fetchers`` and
+# a top-level ``fetchers`` package.
+files = ["src/sentinel"]
+explicit_package_bases = true
 ignore_missing_imports = true
 warn_unused_ignores = true
 warn_redundant_casts = true

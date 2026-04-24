@@ -52,16 +52,18 @@ inspect the diff before committing.
 
 ## Type checking
 
-**MUST** use the full invocation:
-
 ```bash
-uv run mypy src/sentinel --explicit-package-bases
+uv run mypy
 ```
 
-A bare `uv run mypy src/` produces `error: Source file found twice under
-different module names` because the `src/sentinel/fetchers/` and
-`src/sentinel/refresh/` packages share names with top-level modules
-under certain `sys.path` permutations.
+Targets and `explicit_package_bases` live in `pyproject.toml`
+`[tool.mypy]` (see `files = ["src/sentinel"]`), so the bare
+invocation picks the right scope uniformly across CI, pre-commit,
+and local dev.  Before U32 (v0.8.2) a bare `uv run mypy src/`
+produced `error: Source file found twice under different module
+names` under certain `sys.path` permutations — that failure mode
+is now resolved by the narrower `files` target plus
+`explicit_package_bases = true`.
 
 ## Recovering from HMAC key errors
 
