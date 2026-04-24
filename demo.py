@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 # Make ``src`` importable when running this script from the repo root.
 sys.path.insert(0, str(Path(__file__).parent / "src"))
