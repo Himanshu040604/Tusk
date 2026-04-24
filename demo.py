@@ -163,6 +163,7 @@ def render_scenario_markdown(
     result: PipelineResult,
     formatter: MarkdownFormatter,
     index: int,
+    original_json: str,
 ) -> str:
     """Render a scenario's narration + pipeline result as Markdown.
 
@@ -171,12 +172,15 @@ def render_scenario_markdown(
         result: Pipeline result.
         formatter: Shared MarkdownFormatter instance.
         index: 1-based scenario index.
+        original_json: Pre-read fixture text from the caller.  Passed in
+            rather than re-read from disk (U22): the caller reads the
+            fixture once to build the Pipeline input, so re-reading here
+            would double the I/O and open a small race window where the
+            displayed JSON could diverge from the analyzed one.
 
     Returns:
         A Markdown block for this scenario.
     """
-    fixture_path = FIXTURE_DIR / scenario["fixture"]
-    original_json = fixture_path.read_text(encoding="utf-8")
     pipeline_md = formatter.format_pipeline_result(result)
     # Demote the pipeline result's H1 to H3 so it nests under our scenario H2.
     pipeline_md = pipeline_md.replace(
@@ -275,7 +279,9 @@ def run_demo() -> int:
         policy_text = (FIXTURE_DIR / scenario["fixture"]).read_text(encoding="utf-8")
         result = pipeline.run(policy_text, config)
         narrate_findings(result)
-        markdown_sections.append(render_scenario_markdown(scenario, result, formatter, i))
+        markdown_sections.append(
+            render_scenario_markdown(scenario, result, formatter, i, policy_text)
+        )
         all_results.append(result)
 
     report = render_executive_summary(all_results) + "\n".join(markdown_sections)
