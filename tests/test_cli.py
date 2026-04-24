@@ -962,3 +962,73 @@ class TestCLIHMACErrorHandling:
         )
         assert "sentinel cache rotate-key" in src
         assert "from .hmac_keys import HMACError" in src
+
+
+# -----------------------------------------------------------------------
+# v0.8.1 (PE2): cmd_info and refresh exit-code propagation
+# -----------------------------------------------------------------------
+
+
+class TestCmdInfoAlembicProbe:
+    """cmd_info alembic probe must propagate failures as EXIT_IO_ERROR."""
+
+    def test_alembic_probe_failure_returns_io_error(
+        self, capsys, monkeypatch, fresh_db
+    ):
+        """When _current_revision raises, cmd_info returns EXIT_IO_ERROR."""
+        args = Namespace(
+            database=str(fresh_db.db_path),
+            inventory=None,
+            output_format="text",
+            output=None,
+        )
+
+        def _raising_current_revision(db_path):
+            raise RuntimeError("alembic_version query failed (simulated)")
+
+        monkeypatch.setattr(
+            "src.sentinel.migrations._current_revision", _raising_current_revision
+        )
+        exit_code = cmd_info(args)
+        assert exit_code == EXIT_IO_ERROR
+        captured = capsys.readouterr()
+        assert "Alembic revision probe failed" in captured.err
+        # The alembic_revision field should still be rendered in the info block.
+        assert "<error:" in captured.out
+
+    def test_alembic_probe_none_returns_success(
+        self, capsys, monkeypatch, fresh_db
+    ):
+        """When _current_revision returns None (pre-Alembic DB), EXIT_SUCCESS."""
+        args = Namespace(
+            database=str(fresh_db.db_path),
+            inventory=None,
+            output_format="text",
+            output=None,
+        )
+
+        monkeypatch.setattr(
+            "src.sentinel.migrations._current_revision", lambda _: None
+        )
+        exit_code = cmd_info(args)
+        assert exit_code == EXIT_SUCCESS
+
+
+class TestCmdRefreshStatsErrors:
+    """cmd_refresh must propagate stats.errors as EXIT_IO_ERROR."""
+
+    def test_refresh_with_errors_returns_io_error(self):
+        """v0.8.1 (PE2): stats.errors non-empty => EXIT_IO_ERROR."""
+        src_path = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "sentinel"
+            / "cli.py"
+        )
+        src = src_path.read_text(encoding="utf-8")
+        # Source-grep: the refresh path must return EXIT_IO_ERROR when
+        # stats.errors is non-empty.
+        assert "if stats.errors:\n        return EXIT_IO_ERROR" in src, (
+            "cmd_refresh must return EXIT_IO_ERROR when stats.errors is "
+            "non-empty (PE2)"
+        )

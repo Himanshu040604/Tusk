@@ -1305,6 +1305,12 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"[WARN] Auto-export failed: {e}", file=sys.stderr)
 
+    # v0.8.1 (PE2): non-empty stats.errors must propagate as EXIT_IO_ERROR.
+    # Previously, data-load errors were printed to stderr as [WARN] then
+    # the command returned EXIT_SUCCESS, hiding failures in CI pipelines
+    # that rely on exit codes (e.g., cron job monitoring).
+    if stats.errors:
+        return EXIT_IO_ERROR
     return EXIT_SUCCESS
 
 
@@ -1529,6 +1535,13 @@ def cmd_info(args: argparse.Namespace) -> int:
     # Phase 5 Task 12: surface the current Alembic revision.  Uses the
     # read-only helper from :mod:`sentinel.migrations` — defensive so a
     # pre-Alembic DB still renders the rest of the info block.
+    #
+    # v0.8.1 (PE2): a probe failure is no longer silenced as SUCCESS.
+    # Render the error string in the info block AND return EXIT_IO_ERROR
+    # so shell pipelines (`sentinel info || exit 1`) see the failure.
+    # A pre-Alembic DB returns rev=None (no exception) — that still
+    # returns EXIT_SUCCESS (benign case).
+    alembic_probe_failed = False
     try:
         from .migrations import _current_revision
 
@@ -1537,6 +1550,7 @@ def cmd_info(args: argparse.Namespace) -> int:
             metadata.setdefault("alembic_revision", rev)
     except Exception as exc:  # noqa: BLE001
         metadata.setdefault("alembic_revision", f"<error: {exc}>")
+        alembic_probe_failed = True
 
     formatter = _get_formatter(args)
     output = formatter.format_db_info(metadata, service_count, action_count)
@@ -1553,6 +1567,13 @@ def cmd_info(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
 
+    if alembic_probe_failed:
+        print(
+            "[ERROR] Alembic revision probe failed. See 'alembic_revision' "
+            "field above for details.",
+            file=sys.stderr,
+        )
+        return EXIT_IO_ERROR
     return EXIT_SUCCESS
 
 
