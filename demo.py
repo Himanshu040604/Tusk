@@ -14,7 +14,9 @@ present the rendered report to stakeholders.
 
 from __future__ import annotations
 
+import hashlib
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Make ``src`` importable when running this script from the repo root.
@@ -34,6 +36,7 @@ from sentinel import (  # noqa: E402
     PipelineConfig,
     PipelineResult,
 )
+from sentinel.models import PolicyInput, PolicyOrigin  # noqa: E402
 
 
 REPO_ROOT = Path(__file__).parent
@@ -276,8 +279,22 @@ def run_demo() -> int:
 
     for i, scenario in enumerate(SCENARIOS, start=1):
         narrate_intro(scenario, i, len(SCENARIOS))
-        policy_text = (FIXTURE_DIR / scenario["fixture"]).read_text(encoding="utf-8")
-        result = pipeline.run(policy_text, config)
+        fixture_path = FIXTURE_DIR / scenario["fixture"]
+        policy_text = fixture_path.read_text(encoding="utf-8")
+        # U21: Pipeline.run(str) emits a DeprecationWarning in v0.8.x.
+        # Build a proper PolicyInput with a local-origin PolicyOrigin —
+        # source_type="local" is the documented discriminator for
+        # filesystem-sourced fixtures.
+        body_bytes = policy_text.encode("utf-8")
+        origin = PolicyOrigin(
+            source_type="local",
+            source_spec=str(fixture_path),
+            sha256=hashlib.sha256(body_bytes).hexdigest(),
+            fetched_at=datetime.now(timezone.utc),
+            cache_status="N/A",
+        )
+        policy_input = PolicyInput.from_text(policy_text, origin)
+        result = pipeline.run(policy_input, config)
         narrate_findings(result)
         markdown_sections.append(
             render_scenario_markdown(scenario, result, formatter, i, policy_text)
