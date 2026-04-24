@@ -962,6 +962,85 @@ class TestTier2Exclusion:
         findings = validator._check_tier2_exclusion(policy, validation_results)
         assert len(findings) == 0
 
+    def test_tier2_preserved_actions_unions_both_check_types(self, tmp_db):
+        """v0.8.1 (M1): tier2_preserved_actions must union TIER2_IN_POLICY
+        and TIER2_ACTION_KEPT findings.
+
+        Both surface paths populate the audit field — the field name
+        implies complete audit coverage of Tier-2 actions preserved in
+        the rewritten policy.
+
+        - TIER2_IN_POLICY: surfaced by _check_tier2_exclusion (runs on
+          original-policy validation; action was Tier-2 in original AND
+          kept in rewritten).
+        - TIER2_ACTION_KEPT: surfaced by _validate_actions (DB-lookup
+          on rewritten policy; action not present in IAM corpus).
+
+        Both paths can trigger for the same action, or for disjoint
+        actions; the audit field must aggregate both or callers lose
+        data. Regression test for the structurally incomplete
+        implementation at v0.8.0.
+        """
+        validator = SelfCheckValidator(database=tmp_db)
+        # Both actions are unknown (not in tmp_db); both will trigger
+        # both TIER2_IN_POLICY (from _check_tier2_exclusion via
+        # original-policy validation) AND TIER2_ACTION_KEPT (from
+        # _validate_actions on the rewritten policy).
+        original_policy = Policy(
+            version="2012-10-17",
+            statements=[
+                Statement(
+                    effect="Allow",
+                    actions=["s3:NewUnknownAction"],
+                    resources=["*"],
+                )
+            ],
+        )
+        rewritten_policy = Policy(
+            version="2012-10-17",
+            statements=[
+                Statement(
+                    effect="Allow",
+                    actions=["s3:NewUnknownAction"],
+                    resources=["arn:aws:s3:::bucket/*"],
+                )
+            ],
+        )
+        rewrite_result = _make_rewrite_result(
+            original_policy=original_policy,
+            rewritten_policy=rewritten_policy,
+            assumptions=["Test."],
+        )
+        check_result = validator.run_self_check(rewrite_result)
+        # The field must include the action.
+        assert "s3:NewUnknownAction" in check_result.tier2_preserved_actions
+        # Verify BOTH check_type paths fired for this action.
+        in_policy_findings = [
+            f
+            for f in check_result.findings
+            if f.check_type == "TIER2_IN_POLICY"
+            and f.action == "s3:NewUnknownAction"
+        ]
+        kept_findings = [
+            f
+            for f in check_result.findings
+            if f.check_type == "TIER2_ACTION_KEPT"
+            and f.action == "s3:NewUnknownAction"
+        ]
+        assert len(in_policy_findings) >= 1, (
+            "TIER2_IN_POLICY must fire for original-validated Tier-2 action "
+            "preserved in rewrite"
+        )
+        assert len(kept_findings) >= 1, (
+            "TIER2_ACTION_KEPT must fire for action missing from DB corpus "
+            "in rewritten policy"
+        )
+        # Aggregation must be deduplicated (set-based).
+        # Count the occurrences of the action in tier2_preserved_actions.
+        assert check_result.tier2_preserved_actions.count(
+            "s3:NewUnknownAction"
+        ) == 1, "tier2_preserved_actions must deduplicate via set comprehension"
+
 
 # ---------------------------------------------------------------------------
 # Test Assumption Validation

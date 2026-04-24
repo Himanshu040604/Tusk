@@ -292,11 +292,17 @@ class SelfCheckValidator:
         # ``tier2_excluded: bool`` which became semantically meaningless
         # after TIER2_IN_POLICY severity dropped to WARNING (the old
         # predicate would always be True).
+        #
+        # v0.8.1 (M1): union both surface paths — Tier-2 actions surface via
+        # TIER2_IN_POLICY (from _check_tier2_exclusion) and TIER2_ACTION_KEPT
+        # (from _validate_actions). The field name implies complete audit of
+        # preserved Tier-2 actions; both paths must feed into it.
         tier2_preserved_actions = sorted(
             {
                 f.action
                 for f in findings
-                if f.check_type == "TIER2_IN_POLICY" and f.action is not None
+                if f.check_type in ("TIER2_IN_POLICY", "TIER2_ACTION_KEPT")
+                and f.action is not None
             }
         )
 
