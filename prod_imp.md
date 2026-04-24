@@ -108,7 +108,7 @@ All sources produce the same normalized `(policy_text, source_origin_metadata)` 
 
 ### 4.2 New directory layout after migration
 
-> **Note:** Amendment 7 (§ 17) relocated `fetchers/` and `refresh/` under `src/sentinel/`. The listing below is preserved for historical traceability; actual layout is `src/sentinel/fetchers/` and `src/sentinel/refresh/`.
+> **Note:** Amendments 7 (fetchers/refresh relocation) and 10 (Tier-2 preservation semantics) supersede portions of this section. The listing below is historical; actual layout is `src/sentinel/fetchers/` and `src/sentinel/refresh/` with Tier-2 preservation per § 17 Amendment 10.
 
 ```
 klarna/
