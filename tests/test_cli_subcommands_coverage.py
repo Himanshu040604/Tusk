@@ -469,3 +469,77 @@ def test_check_alert_warns_on_hash_change(
     err = capsys.readouterr().err
     assert "[WARN]" in err
     assert "changed since last fetch" in err
+
+
+def test_check_alert_surfaces_oserror_on_state_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """v0.8.1 (PE3): OSError on state-file read is surfaced via [WARN].
+
+    Pre-fix, the state-file read error was silently swallowed with a
+    ``prev = {}`` fallback — the operator never knew --alert-on-new
+    was running with a blank baseline.
+    """
+    from datetime import datetime, timezone
+
+    from sentinel.cli_fetch import _check_alert
+    from sentinel.models import PolicyOrigin
+    from sentinel.fetchers.base import FetchResult
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    # Create the state file but make read_text raise OSError.
+    state_file = tmp_path / "sentinel" / "fetch_state.json"
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text("{}")
+
+    def _raising_read_text(*args, **kwargs):
+        raise OSError("simulated I/O error")
+
+    monkeypatch.setattr("pathlib.Path.read_text", _raising_read_text)
+
+    origin = PolicyOrigin(
+        source_type="url",
+        source_spec="https://example.com/policy.json",
+        sha256="a" * 64,
+        fetched_at=datetime.now(timezone.utc),
+        cache_status="miss",
+    )
+    result = FetchResult(body=b"{}", origin=origin, headers={}, cache_status="MISS")
+    _check_alert(result)
+    err = capsys.readouterr().err
+    assert "[WARN]" in err
+    assert "could not read fetch_state" in err
+    assert "--alert-on-new will not detect drift" in err
+
+
+def test_check_alert_surfaces_json_decode_error_on_state_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """v0.8.1 (PE3): corrupted state file surfaces JSONDecodeError."""
+    from datetime import datetime, timezone
+
+    from sentinel.cli_fetch import _check_alert
+    from sentinel.models import PolicyOrigin
+    from sentinel.fetchers.base import FetchResult
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    state_file = tmp_path / "sentinel" / "fetch_state.json"
+    state_file.parent.mkdir(parents=True, exist_ok=True)
+    state_file.write_text("{ invalid json")
+
+    origin = PolicyOrigin(
+        source_type="url",
+        source_spec="https://example.com/policy.json",
+        sha256="a" * 64,
+        fetched_at=datetime.now(timezone.utc),
+        cache_status="miss",
+    )
+    result = FetchResult(body=b"{}", origin=origin, headers={}, cache_status="MISS")
+    _check_alert(result)
+    err = capsys.readouterr().err
+    assert "[WARN]" in err
+    assert "not valid JSON" in err

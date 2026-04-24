@@ -65,14 +65,34 @@ def _state_path() -> Path:
 
 
 def _check_alert(result: "FetchResult") -> None:
-    """Compare SHA-256 with the last stored hash; WARN on diff."""
+    """Compare SHA-256 with the last stored hash; WARN on diff.
+
+    v0.8.1 (PE3): state-file read errors are now surfaced to stderr via
+    [WARN] rather than silently swallowed. --alert-on-new depends on
+    reading the prior state to detect drift; if the read fails, the
+    operator must be informed so they know the alert is unreliable.
+    """
     p = _state_path()
     key = f"{result.origin.source_type}::{result.origin.source_spec}"
     prev: dict[str, str] = {}
     if p.is_file():
         try:
             prev = json.loads(p.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except OSError as exc:
+            # v0.8.1 (PE3): was silently swallowed; now visible.
+            print(
+                f"[WARN] could not read fetch_state at {p}: {exc}. "
+                f"--alert-on-new will not detect drift from prior state.",
+                file=sys.stderr,
+            )
+            prev = {}
+        except json.JSONDecodeError as exc:
+            # State file corrupted — surface the parse error too.
+            print(
+                f"[WARN] fetch_state at {p} is not valid JSON: {exc}. "
+                f"--alert-on-new will not detect drift from prior state.",
+                file=sys.stderr,
+            )
             prev = {}
     old = prev.get(key)
     cur = result.origin.sha256
