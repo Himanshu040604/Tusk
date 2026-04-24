@@ -119,21 +119,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Write output to file instead of stdout",
     )
-    # Issue 5 (v0.8.0): `--force-emit-rewrite` threads through EVERY
-    # subcommand that invokes ``format_pipeline_result`` (cmd_run,
-    # cmd_fetch, cmd_managed_analyze). Lives on the shared parent so a
-    # single definition covers all three callsites. By default (flag
-    # absent) a FAIL verdict suppresses the rewrite block to prevent
-    # operators piping corrupted output into production.
-    parent.add_argument(
-        "--force-emit-rewrite",
-        action="store_true",
-        default=False,
-        help=(
-            "Emit rewritten policy even when self-check FAILs "
-            "(NOT recommended for deployment)"
-        ),
-    )
+    # v0.8.1 (L2): ``--force-emit-rewrite`` was originally added to the
+    # shared `parent` parser so every subcommand inherited it, but only
+    # 3 subcommands actually use it (``run``, ``fetch``, ``managed
+    # analyze``). Carrying a flag on 12+ subparsers that ignore it
+    # produces misleading help text. The definition is now duplicated
+    # across the 3 subparsers that consume it (see p_run, p_net_fetch,
+    # p_m_analyze below); other subcommands no longer advertise it.
 
     parser = argparse.ArgumentParser(
         prog="sentinel",
@@ -348,6 +340,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Downgrade wildcard resource errors to warnings",
     )
+    # v0.8.1 (L2): moved off shared parent onto subcommands that use it.
+    # Issue 5 (v0.8.0): by default a FAIL verdict suppresses rewrite
+    # emission; this flag overrides the safety gate and emits anyway,
+    # with an audit-trail banner in output + structlog warning (M2).
+    p_run.add_argument(
+        "--force-emit-rewrite",
+        action="store_true",
+        default=False,
+        help=(
+            "Emit rewritten policy even when self-check FAILs "
+            "(NOT recommended for deployment)"
+        ),
+    )
 
     # refresh
     p_refresh = subparsers.add_parser(
@@ -458,6 +463,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Fetch + run the full pipeline on a managed policy",
     )
     p_m_analyze.add_argument("name", help="Managed policy name")
+    # v0.8.1 (L2): scoped to subcommands that actually emit a rewrite.
+    p_m_analyze.add_argument(
+        "--force-emit-rewrite",
+        action="store_true",
+        default=False,
+        help=(
+            "Emit rewritten policy even when self-check FAILs "
+            "(NOT recommended for deployment)"
+        ),
+    )
 
     # config (Phase 5 Task 8)
     p_config = subparsers.add_parser(
@@ -495,6 +510,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_net_fetch.add_argument("--intent", default=None)
     p_net_fetch.add_argument("--account-id", default=None)
     p_net_fetch.add_argument("--region", default=None)
+    # v0.8.1 (L2): scoped to subcommands that actually emit a rewrite.
+    p_net_fetch.add_argument(
+        "--force-emit-rewrite",
+        action="store_true",
+        default=False,
+        help=(
+            "Emit rewritten policy even when self-check FAILs "
+            "(NOT recommended for deployment)"
+        ),
+    )
 
     # watch (Phase 5 Task 2 — M6)
     p_watch = subparsers.add_parser(
