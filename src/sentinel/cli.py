@@ -1763,80 +1763,78 @@ def main() -> None:
         parser.print_help()
         sys.exit(EXIT_INVALID_ARGS)
 
-    # Alembic auto-upgrade (§ 6.3).  Skip for commands that don't touch the
-    # DB (`config path` — opt-in skip list).  Runs AFTER argparse, BEFORE
-    # subcommand dispatch so every DB-touching handler sees a migrated
-    # schema.  Honors --skip-migrations and SENTINEL_SKIP_MIGRATIONS=1.
-    _MIGRATION_SKIP_COMMANDS: frozenset[str] = frozenset()  # reserved for `config path` etc.
-    if args.command not in _MIGRATION_SKIP_COMMANDS:
-        try:
-            from .migrations import check_and_upgrade_all_dbs
+    # Alembic auto-upgrade (§ 6.3).  Runs AFTER argparse, BEFORE subcommand
+    # dispatch so every DB-touching handler sees a migrated schema.  Honors
+    # --skip-migrations and SENTINEL_SKIP_MIGRATIONS=1 via the ``skip``
+    # kwarg passed to check_and_upgrade_all_dbs.
+    try:
+        from .migrations import check_and_upgrade_all_dbs
 
-            iam_db = _resolve_db_path_for_migration(args)
-            inv_db = _resolve_inventory_path_for_migration(args)
-            check_and_upgrade_all_dbs(
-                iam_db,
-                inv_db,
-                skip=getattr(args, "skip_migrations", False),
-            )
-        except OSError as e:
-            print(f"[ERROR] Migration I/O error: {e}", file=sys.stderr)
-            sys.exit(EXIT_IO_ERROR)
-        except Exception as e:  # noqa: BLE001 — migrations either work or abort.
-            print(f"[ERROR] Migration failed: {e}", file=sys.stderr)
-            sys.exit(EXIT_IO_ERROR)
-
-        # § 12 Phase 2 Task 4 / Step 1: seed baseline classification rows
-        # on first run.  Idempotent — empty-table probe skips the call on
-        # every subsequent invocation.  Runs ONLY for the IAM DB; inventory
-        # DB has no shipped-baseline rows.
-        #
-        # Phase 7.1 silent-failure B3: previously this swallowed any seed
-        # failure as `[WARN] Baseline seed skipped` and continued with an
-        # empty dangerous_actions table.  That composes with parser-layer
-        # silent demotions to produce fail-open: analyzer finds zero risks
-        # on admin-privilege policies because its classification tables
-        # are empty.  Abort instead.
-        try:
-            from .database import Database as _SeedDB
-            from .seed_data import seed_all_baseline
-
-            _probe_db = _SeedDB(iam_db)
-            if _probe_db.is_empty("dangerous_actions"):
-                counts = seed_all_baseline(iam_db)
-                print(
-                    f"[INFO] Seeded baseline classification rows: {counts}",
-                    file=sys.stderr,
-                )
-        except Exception as exc:  # noqa: BLE001 — loud abort replaces silent warn.
-            print(f"[ERROR] Baseline seed failed: {exc}", file=sys.stderr)
-            print(
-                "[ERROR] Sentinel requires seeded classification data to operate correctly.",
-                file=sys.stderr,
-            )
-            print(
-                "[ERROR] Recovery: delete data/iam_actions.db and re-run 'sentinel info'.",
-                file=sys.stderr,
-            )
-            sys.exit(EXIT_IO_ERROR)
-
-        # Issue 3 (v0.8.0): warn when the AWS action corpus is empty.
-        # Without populated services + actions tables, every policy action
-        # classifies as Tier 2 (unknown) and the rewriter degrades — under
-        # Issue 2's preservation semantics the rewrite still emits, but the
-        # self-check verdict will be WARNING regardless. Prompt the operator
-        # to populate the corpus via `sentinel refresh --source policy-sentry`.
-        _CORPUS_DEPENDENT: frozenset[str] = frozenset(
-            {"validate", "analyze", "rewrite", "run", "fetch"}
+        iam_db = _resolve_db_path_for_migration(args)
+        inv_db = _resolve_inventory_path_for_migration(args)
+        check_and_upgrade_all_dbs(
+            iam_db,
+            inv_db,
+            skip=getattr(args, "skip_migrations", False),
         )
-        if args.command in _CORPUS_DEPENDENT and not _probe_db.is_corpus_populated():
+    except OSError as e:
+        print(f"[ERROR] Migration I/O error: {e}", file=sys.stderr)
+        sys.exit(EXIT_IO_ERROR)
+    except Exception as e:  # noqa: BLE001 — migrations either work or abort.
+        print(f"[ERROR] Migration failed: {e}", file=sys.stderr)
+        sys.exit(EXIT_IO_ERROR)
+
+    # § 12 Phase 2 Task 4 / Step 1: seed baseline classification rows
+    # on first run.  Idempotent — empty-table probe skips the call on
+    # every subsequent invocation.  Runs ONLY for the IAM DB; inventory
+    # DB has no shipped-baseline rows.
+    #
+    # Phase 7.1 silent-failure B3: previously this swallowed any seed
+    # failure as `[WARN] Baseline seed skipped` and continued with an
+    # empty dangerous_actions table.  That composes with parser-layer
+    # silent demotions to produce fail-open: analyzer finds zero risks
+    # on admin-privilege policies because its classification tables
+    # are empty.  Abort instead.
+    try:
+        from .database import Database as _SeedDB
+        from .seed_data import seed_all_baseline
+
+        _probe_db = _SeedDB(iam_db)
+        if _probe_db.is_empty("dangerous_actions"):
+            counts = seed_all_baseline(iam_db)
             print(
-                "[WARN] AWS action corpus is empty (services: 0, actions: 0). "
-                "Run: sentinel refresh --source policy-sentry --data-path <path-to-policy_sentry-json> "
-                "to populate it. Without this, all actions classify as Tier 2 (unknown) "
-                "and the rewriter operates in degraded mode.",
+                f"[INFO] Seeded baseline classification rows: {counts}",
                 file=sys.stderr,
             )
+    except Exception as exc:  # noqa: BLE001 — loud abort replaces silent warn.
+        print(f"[ERROR] Baseline seed failed: {exc}", file=sys.stderr)
+        print(
+            "[ERROR] Sentinel requires seeded classification data to operate correctly.",
+            file=sys.stderr,
+        )
+        print(
+            "[ERROR] Recovery: delete data/iam_actions.db and re-run 'sentinel info'.",
+            file=sys.stderr,
+        )
+        sys.exit(EXIT_IO_ERROR)
+
+    # Issue 3 (v0.8.0): warn when the AWS action corpus is empty.
+    # Without populated services + actions tables, every policy action
+    # classifies as Tier 2 (unknown) and the rewriter degrades — under
+    # Issue 2's preservation semantics the rewrite still emits, but the
+    # self-check verdict will be WARNING regardless. Prompt the operator
+    # to populate the corpus via `sentinel refresh --source policy-sentry`.
+    _CORPUS_DEPENDENT: frozenset[str] = frozenset(
+        {"validate", "analyze", "rewrite", "run", "fetch"}
+    )
+    if args.command in _CORPUS_DEPENDENT and not _probe_db.is_corpus_populated():
+        print(
+            "[WARN] AWS action corpus is empty (services: 0, actions: 0). "
+            "Run: sentinel refresh --source policy-sentry --data-path <path-to-policy_sentry-json> "
+            "to populate it. Without this, all actions classify as Tier 2 (unknown) "
+            "and the rewriter operates in degraded mode.",
+            file=sys.stderr,
+        )
 
     from .cli_cache import cmd_cache
     from .cli_managed import cmd_managed
