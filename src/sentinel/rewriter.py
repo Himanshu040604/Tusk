@@ -1,8 +1,45 @@
 """Policy rewriter for IAM Policy Sentinel.
 
-This module provides least-privilege policy generation by replacing wildcards
-with specific actions, scoping resources to real or placeholder ARNs, adding
-companion permissions, injecting condition keys, and reorganizing statements.
+Least-privilege policy generation pipeline. For each input policy, the
+rewriter:
+
+* Narrows wildcard actions (``s3:*``) to the smallest concrete set that
+  covers the intent, subject to the action resource map.
+* Scopes resources to real ARNs from ``ResourceInventory`` when
+  available, or clearly-marked placeholder ARNs otherwise (never
+  wildcards).
+* Adds companion permissions (e.g. ``lambda:CreateFunction`` needs
+  ``iam:PassRole`` + ``logs:*``) per ``CompanionPermissionDetector``.
+* Injects condition keys under a configurable profile
+  (``strict`` / ``moderate`` / ``none``).
+* Reorganizes statements into read / write / companion groupings for
+  audit clarity.
+
+Key behaviors:
+
+* **Unique Sid generation** (Issue 1, v0.8.0): AWS requires Sid
+  uniqueness within a policy document. ``_generate_unique_sid`` mints
+  numeric-suffix-deduped Sids; ``rewrite_policy`` threads a shared
+  ``rewrite_used_sids`` set through ``_add_companion_permissions`` and
+  ``_reorganize_statements`` so companion statements never collide.
+* **Configurable** via ``RewriteConfig``: toggle wildcards, resources,
+  companions, conditions, and read/write split independently. CLI
+  surfaces ``--no-companions`` / ``--no-conditions`` /
+  ``--condition-profile`` / ``--allow-wildcard-actions`` /
+  ``--allow-wildcard-resources``.
+* **Audit trail**: every rewrite step appends a ``RewriteChange`` to
+  ``RewriteResult.changes`` with before / after / rationale. Consumed
+  by the text and markdown formatters.
+* **Deep-copied conditions** (M5): ``copy.deepcopy`` on all condition
+  dicts before mutation to preserve caller data.
+* **Deferred constants import** (P0-3 α): ``WRITE_PREFIXES`` and other
+  ``constants.__getattr__``-backed values resolve via
+  ``pydantic-settings`` lazy, so they're imported at function scope to
+  preserve the ~113ms cold-start budget.
+* **Tier-2 preservation integration** (Amendment 10): the rewriter
+  preserves Tier-2 (unknown) actions passed through from the parser.
+  Removal happens only in ``self_check._apply_self_check_fixes`` for
+  Tier-3 (INVALID) actions.
 """
 
 from __future__ import annotations
