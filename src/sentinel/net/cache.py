@@ -1,24 +1,44 @@
 """Disk cache with HMAC integrity + per-source TTL (§ 8.5).
 
-Every entry is a JSON file under ``$XDG_CACHE_HOME/sentinel/``.  The
+Every entry is a JSON file under ``$XDG_CACHE_HOME/sentinel/``. The
 file name is ``SHA-256(canonical_url) + ".json"`` and the body carries
 an HMAC-SHA256 signature computed with the **derived** cache sub-key
-(Amendment 6 Theme D) — not the root key directly.
+``K_cache`` (Amendment 6 Theme D) -- not the root key directly.
+Compromise of ``K_cache`` does not unlock ``K_db`` (the DB row signer).
 
 Signature input binds ``(url_hash, source, body_sha256, etag,
-fetched_at_ts)``.  Verification with :func:`hmac.compare_digest`
+fetched_at_ts)``. Verification with :func:`hmac.compare_digest`
 rejects tampered entries; a signature mismatch invalidates the entry
 and triggers refetch.
 
-Graceful degradation: if the cache dir is unwritable (read-only
-container / locked-down CI), the cache falls back to a process-lifetime
-in-memory dict with a single ``[WARN]`` on first fetch.
+Key behaviors:
+
+* **Atomic writes**: ``tempfile.NamedTemporaryFile`` + ``os.rename``
+  so a partial write never leaves a half-signed entry visible.
+* **Per-source TTL**: honor ``settings.cache.ttl_seconds.<source>``
+  from the pydantic-settings layer.
+* **Insecure-write suppression** (SEC-M3, post-v0.8.1): when the
+  consuming ``SentinelHTTPClient`` is in ``--insecure`` mode, cache
+  writes are skipped via a call-site check. An MITM-poisoned response
+  from a single insecure session cannot persist into a signed cache
+  entry that a later secure session would trust as valid. Read path is
+  unchanged -- prior legitimate entries remain usable.
+* **HMACError propagation** (Security Low #3, v0.6.2): ``_derived_key``
+  catches ``OSError`` for the in-memory fallback (legitimate read-only
+  FS scenario) but re-raises ``HMACError`` so the operator can
+  ``rotate-key`` rather than silently running on an ephemeral key.
+* **Graceful degradation**: if the cache dir is unwritable (read-only
+  container / locked-down CI), falls back to a process-lifetime
+  in-memory dict with a single ``[WARN]`` on first fetch.
 
 Public API:
 
-* :class:`CacheEntry` — frozen dataclass returned by ``get()``.
-* :class:`DiskCache` — the cache itself.
-* :func:`canonical_url` — URL canonicalization helper (stable key input).
+* :class:`CacheEntry` -- frozen dataclass returned by ``get()``.
+* :class:`DiskCache` -- the cache itself (``get``, ``put``, ``purge``,
+  ``rotate_key``).
+* :func:`canonical_url` -- URL canonicalization helper (stable key
+  input). Strips userinfo implicitly via ``urlsplit().hostname`` (see
+  SEC-L1 context in ``net/urls.py``).
 """
 
 from __future__ import annotations
