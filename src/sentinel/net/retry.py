@@ -144,10 +144,31 @@ class RetryPolicy:
         """
         attempts = self.budget_for(source)
 
+        # SEC-M2: bind the logger inside retrying() rather than at module
+        # level — H23 (logging_setup.py) forbids import-time structlog
+        # calls so reconfigure() can reshape bound processors.
+        import structlog
+
+        _log = structlog.get_logger("sentinel.net.retry")
+        cap_seconds = float(self.max_total_wait_seconds)
+
         def _wait(retry_state):
             if retry_after_hook is not None:
                 hinted = retry_after_hook()
                 if hinted is not None:
+                    # SEC-M2: bound the Retry-After hint to the operator-
+                    # configured wall-clock budget.  A hostile server
+                    # returning ``Retry-After: 99999`` would otherwise make
+                    # tenacity sleep ~27h before the stop_after_delay
+                    # predicate fires on the NEXT attempt.
+                    if hinted > cap_seconds:
+                        _log.warning(
+                            "retry_after_cap_engaged",
+                            hinted_seconds=hinted,
+                            cap_seconds=cap_seconds,
+                            source=source,
+                        )
+                        return cap_seconds
                     return hinted
             # Fall back to exponential: base * 2^(attempt-1), capped at 60s.
             return wait_exponential(multiplier=self.base_wait_seconds, max=60.0)(retry_state)
