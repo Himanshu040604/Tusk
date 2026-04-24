@@ -26,8 +26,8 @@ from .base import Fetcher, FetchResult, InvalidSpecError
 from ._http_helpers import build_fetch_result
 
 if TYPE_CHECKING:  # pragma: no cover
-    from sentinel.config import Settings
-    from sentinel.net.client import SentinelHTTPClient
+    from ..config import Settings
+    from ..net.client import SentinelHTTPClient
 
 
 _RAW_HOST = "raw.githubusercontent.com"

@@ -33,11 +33,11 @@ from typing import TYPE_CHECKING
 
 import structlog
 
-from sentinel.hmac_keys import derive_db_row_key
+from ..hmac_keys import derive_db_row_key
 
 if TYPE_CHECKING:  # pragma: no cover
-    from sentinel.database import Database
-    from sentinel.net.client import SentinelHTTPClient
+    from ..database import Database
+    from ..net.client import SentinelHTTPClient
 
 
 @dataclass

@@ -15,14 +15,14 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import TYPE_CHECKING
 
-from sentinel.models import PolicyOrigin
+from ..models import PolicyOrigin
 
 from .base import Fetcher, FetchResult
 from .github import GitHubFetcher
 
 if TYPE_CHECKING:  # pragma: no cover
-    from sentinel.config import Settings
-    from sentinel.net.client import SentinelHTTPClient
+    from ..config import Settings
+    from ..net.client import SentinelHTTPClient
 
 
 _REPO = "salesforce/cloudsplaining"
