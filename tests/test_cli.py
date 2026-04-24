@@ -866,7 +866,7 @@ class TestPipelineFormatters:
             findings=[],
             completeness_score=1.0,
             assumptions_valid=True,
-            tier2_excluded=True,
+            tier2_preserved_actions=[],
             summary="Self-check PASS",
         )
         return PipelineResult(

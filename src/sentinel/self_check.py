@@ -103,7 +103,12 @@ class SelfCheckResult:
         findings: All findings from the self-check.
         completeness_score: Coverage score from 0.0 to 1.0.
         assumptions_valid: Whether rewrite assumptions are reasonable.
-        tier2_excluded: Whether Tier 2 actions were properly excluded.
+        tier2_preserved_actions: List of Tier-2 (unknown) action strings
+            preserved in the rewritten policy. Issue 2 (v0.8.0, Amendment 10)
+            renamed this field from the legacy ``tier2_excluded: bool`` — the
+            new semantic says "these were kept for manual review" rather than
+            "these were dropped". A non-empty list means the verdict should
+            be WARNING (or FAIL under --strict).
         summary: Human-readable summary of the self-check.
         confidence_summary: Per-aspect confidence scores from the pipeline.
     """
@@ -112,9 +117,20 @@ class SelfCheckResult:
     findings: list[CheckFinding]
     completeness_score: float
     assumptions_valid: bool
-    tier2_excluded: bool
+    tier2_preserved_actions: list[str]
     summary: str
     confidence_summary: dict[str, float] = field(default_factory=dict)
+
+    @property
+    def tier2_excluded(self) -> bool:
+        """Backward-compat shim for the legacy ``tier2_excluded`` bool.
+
+        Returns True when no Tier-2 actions survived the rewrite (i.e.
+        ``tier2_preserved_actions`` is empty). Downstream consumers that
+        still read ``tier2_excluded`` keep working; new code should read
+        ``tier2_preserved_actions`` directly. Slated for removal in v1.0.
+        """
+        return not self.tier2_preserved_actions
 
 
 @dataclass
@@ -271,10 +287,17 @@ class SelfCheckValidator:
         # Check 7: Low-confidence rewrite decisions
         findings.extend(self._check_low_confidence(rewrite_result))
 
-        # Tier 2 exclusion result
-        tier2_excluded = not any(
-            f.check_type == "TIER2_IN_POLICY" and f.severity == CheckSeverity.ERROR
-            for f in findings
+        # Issue 2 (v0.8.0, Amendment 10): record the list of Tier-2 actions
+        # actually preserved in the rewritten policy. Replaces the legacy
+        # ``tier2_excluded: bool`` which became semantically meaningless
+        # after TIER2_IN_POLICY severity dropped to WARNING (the old
+        # predicate would always be True).
+        tier2_preserved_actions = sorted(
+            {
+                f.action
+                for f in findings
+                if f.check_type == "TIER2_IN_POLICY" and f.action is not None
+            }
         )
 
         # Compute verdict
@@ -296,7 +319,7 @@ class SelfCheckValidator:
             findings=findings,
             completeness_score=completeness_score,
             assumptions_valid=assumptions_valid,
-            tier2_excluded=tier2_excluded,
+            tier2_preserved_actions=tier2_preserved_actions,
             summary=summary,
         )
 
@@ -673,17 +696,26 @@ class SelfCheckValidator:
             if stmt.not_actions:
                 rewritten_actions.update(stmt.not_actions)
 
+        # Issue 2 (v0.8.0, Amendment 10): Tier-2 actions are now PRESERVED
+        # in the rewritten policy (not silently removed). Finding severity
+        # downgraded from ERROR to WARNING — preserves the safety signal
+        # via verdict=WARNING but refuses to drop the operator's actions.
+        # Under --strict the WARNING escalates to FAIL, keeping the
+        # fail-closed default available for CI pipelines.
         for action in sorted(tier2_actions & rewritten_actions):
             findings.append(
                 CheckFinding(
                     check_type="TIER2_IN_POLICY",
-                    severity=CheckSeverity.ERROR,
+                    severity=CheckSeverity.WARNING,
                     message=(
-                        f"Tier 2 unknown action '{action}' found in rewritten "
-                        "policy. It should have been excluded."
+                        f"Tier 2 unknown action '{action}' preserved for "
+                        "manual review. Run 'sentinel refresh' to verify."
                     ),
                     action=action,
-                    remediation=f"Remove Tier 2 action '{action}'",
+                    remediation=(
+                        f"Verify '{action}' is intentional, then run "
+                        "sentinel refresh to populate the action corpus."
+                    ),
                 )
             )
 
@@ -1107,7 +1139,12 @@ class Pipeline:
             ):
                 continue
 
-            if finding.check_type in ("ACTION_VALIDATION", "TIER2_IN_POLICY"):
+            # Issue 2 (v0.8.0, Amendment 10): only remove genuinely INVALID
+            # (Tier 3) actions — Tier 2 actions are PRESERVED so the
+            # operator's original intent survives the self-check loop.
+            # TIER2_IN_POLICY findings now emit at WARNING severity; the
+            # fixer just leaves them alone.
+            if finding.check_type == "ACTION_VALIDATION":
                 if finding.action:
                     actions_to_remove.add(finding.action)
 

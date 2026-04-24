@@ -71,7 +71,7 @@ def _make_pipeline_result(
         findings=findings,
         completeness_score=0.5,
         assumptions_valid=False,
-        tier2_excluded=True,
+        tier2_preserved_actions=[],
         summary=f"Self-check {verdict.value}",
     )
     return PipelineResult(

@@ -274,7 +274,7 @@ class TestSelfCheckResultDataclass:
             findings=[],
             completeness_score=1.0,
             assumptions_valid=True,
-            tier2_excluded=True,
+            tier2_preserved_actions=[],
             summary="All checks passed",
         )
         assert result.verdict == CheckVerdict.PASS
@@ -292,7 +292,7 @@ class TestSelfCheckResultDataclass:
             findings=[finding],
             completeness_score=0.8,
             assumptions_valid=True,
-            tier2_excluded=True,
+            tier2_preserved_actions=[],
             summary="One warning",
         )
         assert len(result.findings) == 1
@@ -883,7 +883,14 @@ class TestTier2Exclusion:
         assert len(findings) == 0
 
     def test_tier2_action_in_policy_flagged(self, tmp_db):
-        """Tier 2 action found in rewritten policy flagged as ERROR."""
+        """Tier 2 action found in rewritten policy flagged as WARNING.
+
+        Issue 2 (v0.8.0, Amendment 10): Tier-2 actions are now PRESERVED
+        in the rewritten policy rather than removed, and the finding
+        severity dropped from ERROR to WARNING. The verdict becomes
+        WARNING instead of FAIL; under --strict the WARNING escalates
+        back to FAIL preserving the old safety behavior.
+        """
         validator = SelfCheckValidator(database=tmp_db)
         policy = Policy(
             version="2012-10-17",
@@ -908,9 +915,9 @@ class TestTier2Exclusion:
             ),
         ]
         findings = validator._check_tier2_exclusion(policy, validation_results)
-        tier2_errors = [f for f in findings if f.check_type == "TIER2_IN_POLICY"]
-        assert len(tier2_errors) >= 1
-        assert tier2_errors[0].severity == CheckSeverity.ERROR
+        tier2_findings = [f for f in findings if f.check_type == "TIER2_IN_POLICY"]
+        assert len(tier2_findings) >= 1
+        assert tier2_findings[0].severity == CheckSeverity.WARNING
 
     def test_mixed_tier_actions_handled(self, tmp_db):
         """Only Tier 2 actions in the rewritten policy are flagged."""
