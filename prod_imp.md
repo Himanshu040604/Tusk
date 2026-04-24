@@ -1987,6 +1987,49 @@ This is a plan-premise correction, not a design change. No implementation impact
 
 ---
 
+### Amendment 12 — 2026-04-24: v0.8.2 audit cycle + documentation release
+
+**Decision:** combined audit-cycle + documentation release.  Eight findings from a parallel 5-agent review (architect / explorer / reviewer / security / perf) were validated through the sequential 3-agent chain (genuineness → pipeline fit → integration side-effects) and landed under the same tag as a comprehensive documentation sweep.
+
+**Contract changes (non-breaking):**
+- **SEC-M1** `settings.network.max_download_bytes` is now *enforced*.  Previously declared in config but never consulted; a hostile-but-allowlisted server could return an arbitrary body size and OOM the process, poisoning the HMAC cache in the process.  Two-layer check (`Content-Length` preflight + `len(resp.content)` post-check) now raises a non-retryable `ResponseTooLargeError` before any cache write.  `cmd_fetch` maps it to `EXIT_IO_ERROR`.  No new config key — the existing value is simply honored.
+- **SEC-M2** `RetryPolicy._wait` now *caps* `Retry-After` hints at `max_total_wait_seconds`.  Previously a hostile `Retry-After: 99999` triggered a ~27h `time.sleep()` (tenacity's `stop_after_delay` is evaluated *between* attempts, not during sleep).  A `retry_after_cap_engaged` structlog WARN fires when the cap engages.
+- **SEC-M3** `--insecure` responses are *no longer* written to the HMAC-signed `DiskCache`.  HMAC proves integrity, not trusted origin — a MITM during one `--insecure` session could otherwise persistently compromise future secure sessions that trust the HMAC-signed entry.  Cache writes emit `cache_write_suppressed_insecure` WARN when skipped; cache reads remain unchanged so prior legitimate entries stay usable.
+- **SEC-L1** Nine structlog sites in `net/client.py` previously passed raw URLs that could carry `user:token@host` RFC 3986 userinfo (via `sentinel fetch --url ...`).  `secrets_patterns.py` does not cover URL userinfo.  New `sentinel.net.urls.strip_url_credentials(url)` helper (fast-path on absent `@`; `urlsplit`/`urlunsplit` otherwise; preserves scheme/port/path/query/fragment) is now applied at every log-URL site.  Also consolidated an ad-hoc regex introduced by SEC-M3.
+- **SEC-L4** `force_emit_rewrite_bypass` audit event now fires on *every* `force_emit=True`, not only when `verdict == FAIL`.  Belt-and-suspenders CI use on PASS/WARNING runs was previously unaudited (OWASP A09).  New boolean field `bypass_of_failure` in the event payload lets SIEM rules distinguish genuine override (`true`) from flag-set-on-pass (`false`).  JSON output schema unchanged otherwise.
+
+**Regression fixes (behavior-preserving):**
+- **H1** All four `refresh` exit paths now unify on `EXIT_IO_ERROR` when `stats.errors` is non-empty.  Previously `_cmd_refresh_new_source` and `_refresh_live` cloudsplaining branches returned `EXIT_SUCCESS`, hiding partial-ingestion failure from CI; `_refresh_live` managed-policies returned the outlier `EXIT_ISSUES_FOUND` (semantically reserved for policy findings, not IO errors).  PE2 parity restored.
+- **H2** `_refresh_live` managed-policies migrated from bare `client = _build_live_client()` + `finally: client.close()` to `with _build_live_client() as client:`.  Prior pattern raised `UnboundLocalError` in `finally` if the constructor raised (masking the real exception).  Matches the sibling cloudsplaining block.
+- **H1-perf / P2-15 β** `IntentMapper._extract_services` regex patterns now precompiled in `__init__`.  Previously rebuilt 26 `re.escape` + string-concat + regex-cache-lookup patterns on every `map_intent` call, asymmetric to the already-precompiled `_compiled_keyword_patterns` (closed the P2-15 α asymmetry).
+- **PE5** `TestColdStartBudget.COLD_START_BUDGET_SECONDS` relaxed to 1.25s on WSL2/NTFS hosts via new `_wsl2_active()` helper (mirrors `_parallel_mode_active()` from PE4).  2.5x multiplier calibrated against a 15-run sample (p100 0.939s, min 0.597s) — an earlier 1.5x flaked ~70% against 0.75s.  Native Linux/macOS keep the strict 0.5s guard.
+
+**Internal modernization (U13-U33):**
+- PEP 585 generics sweep (`List[X]` → `list[X]`, `Optional[X]` → `X | None`; 126 autofixes).
+- Python 3.11 alignment (dropped 3.10-compat branches that remained after `requires-python = ">=3.11"`).
+- `cli_utils.py` extracted from `cli.py` (shared CLI helpers).
+- CI `mypy` invocation normalized via `[tool.mypy] files = ["src/sentinel"]` (was `uv run mypy src/sentinel --explicit-package-bases` which flaked on `sys.path` permutations).
+- `ruff format` applied across 78 files.
+
+**Documentation sweep:**
+- `README.md` rewritten for v0.8.1+ state (features, CLI, architecture, doc map, 5-level exit scheme, Amendment 7 layout).
+- `CONTRIBUTING.md` updated for working-tree test baseline (856 tests) + release process + 3-agent investigation pipeline pattern.
+- `CLAUDE.md` reshaped: Amendment 7 layout + Amendment 10 semantics + consolidated v0.5.0 → v0.8.2 thinking-log entry.
+- New `docs/FEATURES.md` — comprehensive feature catalogue organized by domain (policy analysis, input sources, output formats, safety + security, observability, CLI, config, DB layer) with file:symbol pointers.
+- New `docs/USAGE.md` — end-user how-to guide with CI integration examples, troubleshooting (HMAC errors, empty corpus, cold-start, WSL2), advanced workflows.
+- Module docstrings refreshed in `self_check.py`, `rewriter.py`, `formatters.py`, `hmac_keys.py`, `cli.py`, `net/client.py`, `net/cache.py`, `migrations.py`.
+- `.gitignore` restructured to whitelist `docs/FEATURES.md` + `docs/USAGE.md`.
+
+**Test baseline:** 813 (v0.8.1 shipped) → 856 (v0.8.2 shipped).  New files: `tests/test_retry.py` (SEC-M2 boundaries), `tests/test_net_urls.py` (13 SEC-L1 cases).  New coverage in existing files: `TestMaxDownloadBytes` (SEC-M1), `TestRefreshLiveContextManager` (H2), `TestInsecureWarn.test_insecure_does_not_populate_cache_on_2xx` + `test_secure_run_can_still_read_prior_secure_cache_entry` (SEC-M3), `TestCmdRefreshStatsErrors.test_refresh_live_does_not_use_issues_found` (H1), `test_bypass_audit_fires_on_every_force_emit_not_only_fail` (SEC-L4).
+
+**Release-packaging note:** CHANGELOG `[Unreleased]` (audit cycle) and `[0.8.2]` (docs sweep) were consolidated into a single `[0.8.2] - 2026-04-24` entry in a follow-up commit after the initial tag; the v0.8.2 annotated tag was force-moved to the consolidation commit.  Tag was never published so the rewrite is local-only.
+
+**Rationale:** fail-closed principle (§ 2 Principle 4) applied to output safety (SEC-M1, SEC-M3), retry bounds (SEC-M2), log hygiene (SEC-L1), audit-trail completeness (SEC-L4), and CI exit-code truthfulness (H1).  OWASP A09 Security Logging & Monitoring Failure closed for `--force-emit-rewrite`.
+
+**No schema or breaking API changes.** Safe drop-in for existing v0.8.1 users.
+
+---
+
 ## End of plan
 
 Next step: you review this document. If approved, Phase 1 begins. If anything needs changing, we amend this file before any code is written.
