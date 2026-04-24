@@ -1018,7 +1018,19 @@ class TestCmdRefreshStatsErrors:
     """cmd_refresh must propagate stats.errors as EXIT_IO_ERROR."""
 
     def test_refresh_with_errors_returns_io_error(self):
-        """v0.8.1 (PE2): stats.errors non-empty => EXIT_IO_ERROR."""
+        """v0.8.1 (PE2) + H1: stats.errors non-empty => EXIT_IO_ERROR.
+
+        Regression guard for three refresh exit paths:
+          - cmd_refresh main (PE2, cli.py ~1313)
+          - _cmd_refresh_new_source offline tail (H1, cli.py ~1384)
+          - _refresh_live cloudsplaining (H1, cli.py ~1472)
+        All must guard stats.errors with EXIT_IO_ERROR at variable indentation
+        levels, so we match the 'if stats.errors:' + 'return EXIT_IO_ERROR'
+        pair via regex and require at least two occurrences to cover sites
+        added by H1 on top of the PE2 baseline.
+        """
+        import re as _re
+
         src_path = (
             Path(__file__).resolve().parent.parent
             / "src"
@@ -1026,9 +1038,36 @@ class TestCmdRefreshStatsErrors:
             / "cli.py"
         )
         src = src_path.read_text(encoding="utf-8")
-        # Source-grep: the refresh path must return EXIT_IO_ERROR when
-        # stats.errors is non-empty.
-        assert "if stats.errors:\n        return EXIT_IO_ERROR" in src, (
-            "cmd_refresh must return EXIT_IO_ERROR when stats.errors is "
-            "non-empty (PE2)"
+        pattern = _re.compile(
+            r"if stats\.errors:\s+return EXIT_IO_ERROR",
+            _re.MULTILINE,
+        )
+        occurrences = len(pattern.findall(src))
+        assert occurrences >= 2, (
+            f"Expected >=2 'if stats.errors: return EXIT_IO_ERROR' guards "
+            f"in cli.py (PE2 + H1 on cloudsplaining); found {occurrences}"
+        )
+
+    def test_refresh_live_does_not_use_issues_found(self):
+        """H1: _refresh_live must normalize on EXIT_IO_ERROR, not EXIT_ISSUES_FOUND.
+
+        EXIT_ISSUES_FOUND is reserved for policy-audit findings, not IO /
+        ingestion failures.  Per exit_codes.py docstrings, a partial-seed
+        fetch failure is an IO error.
+        """
+        src_path = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "sentinel"
+            / "cli.py"
+        )
+        src = src_path.read_text(encoding="utf-8")
+        # Slice out the _refresh_live function body.
+        marker = "def _refresh_live("
+        assert marker in src, "cli._refresh_live not found"
+        after = src.split(marker, 1)[1]
+        body = after.split("\ndef ", 1)[0]
+        assert "EXIT_ISSUES_FOUND" not in body, (
+            "H1 regression: _refresh_live must not use EXIT_ISSUES_FOUND; "
+            "partial ingestion failures return EXIT_IO_ERROR (PE2 parity)."
         )

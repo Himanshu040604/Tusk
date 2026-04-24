@@ -1381,6 +1381,10 @@ def _cmd_refresh_new_source(
         stats = cs_stats
     for err in stats.errors:
         print(f"[WARN] {err}", file=sys.stderr)
+    # H1 fix: mirror PE2 semantics — non-empty stats.errors must propagate
+    # as EXIT_IO_ERROR so CI pipelines can detect partial ingestion failure.
+    if stats.errors:
+        return EXIT_IO_ERROR
     return EXIT_SUCCESS
 
 
@@ -1446,7 +1450,9 @@ def _refresh_live(db, source: str) -> int:
         print(f"Refresh complete: {added} added, {updated} updated.")
         for err in errors:
             print(f"[WARN] {err}", file=sys.stderr)
-        return EXIT_SUCCESS if not errors else EXIT_ISSUES_FOUND
+        # H1 fix: unify with PE2 — per-seed ingestion errors are IO failures,
+        # not policy findings.  Normalizes with cmd_refresh main path.
+        return EXIT_SUCCESS if not errors else EXIT_IO_ERROR
 
     if source == "cloudsplaining":
         from .refresh.cloudsplaining import CloudSplainingLiveFetcher
@@ -1469,6 +1475,9 @@ def _refresh_live(db, source: str) -> int:
         )
         for err in stats.errors:
             print(f"[WARN] {err}", file=sys.stderr)
+        # H1 fix: mirror PE2 — stats.errors non-empty => EXIT_IO_ERROR.
+        if stats.errors:
+            return EXIT_IO_ERROR
         return EXIT_SUCCESS
 
     print(f"Error: --live not supported for source {source!r}", file=sys.stderr)
