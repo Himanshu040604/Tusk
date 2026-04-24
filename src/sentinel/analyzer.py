@@ -150,6 +150,20 @@ class IntentMapper:
             (re.compile(r"\b" + re.escape(kw) + r"\b"), levels)
             for kw, levels in self._intent_keywords.items()
         ]
+        # P2-15 β — same precompile treatment for service-name hints.
+        # _extract_services previously rebuilt and cache-looked-up 26
+        # regex patterns per call; now they live precompiled alongside
+        # _compiled_keyword_patterns.  SERVICE_NAME_MAPPINGS is loaded
+        # here (deferred) rather than at module scope to preserve the
+        # P0-3 α cold-start contract (sentinel --version never
+        # instantiates IntentMapper, so this never fires for metadata
+        # commands).
+        from .constants import SERVICE_NAME_MAPPINGS
+
+        self._compiled_service_patterns: list[tuple[re.Pattern[str], str]] = [
+            (re.compile(r"\b" + re.escape(kw) + r"\b"), svc)
+            for kw, svc in SERVICE_NAME_MAPPINGS.items()
+        ]
 
     @staticmethod
     def _load_intent_keywords() -> dict[str, set[AccessLevel]]:
@@ -274,15 +288,12 @@ class IntentMapper:
         Returns:
             Set of service prefix strings
         """
-        from .constants import SERVICE_NAME_MAPPINGS  # P0-3 α deferred
-
+        # P2-15 β — iterate precompiled patterns instead of re-building
+        # regex strings on every call.  See __init__ for construction.
         services = set()
-
-        for keyword, service in SERVICE_NAME_MAPPINGS.items():
-            # Use word boundary matching to avoid substring false positives
-            if re.search(r"\b" + re.escape(keyword) + r"\b", intent_lower):
+        for pattern, service in self._compiled_service_patterns:
+            if pattern.search(intent_lower):
                 services.add(service)
-
         return services
 
     def _query_actions_by_access_levels(
