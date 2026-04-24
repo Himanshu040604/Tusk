@@ -16,8 +16,9 @@ HTTP client.
 
 - `CLAUDE.md` — project conventions, design decisions, current phase,
   and historical thinking log.
-- `docs/CODEBASE_MAP.md` — generated codebase map (regenerate with
-  the cartographer skill as the tree evolves).
+- `docs/CODEBASE_MAP.md` — generated codebase map (local only, not
+  tracked; regenerate manually via `cartographer.md` workflow after
+  each phase hardening lands).
 - `CHANGELOG.md` — release-by-release change history, each entry
   cross-linked to its audit label.
 - `prod_imp.md` — production-migration spec (Phase 1-8) including
