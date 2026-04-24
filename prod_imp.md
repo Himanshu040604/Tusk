@@ -1970,6 +1970,23 @@ This is a plan-premise correction, not a design change. No implementation impact
 
 ---
 
+### Amendment 11 — 2026-04-24: v0.8.1 maintenance release
+
+**Decision:** maintenance release addressing 8 post-v0.8.0 review findings + 4 pre-existing items + docs realignment.
+
+**Contract changes (non-breaking):**
+- `SelfCheckResult.tier2_excluded` shim now emits `DeprecationWarning`; removal scheduled for v0.9.0.
+- JSON output gains optional `"force_emit_rewrite_bypass": true` field (v0.8.1) documenting `--force-emit-rewrite` bypass events.
+- `--force-emit-rewrite` flag moved from shared parent parser to 3 subcommand parsers only (`run`, `fetch`, `managed analyze`); other subcommands no longer display it in help.
+
+**Policy-level changes:** `cmd_info` and `sentinel refresh` now return `EXIT_IO_ERROR` on alembic-query / refresh-errors paths (previously returned `EXIT_SUCCESS`, hiding failures).
+
+**Rationale:** fail-closed principle (§ 2 Principle 4) applied uniformly across CLI exit-code behaviors.
+
+**No schema or breaking API changes.** Safe drop-in for existing users.
+
+---
+
 ## End of plan
 
 Next step: you review this document. If approved, Phase 1 begins. If anything needs changing, we amend this file before any code is written.
