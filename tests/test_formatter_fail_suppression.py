@@ -308,3 +308,106 @@ def test_cmd_managed_emits_structlog_bypass_warning() -> None:
     assert 'structlog.get_logger("sentinel.safety")' in src
     assert '"force_emit_rewrite_bypass"' in src
     assert 'subcommand="managed"' in src
+
+
+# ---------------------------------------------------------------------------
+# v0.8.1 (L3): _is_additions_only inclusion-based allowlist tests.
+# ---------------------------------------------------------------------------
+
+
+def test_is_additions_only_true_for_companion_only_changes() -> None:
+    """Companion additions with no other change types => additions_only."""
+    from sentinel.formatters import _is_additions_only
+    from sentinel.rewriter import RewriteChange
+    from sentinel.analyzer import CompanionPermission
+
+    result = _make_pipeline_result(verdict=CheckVerdict.PASS, with_findings=False)
+    result.rewrite_result.companion_permissions_added = [
+        CompanionPermission(
+            primary_action="lambda:CreateFunction",
+            companion_actions=["logs:CreateLogGroup"],
+            reason="Lambda logging",
+        )
+    ]
+    result.rewrite_result.changes = [
+        RewriteChange(
+            change_type="COMPANION_ADDED",
+            description="added companion",
+            original_value=None,
+            new_value="logs:CreateLogGroup",
+            statement_index=0,
+        )
+    ]
+    assert _is_additions_only(result) is True
+
+
+def test_is_additions_only_false_for_future_unknown_change_types() -> None:
+    """A future change_type NOT in the allowlist disqualifies additions_only.
+
+    L3 regression: the old exclusion-based check let unknown change types
+    default to additions_only (by virtue of not matching the exclusion
+    list). The inclusion-based check treats unknown types as rewrites.
+    """
+    from sentinel.formatters import _is_additions_only
+    from sentinel.rewriter import RewriteChange
+    from sentinel.analyzer import CompanionPermission
+
+    result = _make_pipeline_result(verdict=CheckVerdict.PASS, with_findings=False)
+    result.rewrite_result.companion_permissions_added = [
+        CompanionPermission(
+            primary_action="lambda:CreateFunction",
+            companion_actions=["logs:CreateLogGroup"],
+            reason="Lambda logging",
+        )
+    ]
+    result.rewrite_result.changes = [
+        RewriteChange(
+            change_type="FUTURE_ACTION_NARROWED",  # hypothetical future type
+            description="narrowed action",
+            original_value=None,
+            new_value=None,
+            statement_index=0,
+        )
+    ]
+    assert _is_additions_only(result) is False
+
+
+def test_is_additions_only_false_for_arn_scoped_changes() -> None:
+    """ARN_SCOPED changes disqualify additions_only (rewriter narrows).
+
+    Note: the old exclusion list referenced non-existent "RESOURCE_SCOPED"
+    instead of actual "ARN_SCOPED", so under the old predicate a policy
+    with ARN_SCOPED changes WOULD incorrectly be marked additions_only.
+    """
+    from sentinel.formatters import _is_additions_only
+    from sentinel.rewriter import RewriteChange
+    from sentinel.analyzer import CompanionPermission
+
+    result = _make_pipeline_result(verdict=CheckVerdict.PASS, with_findings=False)
+    result.rewrite_result.companion_permissions_added = [
+        CompanionPermission(
+            primary_action="s3:GetObject",
+            companion_actions=["kms:Decrypt"],
+            reason="S3 SSE-KMS",
+        )
+    ]
+    result.rewrite_result.changes = [
+        RewriteChange(
+            change_type="ARN_SCOPED",
+            description="scoped",
+            original_value="*",
+            new_value="arn:aws:s3:::bucket/*",
+            statement_index=0,
+        )
+    ]
+    assert _is_additions_only(result) is False
+
+
+def test_is_additions_only_false_without_companions() -> None:
+    """No companion additions => never additions_only, regardless of changes."""
+    from sentinel.formatters import _is_additions_only
+
+    result = _make_pipeline_result(verdict=CheckVerdict.PASS, with_findings=False)
+    # companion_permissions_added defaults to [] — make sure.
+    result.rewrite_result.companion_permissions_added = []
+    assert _is_additions_only(result) is False

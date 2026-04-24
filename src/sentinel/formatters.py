@@ -81,20 +81,35 @@ def _is_additions_only(result: "PipelineResult") -> bool:
     """Return True when the rewrite emits ONLY companion-add statements.
 
     Issue 2 (v0.8.0, Amendment 10): when the rewrite pipeline changes are
-    limited to COMPANION_ADDED entries — no WILDCARD_REPLACED, no
-    RESOURCE_SCOPED — the output is a PARTIAL rewrite (additions) rather
-    than a complete narrowed policy.  The formatter relabels the output
-    section so operators know to MERGE the additions with their original
-    policy instead of wholesale-replacing it.
+    limited to COMPANION_ADDED entries, the output is a PARTIAL rewrite
+    (additions) rather than a complete narrowed policy.  The formatter
+    relabels the output section so operators know to MERGE the additions
+    with their original policy instead of wholesale-replacing it.
+
+    v0.8.1 (L3): flipped from exclusion-based (reject WILDCARD_REPLACED,
+    RESOURCE_SCOPED) to inclusion-based (only allow COMPANION_ADDED). The
+    original exclusion was brittle: future change types (e.g., a new
+    ``ACTION_NARROWED``) would default to additions-only unless the list
+    was manually extended. The inclusion form is the correct default —
+    new change types are treated as rewrites until explicitly allowlisted.
+    Also note: the old code referenced a non-existent "RESOURCE_SCOPED"
+    (the rewriter actually emits "ARN_SCOPED"), so the exclusion was
+    silently under-matching from day one.
     """
+    # Explicit allowlist of change_types that represent companion-only
+    # additions.  Any change_type outside this set disqualifies the
+    # rewrite from the "additions_only" relabel.
+    _ADDITIONS_ONLY_TYPES = {"COMPANION_ADDED"}
+
     rewrite = result.rewrite_result
     has_companions = bool(getattr(rewrite, "companion_permissions_added", []))
     if not has_companions:
         return False
-    for change in getattr(rewrite, "changes", []):
-        if change.change_type in ("WILDCARD_REPLACED", "RESOURCE_SCOPED"):
-            return False
-    return True
+    changes = getattr(rewrite, "changes", [])
+    if not changes:
+        # Companions exist but no changes recorded — treat as additions-only.
+        return True
+    return all(c.change_type in _ADDITIONS_ONLY_TYPES for c in changes)
 
 
 class TextFormatter:
