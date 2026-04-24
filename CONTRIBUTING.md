@@ -26,13 +26,16 @@ hygiene and audit-trail discipline are non-negotiable.
 ## Running tests
 
 Sentinel has two test-run modes. Both are required to pass before a PR is
-merged:
+merged. Current working-tree baseline: **856 tests, 1 skipped** (VCR
+cassette regen gated behind `-m live`). v0.8.1 shipped at 813; the
+v0.8.1 post-ship audit cycle (U1-U33 + H1/H2/SEC-* findings) added the
+remaining tests.
 
 ```bash
 # Parallel — primary dev loop. ~45s wall time.
 uv run pytest -m "not live" -n auto
 
-# Serial — catches shared-state regressions that xdist hides. ~105s wall time.
+# Serial — catches shared-state regressions that xdist hides. ~110s wall time.
 uv run pytest -m "not live"
 ```
 
@@ -59,11 +62,28 @@ uv run mypy
 Targets and `explicit_package_bases` live in `pyproject.toml`
 `[tool.mypy]` (see `files = ["src/sentinel"]`), so the bare
 invocation picks the right scope uniformly across CI, pre-commit,
-and local dev.  Before U32 (v0.8.2) a bare `uv run mypy src/`
-produced `error: Source file found twice under different module
-names` under certain `sys.path` permutations — that failure mode
-is now resolved by the narrower `files` target plus
-`explicit_package_bases = true`.
+and local dev. Prior to U32 in the v0.8.1 post-ship audit, CI and
+docs called `uv run mypy src/sentinel --explicit-package-bases`
+directly, which produced `error: Source file found twice under
+different module names` under certain `sys.path` permutations. That
+failure mode is resolved by the narrower `files` target plus
+`explicit_package_bases = true` in `pyproject.toml`, so the bare
+invocation is correct everywhere.
+
+### Cold-start performance gate
+
+`tests/test_performance.py::test_cold_start_budget` enforces
+`sentinel --version < MAX_ALLOWED_SECONDS` (currently 0.3 s
+steady-state). Measured median after v0.8.1's `C2` deferred-yaml-
+import fix: **~113 ms**. If you add a top-level import in any module
+that `sentinel/__init__.py` pulls transitively, measure first:
+
+```bash
+time .venv/bin/sentinel --version       # median across 5 runs
+```
+
+Keep new imports inside function bodies if they pull `pydantic`,
+`pydantic-settings`, or any multi-hundred-millisecond subpackage.
 
 ## Recovering from HMAC key errors
 
@@ -138,3 +158,22 @@ Common scopes:
    Approval policy: no push without explicit "yes you can push it" from
    the owner. This applies to `git push`, `git push --tags`, and
    `gh pr create`.
+
+### 3-agent investigation pipeline
+
+Every non-trivial release since v0.6.0 has gone through the same
+sequential investigation pipeline before fixes are applied:
+
+1. **Agent 1 — validate + research.** Confirms each finding is genuine
+   (not a false positive), researches idiomatic fixes, and records the
+   decision trail.
+2. **Agent 2 — fit-check.** Ensures proposed fixes align with existing
+   patterns (`prod_imp.md § 2` fail-closed principle, Amendment 7
+   layout, HMAC domain separation, ephemeral-flag HARD-FAIL, etc.).
+3. **Agent 3 — integration.** Catches cross-cutting side effects,
+   regressions, and test-harness interactions before commit.
+
+The pattern is intentionally serial (not parallel) so each agent sees
+the previous agent's output. See `phase8_1_implementation_report.md`,
+`CHANGELOG.md [Unreleased]`, and `prod_imp.md § 17 Amendment 11` for
+a worked example across the v0.8.1 maintenance release.
