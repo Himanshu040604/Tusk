@@ -5,6 +5,93 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Post-v0.8.1 audit cycle.  Eight findings from a parallel 5-agent review
+(architect / explorer / reviewer / security / perf) landed under a
+sequential 3-agent validation chain (genuineness → pipeline fit →
+integration side-effects), one commit per finding.
+
+### Fixed (high-priority code regressions)
+
+- **H1** `_cmd_refresh_new_source` and `_refresh_live` cloudsplaining
+  branches returned `EXIT_SUCCESS` even when `stats.errors` was
+  non-empty, hiding partial ingestion failure from CI.  All four
+  refresh exit paths now unify on `EXIT_IO_ERROR` (PE2 parity).
+  Also normalizes `_refresh_live` managed-policies from the outlier
+  `EXIT_ISSUES_FOUND` (which is semantically reserved for policy
+  findings, not IO errors).
+- **H2** `_refresh_live` managed-policies branch used a bare
+  `client = _build_live_client()` + `finally: client.close()` pattern.
+  If the constructor raised (HMACError, OSError), `client` was unbound
+  and the `finally` raised `UnboundLocalError`, masking the real
+  exception from main()'s outer handler.  Migrated to
+  `with _build_live_client() as client:` to match the sibling
+  cloudsplaining block.
+
+### Security
+
+- **SEC-M1** `settings.network.max_download_bytes` was declared but
+  never enforced — a hostile or compromised-but-allowlisted server
+  could return an arbitrarily large body, causing OOM and poisoning
+  the HMAC cache.  `_one_attempt` now performs a two-layer check
+  (preflight on `Content-Length`, post-check on `len(resp.content)`)
+  and raises a non-retryable `ResponseTooLargeError` before the
+  cache write.  `cmd_fetch` maps it to `EXIT_IO_ERROR` with an
+  actionable message.
+- **SEC-M2** `RetryPolicy._wait` honoured `Retry-After` hints without
+  bounding — a hostile `Retry-After: 99999` made tenacity's blocking
+  `time.sleep()` block for ~27h (the `stop_after_delay` budget is
+  evaluated *between* attempts, not during the sleep).  Hint is now
+  capped to `max_total_wait_seconds` with a structlog WARN
+  (`retry_after_cap_engaged`) when the cap fires.
+- **SEC-M3** `--insecure` responses were written to the HMAC-signed
+  `DiskCache`, allowing a MITM in one session to persistently
+  compromise future secure sessions (HMAC proves integrity, not
+  trusted origin).  Cache writes now skip when `self._insecure=True`
+  and emit a structlog WARN `cache_write_suppressed_insecure`
+  directing operators to `sentinel cache purge` / `cache rotate-key`.
+  Read path is unchanged — prior legitimate entries remain usable.
+- **SEC-L1** Nine structlog events in `net/client.py` passed the raw
+  `url` variable, which could carry `user:token@host` userinfo for
+  URLs supplied via `sentinel fetch --url ...`.  `secrets_patterns.py`
+  does not cover RFC 3986 URL userinfo.  New
+  `sentinel.net.urls.strip_url_credentials(url)` helper (fast-path
+  when `"@"` not present; urlsplit/urlunsplit otherwise; preserves
+  scheme, port, path, query, fragment) is now applied at every
+  log-URL site, including consolidating the ad-hoc regex introduced
+  by SEC-M3.  Also removed a dead-code `pass` block in
+  `cache.canonical_url` that implied credentials were stripped
+  explicitly (they were already stripped implicitly via
+  `parts.hostname`).
+- **SEC-L4** The `force_emit_rewrite_bypass` audit event fired only
+  when `verdict == FAIL`, leaving belt-and-suspenders CI use of
+  `--force-emit-rewrite` on PASS/WARNING runs completely unaudited
+  (OWASP A09).  Now emits on every `force_emit=True` at WARNING
+  level across all three subcommands (`run`, `fetch`, `managed`).
+  A new boolean field `bypass_of_failure` lets SIEM rules
+  distinguish genuine override (true) from flag-set-on-pass (false).
+
+### Performance
+
+- **H1-perf / P2-15 β** `IntentMapper._extract_services` rebuilt 26
+  `re.escape` + string-concat + regex-cache-lookup patterns on every
+  `map_intent` call.  Patterns are now precompiled at `__init__`
+  alongside the existing `_compiled_keyword_patterns`, closing the
+  P2-15 α asymmetry.
+
+### Tests
+
+- New unit test files: `tests/test_retry.py` (SEC-M2 boundaries),
+  `tests/test_net_urls.py` (13 SEC-L1 cases).
+- New coverage in existing files: `TestMaxDownloadBytes` (SEC-M1,
+  4 cases), `TestRefreshLiveContextManager` (H2, 3 cases),
+  `TestInsecureWarn.test_insecure_does_not_populate_cache_on_2xx`
+  + `test_secure_run_can_still_read_prior_secure_cache_entry`
+  (SEC-M3), `TestCmdRefreshStatsErrors.test_refresh_live_does_not_
+  use_issues_found` (H1), `test_bypass_audit_fires_on_every_force_
+  emit_not_only_fail` (SEC-L4).
+
 ## [0.8.1] - 2026-04-24
 
 Maintenance release. Eight post-v0.8.0 review findings, four pre-existing
