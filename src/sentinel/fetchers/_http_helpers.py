@@ -12,7 +12,7 @@ import hashlib
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sentinel.models import PolicyOrigin
+from ..models import PolicyOrigin
 
 from .base import FetchResult
 

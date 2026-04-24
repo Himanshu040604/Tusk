@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from sentinel.models import PolicyOrigin
+from ..models import PolicyOrigin
 
 
 class FetcherError(Exception):
