@@ -7,6 +7,7 @@ to guard against infinite loops or algorithmic regressions.
 """
 
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -798,6 +799,13 @@ class TestColdStartBudget:
     """Amendment 6 Theme G2 — < 500ms on fresh DB + empty cache."""
 
     COLD_START_BUDGET_SECONDS = 0.5
+    # U26: subprocess cold-start budget (wider than in-process because it
+    # includes Python interpreter startup + site.py + full import chain
+    # for 30+ sentinel modules).  On WSL2/NTFS with a cold page cache a
+    # bare ``python -c "import sentinel"`` already burns 200-400ms; the
+    # 1.0s ceiling leaves headroom for FS variance while still catching
+    # regressions where a new module-top import adds 100s of ms.
+    SUBPROCESS_COLD_START_BUDGET_SECONDS = 1.0
 
     def test_cold_start_under_500ms(self, tmp_path):
         """A cold-start import + init path must finish under 500ms.
@@ -830,6 +838,41 @@ class TestColdStartBudget:
 
         assert elapsed < self.COLD_START_BUDGET_SECONDS, (
             f"Cold-start pipeline.run exceeded 500ms budget: {elapsed:.3f}s"
+        )
+
+    def test_version_subprocess_cold_start(self):
+        """Subprocess ``sentinel --version`` must complete under 1s median.
+
+        U26 — complements test_cold_start_under_500ms (which only
+        measures in-process Pipeline instantiation) by exercising the
+        full CLI entry path: Python interpreter startup + sys.path
+        resolution + ``import sentinel`` + ``import sentinel.cli`` +
+        ``main()`` dispatch + ``--version`` early-exit (cli.py:1701-
+        1703, before migrations / seed / corpus probe).  Catches
+        regressions where a new module-top import in cli.py or
+        __init__.py inflates every CLI invocation by 100s of ms.
+
+        Median of 3 runs smooths FS-cache variance between WSL2/NTFS
+        and Ubuntu/GitHub Actions runners.
+        """
+        import subprocess
+
+        cmd = [sys.executable, "-m", "sentinel", "--version"]
+        timings: list[float] = []
+        for _ in range(3):
+            t0 = time.time()
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, timeout=10
+            )
+            timings.append(time.time() - t0)
+            assert result.returncode == 0, (
+                f"sentinel --version failed: {result.stderr}"
+            )
+        median = sorted(timings)[1]
+        assert median < self.SUBPROCESS_COLD_START_BUDGET_SECONDS, (
+            f"subprocess --version median exceeded "
+            f"{self.SUBPROCESS_COLD_START_BUDGET_SECONDS}s: "
+            f"{median:.3f}s (timings: {timings})"
         )
 
 
