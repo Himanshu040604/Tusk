@@ -184,7 +184,9 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_IO_ERROR
     formatter = _get_formatter(args)
-    _write_output(args, formatter.format_pipeline_result(result))
+    # Issue 5 (v0.8.0): thread --force-emit-rewrite so FAIL suppresses output.
+    force_emit = getattr(args, "force_emit_rewrite", False)
+    _write_output(args, formatter.format_pipeline_result(result, force_emit=force_emit))
     findings = list(result.risk_findings) + list(getattr(result.self_check_result, "findings", []))
     return _verdict_to_exit_code(findings)
 

@@ -196,15 +196,24 @@ class TextFormatter:
 
         return "\n".join(lines)
 
-    def format_pipeline_result(self, result: PipelineResult) -> str:
+    def format_pipeline_result(
+        self,
+        result: PipelineResult,
+        *,
+        force_emit: bool = False,
+    ) -> str:
         """Format full pipeline result as text.
 
         Args:
             result: Pipeline result.
+            force_emit: When True, emit the rewritten policy even when the
+                self-check verdict is FAIL.  Default False = safety-gate
+                per Issue 5 (v0.8.0).
 
         Returns:
             Formatted text string.
         """
+        from .self_check import CheckVerdict
 
         lines = ["=== IAM Policy Sentinel - Pipeline Result ===", ""]
         origin_line = _origin_text(getattr(result, "origin", None))
@@ -246,10 +255,22 @@ class TextFormatter:
         lines.append(f"Self-check: {sc.verdict.value} (completeness {sc.completeness_score:.0%})")
         lines.append("")
 
-        # Rewritten policy
-        lines.append("Rewritten policy:")
-        policy_dict = _serialize_policy(result.rewritten_policy)
-        lines.append(json.dumps(policy_dict, indent=2))
+        # Issue 5 (v0.8.0): suppress rewrite emission on FAIL verdict
+        # unless operator explicitly passed --force-emit-rewrite. This
+        # prevents shell pipelines (`sentinel run ... > policy.json`) from
+        # silently writing corrupted output when self-check FAILs.
+        if sc.verdict == CheckVerdict.FAIL and not force_emit:
+            lines.append(
+                "Rewritten policy: NOT EMITTED — self-check FAILED (see findings above)."
+            )
+            lines.append(
+                "Recovery: fix the issues listed, or re-run with "
+                "--force-emit-rewrite to bypass (NOT recommended for deployment)."
+            )
+        else:
+            lines.append("Rewritten policy:")
+            policy_dict = _serialize_policy(result.rewritten_policy)
+            lines.append(json.dumps(policy_dict, indent=2))
 
         return "\n".join(lines)
 
@@ -374,16 +395,32 @@ class JsonFormatter:
         }
         return json.dumps(data, indent=2)
 
-    def format_pipeline_result(self, result: PipelineResult) -> str:
+    def format_pipeline_result(
+        self,
+        result: PipelineResult,
+        *,
+        force_emit: bool = False,
+    ) -> str:
         """Format full pipeline result as JSON.
 
         Args:
             result: Pipeline result.
+            force_emit: When True, emit the rewritten policy even when the
+                self-check verdict is FAIL.  Default False = safety-gate
+                per Issue 5 (v0.8.0).  On suppression, ``rewritten_policy``
+                is null and two new keys appear: ``rewrite_suppressed: true``
+                and ``rewrite_suppression_reason``.
 
         Returns:
             JSON string.
         """
-        data = {
+        from .self_check import CheckVerdict
+
+        suppress = (
+            result.self_check_result.verdict == CheckVerdict.FAIL and not force_emit
+        )
+
+        data: dict[str, Any] = {
             "final_verdict": result.final_verdict.value,
             "iterations": result.iterations,
             "pipeline_summary": result.pipeline_summary,
@@ -421,8 +458,15 @@ class JsonFormatter:
                 "completeness_score": result.self_check_result.completeness_score,
                 "findings_count": len(result.self_check_result.findings),
             },
-            "rewritten_policy": _serialize_policy(result.rewritten_policy),
         }
+        if suppress:
+            data["rewritten_policy"] = None
+            data["rewrite_suppressed"] = True
+            data["rewrite_suppression_reason"] = (
+                "self-check FAILED; use --force-emit-rewrite to bypass"
+            )
+        else:
+            data["rewritten_policy"] = _serialize_policy(result.rewritten_policy)
         origin_sub = _origin_json(getattr(result, "origin", None))
         if origin_sub is not None:
             data["origin"] = origin_sub
@@ -561,15 +605,25 @@ class MarkdownFormatter:
 
         return "\n".join(lines)
 
-    def format_pipeline_result(self, result: PipelineResult) -> str:
+    def format_pipeline_result(
+        self,
+        result: PipelineResult,
+        *,
+        force_emit: bool = False,
+    ) -> str:
         """Format full pipeline result as Markdown.
 
         Args:
             result: Pipeline result.
+            force_emit: When True, emit the rewritten policy even when the
+                self-check verdict is FAIL.  Default False = safety-gate
+                per Issue 5 (v0.8.0).
 
         Returns:
             Markdown string.
         """
+        from .self_check import CheckVerdict
+
         lines = ["# IAM Policy Sentinel - Pipeline Result", ""]
         origin_line = _origin_markdown(getattr(result, "origin", None))
         if origin_line:
@@ -587,8 +641,8 @@ class MarkdownFormatter:
             tier_counts[r.tier.value] = tier_counts.get(r.tier.value, 0) + 1
         lines.append("## Validation Summary")
         lines.append("")
-        lines.append(f"| Tier | Count |")
-        lines.append(f"|------|-------|")
+        lines.append("| Tier | Count |")
+        lines.append("|------|-------|")
         lines.append(f"| Valid | {tier_counts['VALID']} |")
         lines.append(f"| Unknown | {tier_counts['UNKNOWN']} |")
         lines.append(f"| Invalid | {tier_counts['INVALID']} |")
@@ -624,13 +678,22 @@ class MarkdownFormatter:
         lines.append(f"- **Findings:** {len(sc.findings)}")
         lines.append("")
 
-        # Rewritten policy
-        lines.append("## Rewritten Policy")
-        lines.append("")
-        lines.append("```json")
-        policy_dict = _serialize_policy(result.rewritten_policy)
-        lines.append(json.dumps(policy_dict, indent=2))
-        lines.append("```")
+        # Issue 5 (v0.8.0): suppress rewrite emission on FAIL unless forced.
+        if sc.verdict == CheckVerdict.FAIL and not force_emit:
+            lines.append("## Rewritten Policy (NOT EMITTED)")
+            lines.append("")
+            lines.append(
+                "> Self-check FAILED — the rewritten policy is withheld to prevent "
+                "accidental deployment of a broken output. Fix the findings above, "
+                "or re-run with `--force-emit-rewrite` to bypass (NOT recommended)."
+            )
+        else:
+            lines.append("## Rewritten Policy")
+            lines.append("")
+            lines.append("```json")
+            policy_dict = _serialize_policy(result.rewritten_policy)
+            lines.append(json.dumps(policy_dict, indent=2))
+            lines.append("```")
 
         return "\n".join(lines)
 

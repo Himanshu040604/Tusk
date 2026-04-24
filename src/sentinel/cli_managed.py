@@ -82,7 +82,12 @@ def cmd_managed(args: argparse.Namespace) -> int:
             print(f"Error: {exc}", file=sys.stderr)
             return EXIT_IO_ERROR
         formatter = _get_formatter(args)
-        _write_output(args, formatter.format_pipeline_result(result))
+        # Issue 5 (v0.8.0): thread --force-emit-rewrite through so FAIL
+        # verdicts on managed-policy analysis suppress rewrite output too.
+        force_emit = getattr(args, "force_emit_rewrite", False)
+        _write_output(
+            args, formatter.format_pipeline_result(result, force_emit=force_emit)
+        )
         findings = list(result.risk_findings) + list(
             getattr(result.self_check_result, "findings", [])
         )

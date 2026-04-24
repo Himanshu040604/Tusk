@@ -119,6 +119,21 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Write output to file instead of stdout",
     )
+    # Issue 5 (v0.8.0): `--force-emit-rewrite` threads through EVERY
+    # subcommand that invokes ``format_pipeline_result`` (cmd_run,
+    # cmd_fetch, cmd_managed_analyze). Lives on the shared parent so a
+    # single definition covers all three callsites. By default (flag
+    # absent) a FAIL verdict suppresses the rewrite block to prevent
+    # operators piping corrupted output into production.
+    parent.add_argument(
+        "--force-emit-rewrite",
+        action="store_true",
+        default=False,
+        help=(
+            "Emit rewritten policy even when self-check FAILs "
+            "(NOT recommended for deployment)"
+        ),
+    )
 
     parser = argparse.ArgumentParser(
         prog="sentinel",
@@ -1027,7 +1042,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         return EXIT_INVALID_ARGS
 
     formatter = _get_formatter(args)
-    output = formatter.format_pipeline_result(result)
+    # Issue 5 (v0.8.0): thread --force-emit-rewrite through to the formatter
+    # so FAIL verdicts suppress rewrite output unless the operator bypassed.
+    force_emit = getattr(args, "force_emit_rewrite", False)
+    output = formatter.format_pipeline_result(result, force_emit=force_emit)
     _write_output(args, output)
 
     findings = list(result.risk_findings) + list(getattr(result.self_check_result, "findings", []))
