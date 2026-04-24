@@ -756,16 +756,40 @@ class TestYAMLParsing:
         assert "s3:ListBuckets" in policy.statements[0].actions
 
     def test_parse_yaml_without_pyyaml_installed(self, parser):
-        """Test parse_policy_yaml raises clear error when pyyaml is missing."""
-        with patch("src.sentinel.parser.yaml", None):
+        """Test parse_policy_yaml raises clear error when pyyaml is missing.
+
+        v0.8.1 (C2): yaml is now imported inside parse_policy_yaml at
+        call-site. To simulate "not installed", force ImportError via
+        sys.modules manipulation.
+        """
+        import sys
+
+        real_yaml = sys.modules.pop("yaml", None)
+        sys.modules["yaml"] = None  # type: ignore[assignment]
+        try:
             with pytest.raises(PolicyParserError, match="PyYAML is required"):
                 parser.parse_policy_yaml("Version: '2012-10-17'")
+        finally:
+            del sys.modules["yaml"]
+            if real_yaml is not None:
+                sys.modules["yaml"] = real_yaml
 
     def test_parse_auto_yaml_without_pyyaml_installed(self, parser):
-        """Test parse_policy_auto raises clear error for yaml format when pyyaml is missing."""
-        with patch("src.sentinel.parser.yaml", None):
+        """Test parse_policy_auto raises clear error for yaml format when pyyaml is missing.
+
+        v0.8.1 (C2): see comment on test_parse_yaml_without_pyyaml_installed.
+        """
+        import sys
+
+        real_yaml = sys.modules.pop("yaml", None)
+        sys.modules["yaml"] = None  # type: ignore[assignment]
+        try:
             with pytest.raises(PolicyParserError, match="PyYAML is required"):
                 parser.parse_policy_auto("Version: '2012-10-17'", "yaml")
+        finally:
+            del sys.modules["yaml"]
+            if real_yaml is not None:
+                sys.modules["yaml"] = real_yaml
 
 
 class TestNoDBParserBehavior:

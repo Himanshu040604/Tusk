@@ -18,10 +18,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-try:
-    import yaml
-except ImportError:
-    yaml = None  # type: ignore[assignment]
+# v0.8.1 (C2): yaml is lazily imported inside parse_policy_yaml so that
+# `import sentinel.parser` does not pull PyYAML's scanner/parser machinery
+# (~120-145ms on WSL2). Cold-start-critical paths (`sentinel --version`,
+# `sentinel info`, JSON-only `sentinel run ...json`) never touch yaml.
 
 from .database import DatabaseError as _DatabaseError
 
@@ -317,6 +317,10 @@ class PolicyParser:
     def parse_policy_yaml(self, yaml_string: str) -> Policy:
         """Parse IAM policy from a YAML string.
 
+        v0.8.1 (C2): PyYAML is imported here at call-site instead of
+        module scope. Cold-start paths (``sentinel --version``) no
+        longer eagerly load the ~145ms yaml scanner+parser stack.
+
         Args:
             yaml_string: YAML string containing IAM policy.
 
@@ -326,7 +330,9 @@ class PolicyParser:
         Raises:
             PolicyParserError: If pyyaml is not installed or YAML is invalid.
         """
-        if yaml is None:
+        try:
+            import yaml
+        except ImportError:
             raise PolicyParserError(
                 "PyYAML is required for YAML input. Install it with: pip install pyyaml"
             )
