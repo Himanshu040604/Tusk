@@ -40,6 +40,14 @@ nul
 # Agent state (runtime)
 agent_state/
 
+# pytest-benchmark autosave output (U28): if a contributor manually
+# invokes ``pytest --benchmark-autosave`` or ``--benchmark-save=<name>``,
+# the resulting machine-specific JSON belongs in local-only ignore.
+# Sentinel's test_performance.py intentionally uses time.time() rather
+# than the benchmark fixture (see test_performance.py:858-861), so
+# this directory normally stays empty — the gitignore is defensive.
+.benchmarks/
+
 # Downloaded AWS examples (generated at runtime)
 data/aws_examples/
 
