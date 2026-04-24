@@ -304,6 +304,59 @@ class TestSelfCheckResultDataclass:
         assert CheckVerdict.FAIL.value == "FAIL"
         assert CheckVerdict.WARNING.value == "WARNING"
 
+    def test_tier2_excluded_shim_emits_deprecation_warning(self):
+        """v0.8.1 (L4): tier2_excluded property emits DeprecationWarning.
+
+        The shim is semantically lossy — True == "no Tier-2 in rewrite"
+        looks identical to v0.7.0 "Tier-2 actions were dropped", which
+        is a false-negative for legacy consumers. Removal in v0.9.0.
+        """
+        import warnings
+
+        result = SelfCheckResult(
+            verdict=CheckVerdict.PASS,
+            findings=[],
+            completeness_score=1.0,
+            assumptions_valid=True,
+            tier2_preserved_actions=[],
+            summary="clean",
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            _ = result.tier2_excluded
+            deprecations = [
+                w for w in caught if issubclass(w.category, DeprecationWarning)
+            ]
+            assert len(deprecations) == 1
+            assert "tier2_excluded is deprecated" in str(deprecations[0].message)
+            assert "tier2_preserved_actions" in str(deprecations[0].message)
+            assert "v0.9.0" in str(deprecations[0].message)
+
+    def test_tier2_excluded_shim_still_returns_bool(self):
+        """v0.8.1 (L4): DeprecationWarning does not change return value."""
+        import warnings
+
+        result_empty = SelfCheckResult(
+            verdict=CheckVerdict.PASS,
+            findings=[],
+            completeness_score=1.0,
+            assumptions_valid=True,
+            tier2_preserved_actions=[],
+            summary="clean",
+        )
+        result_nonempty = SelfCheckResult(
+            verdict=CheckVerdict.WARNING,
+            findings=[],
+            completeness_score=0.5,
+            assumptions_valid=True,
+            tier2_preserved_actions=["s3:NewAction"],
+            summary="with tier-2",
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            assert result_empty.tier2_excluded is True
+            assert result_nonempty.tier2_excluded is False
+
 
 # ---------------------------------------------------------------------------
 # Test PipelineConfig Dataclass

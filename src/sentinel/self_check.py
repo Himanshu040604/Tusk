@@ -128,8 +128,22 @@ class SelfCheckResult:
         Returns True when no Tier-2 actions survived the rewrite (i.e.
         ``tier2_preserved_actions`` is empty). Downstream consumers that
         still read ``tier2_excluded`` keep working; new code should read
-        ``tier2_preserved_actions`` directly. Slated for removal in v1.0.
+        ``tier2_preserved_actions`` directly.
+
+        v0.8.1 (L4): access now emits DeprecationWarning. The shim is
+        semantically lossy — a corpus-populated DB run with zero Tier-2
+        actions produces the same ``True`` value as a v0.7.0 run where
+        actions WERE excluded, giving legacy consumers a false-negative
+        warning path. Removal scheduled for v0.9.0.
         """
+        import warnings
+
+        warnings.warn(
+            "tier2_excluded is deprecated; use tier2_preserved_actions "
+            "(v0.8.0 Amendment 10). This shim will be removed in v0.9.0.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return not self.tier2_preserved_actions
 
 
