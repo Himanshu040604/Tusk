@@ -1,9 +1,11 @@
 # IAM Policy Sentinel -- Feature catalogue
 
-A domain-oriented feature reference for v0.8.1. Every entry carries a
+A domain-oriented feature reference for v0.8.2. Every entry carries a
 one-sentence description and a pointer to the code that implements it.
-Target audience: engineers evaluating whether Sentinel fits a specific
-use case.
+Per-entry `(v0.8.x <id>)` labels document the release in which that
+feature was introduced or last changed -- use them for source-history
+context, not for "current" version. Target audience: engineers
+evaluating whether Sentinel fits a specific use case.
 
 ## Policy analysis
 
