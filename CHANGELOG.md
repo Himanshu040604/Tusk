@@ -5,14 +5,17 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.8.2] - 2026-04-24
 
-Post-v0.8.1 audit cycle.  Eight findings from a parallel 5-agent review
-(architect / explorer / reviewer / security / perf) landed under a
-sequential 3-agent validation chain (genuineness → pipeline fit →
-integration side-effects), one commit per finding.
+Audit cycle + documentation release. Eight post-v0.8.1 findings from a
+parallel 5-agent review (architect / explorer / reviewer / security /
+perf) landed via sequential 3-agent validation chain (genuineness →
+pipeline fit → integration side-effects), followed by a comprehensive
+documentation sweep (README / CONTRIBUTING / CLAUDE + new
+docs/FEATURES.md + docs/USAGE.md + module docstrings). One commit per
+finding and per doc file.
 
-### Fixed (high-priority code regressions)
+### Fixed
 
 - **H1** `_cmd_refresh_new_source` and `_refresh_live` cloudsplaining
   branches returned `EXIT_SUCCESS` even when `stats.errors` was
@@ -91,10 +94,18 @@ integration side-effects), one commit per finding.
   (SEC-M3), `TestCmdRefreshStatsErrors.test_refresh_live_does_not_
   use_issues_found` (H1), `test_bypass_audit_fires_on_every_force_
   emit_not_only_fail` (SEC-L4).
-
-## [0.8.2] - 2026-04-24
-
-Documentation release. Comprehensive doc sweep to reflect v0.8.1 state.
+- **PE5** `TestColdStartBudget.COLD_START_BUDGET_SECONDS` relaxed to
+  1.25s on WSL2/NTFS hosts via new `_wsl2_active()` helper (mirrors
+  the `_parallel_mode_active()` pattern from PE4).  CI (native Ubuntu)
+  and macOS runners keep the strict 0.5s gate.  Calibrated against a
+  15-run sample on a reference WSL2 laptop (min 0.597s, p50 0.816s,
+  p100 0.939s) — 2.5x multiplier gives ~25% headroom above observed
+  p100.  An earlier 1.5x attempt still flaked on ~70% of runs against
+  a 0.75s budget; the 2.5x value is data-driven, not guessed.  10/10
+  consecutive runs pass on the reference host.
+  `SUBPROCESS_COLD_START_BUDGET_SECONDS` unchanged at 1.0s (already
+  WSL2-sized per U26 comment).  Assertion message now reports the
+  active budget and `wsl2=` flag so failures are self-explanatory.
 
 ### Documentation
 
@@ -127,9 +138,6 @@ Documentation release. Comprehensive doc sweep to reflect v0.8.1 state.
 - `.gitignore` restructured to whitelist `docs/FEATURES.md` and
   `docs/USAGE.md` (prior blanket `docs/` ignore made tracking
   unreachable).
-
-No code changes; no behavior changes; no test changes. Safe drop-in
-for v0.8.1 consumers.
 
 ## [0.8.1] - 2026-04-24
 
