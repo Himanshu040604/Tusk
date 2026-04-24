@@ -44,6 +44,23 @@ class DomainNotAllowedError(Exception):
     """Raised when a URL fails :class:`AllowList` check."""
 
 
+class ResponseTooLargeError(Exception):
+    """Raised when a response body exceeds ``max_download_bytes`` (SEC-M1).
+
+    Inherits from plain ``Exception`` (not ``httpx.HTTPError``) so the
+    retry policy classifies it as non-retryable — a server that returns
+    an oversized body once will always return one.
+    """
+
+    def __init__(self, url: str, size: int, limit: int) -> None:
+        super().__init__(
+            f"Response body {size} bytes exceeds limit {limit} for {url!r}"
+        )
+        self.url = url
+        self.size = size
+        self.limit = limit
+
+
 class SentinelHTTPClient:
     """Hardened HTTP client — the sole network entry point for Sentinel.
 
@@ -151,6 +168,48 @@ class SentinelHTTPClient:
         resp = self._client.get(url, headers=sent_headers)
         if resp.status_code == 304:
             return resp, sent_headers
+
+        # SEC-M1: enforce max_download_bytes before we expose the body
+        # to callers or the cache.  Two-layer defense:
+        #   1. Preflight on Content-Length (cheap, catches honest servers
+        #      advertising an oversized body).
+        #   2. Post-check on len(resp.content) for servers that lie about
+        #      or omit Content-Length.
+        # httpx sync Client.get() already buffers .content by return
+        # time, so the post-check cannot prevent the buffer allocation
+        # once — but it reliably prevents cache poisoning and downstream
+        # consumption of oversized responses.  A full streaming
+        # rewrite is the long-term answer (tracked separately).
+        limit = self._settings.network.max_download_bytes
+        declared = resp.headers.get("Content-Length")
+        if declared is not None:
+            try:
+                declared_int = int(declared)
+            except ValueError:
+                declared_int = -1
+            if declared_int > limit:
+                self._log.warning(
+                    "http_response_too_large_preflight",
+                    url=url,
+                    source=source,
+                    content_length=declared_int,
+                    limit=limit,
+                )
+                resp.close()
+                raise ResponseTooLargeError(url, declared_int, limit)
+
+        actual = len(resp.content)
+        if actual > limit:
+            self._log.error(
+                "http_response_too_large",
+                url=url,
+                source=source,
+                actual_bytes=actual,
+                limit=limit,
+                declared=declared,
+            )
+            raise ResponseTooLargeError(url, actual, limit)
+
         if 400 <= resp.status_code < 600:
             if is_retryable_status(resp.status_code):
                 raise httpx.HTTPStatusError(
@@ -329,5 +388,6 @@ class SentinelHTTPClient:
 
 __all__ = [
     "DomainNotAllowedError",
+    "ResponseTooLargeError",
     "SentinelHTTPClient",
 ]

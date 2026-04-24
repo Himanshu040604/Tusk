@@ -21,7 +21,11 @@ import pytest
 from sentinel.config import Settings
 from sentinel.net.allow_list import AllowList
 from sentinel.net.cache import DiskCache
-from sentinel.net.client import DomainNotAllowedError, SentinelHTTPClient
+from sentinel.net.client import (
+    DomainNotAllowedError,
+    ResponseTooLargeError,
+    SentinelHTTPClient,
+)
 from sentinel.net.guards import SSRFBlockedError
 from sentinel.net.retry import RetryPolicy
 
@@ -272,3 +276,111 @@ class TestInsecureWarn:
         # Easiest: the Client's _transport context carries it.  Just assert
         # the constructor accepted insecure=True.
         assert c._insecure is True
+
+
+# ---------------------------------------------------------------------------
+# SEC-M1 — max_download_bytes enforcement
+# ---------------------------------------------------------------------------
+
+
+class TestMaxDownloadBytes:
+    """SEC-M1: enforce settings.network.max_download_bytes.
+
+    Two-layer defense — preflight on Content-Length + post-check on the
+    actual buffered body length — to defend against both honest and
+    lying servers while keeping the cache clean.
+    """
+
+    @pytest.fixture
+    def tight_client(
+        self,
+        settings: Settings,
+        allow_list: AllowList,
+        cache: DiskCache,
+        retry: RetryPolicy,
+    ) -> SentinelHTTPClient:
+        # Shrink limit for testing.
+        settings.network.max_download_bytes = 1024
+        return SentinelHTTPClient(
+            settings=settings,
+            allow_list=allow_list,
+            cache=cache,
+            retry_policy=retry,
+            insecure=False,
+        )
+
+    def test_honest_oversize_content_length_rejected(
+        self, tight_client: SentinelHTTPClient, cache: DiskCache
+    ) -> None:
+        """Server honestly declares Content-Length > limit → preflight rejects."""
+        fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
+        live = httpx.Response(
+            status_code=200,
+            content=b"x" * 2048,
+            headers={"Content-Length": "2048"},
+            request=httpx.Request("GET", "https://example.com/big"),
+        )
+        with patch("socket.getaddrinfo", return_value=fake_info):
+            with patch.object(tight_client._client, "get", return_value=live):
+                with pytest.raises(ResponseTooLargeError) as excinfo:
+                    tight_client.get("https://example.com/big", source="user_url")
+        assert excinfo.value.size == 2048
+        assert excinfo.value.limit == 1024
+        # Cache must NOT be poisoned.
+        assert cache.get("https://example.com/big", "user_url") is None
+
+    def test_lying_server_post_check_rejected(
+        self, tight_client: SentinelHTTPClient, cache: DiskCache
+    ) -> None:
+        """Server lies about Content-Length → post-check catches it."""
+        fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
+        live = httpx.Response(
+            status_code=200,
+            content=b"x" * 2048,
+            headers={"Content-Length": "100"},  # lie
+            request=httpx.Request("GET", "https://example.com/liar"),
+        )
+        with patch("socket.getaddrinfo", return_value=fake_info):
+            with patch.object(tight_client._client, "get", return_value=live):
+                with pytest.raises(ResponseTooLargeError) as excinfo:
+                    tight_client.get("https://example.com/liar", source="user_url")
+        assert excinfo.value.size == 2048
+        # Cache must NOT be poisoned.
+        assert cache.get("https://example.com/liar", "user_url") is None
+
+    def test_under_limit_passes(
+        self, tight_client: SentinelHTTPClient, cache: DiskCache
+    ) -> None:
+        """Small body under the limit flows through normally."""
+        fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
+        live = httpx.Response(
+            status_code=200,
+            content=b"ok" * 100,  # 200 bytes << 1024
+            request=httpx.Request("GET", "https://example.com/small"),
+        )
+        with patch("socket.getaddrinfo", return_value=fake_info):
+            with patch.object(tight_client._client, "get", return_value=live):
+                resp = tight_client.get(
+                    "https://example.com/small", source="user_url"
+                )
+        assert resp.status_code == 200
+        assert resp.content == b"ok" * 100
+        # Cache populated on MISS.
+        entry = cache.get("https://example.com/small", "user_url")
+        assert entry is not None
+
+    def test_malformed_content_length_falls_through_to_post_check(
+        self, tight_client: SentinelHTTPClient
+    ) -> None:
+        """Non-numeric Content-Length → preflight skip, post-check decides."""
+        fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
+        live = httpx.Response(
+            status_code=200,
+            content=b"x" * 2048,
+            headers={"Content-Length": "not-a-number"},
+            request=httpx.Request("GET", "https://example.com/bad-cl"),
+        )
+        with patch("socket.getaddrinfo", return_value=fake_info):
+            with patch.object(tight_client._client, "get", return_value=live):
+                with pytest.raises(ResponseTooLargeError):
+                    tight_client.get("https://example.com/bad-cl", source="user_url")

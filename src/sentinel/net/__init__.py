@@ -9,7 +9,11 @@ from __future__ import annotations
 
 from .allow_list import AllowList
 from .cache import CacheEntry, DiskCache
-from .client import DomainNotAllowedError, SentinelHTTPClient
+from .client import (
+    DomainNotAllowedError,
+    ResponseTooLargeError,
+    SentinelHTTPClient,
+)
 from .guards import SSRFBlockedError, resolve_and_validate
 from .retry import NonRetryableHTTPError, RetryPolicy
 
@@ -19,6 +23,7 @@ __all__ = [
     "DiskCache",
     "DomainNotAllowedError",
     "NonRetryableHTTPError",
+    "ResponseTooLargeError",
     "RetryPolicy",
     "SentinelHTTPClient",
     "SSRFBlockedError",

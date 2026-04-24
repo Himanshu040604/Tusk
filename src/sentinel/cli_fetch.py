@@ -164,6 +164,8 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     from .models import PolicyInput
     from .self_check import Pipeline, PipelineConfig
 
+    from .net.client import ResponseTooLargeError
+
     try:
         fetch_result = _dispatch_fetch(args)
     except httpx.InvalidURL as exc:
@@ -176,6 +178,16 @@ def cmd_fetch(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return EXIT_INVALID_ARGS
+    except ResponseTooLargeError as exc:
+        # SEC-M1: upstream refused an oversized body.  Surface the size /
+        # limit so operators know to raise max_download_bytes (or investigate
+        # a compromised/misbehaving mirror).
+        print(
+            f"Error: fetched response exceeds max_download_bytes — {exc}. "
+            "Increase settings.network.max_download_bytes if the source is trusted.",
+            file=sys.stderr,
+        )
+        return EXIT_IO_ERROR
     except FetcherError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return EXIT_IO_ERROR
