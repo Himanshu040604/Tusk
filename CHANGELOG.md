@@ -94,6 +94,26 @@ finding and per doc file.
   (SEC-M3), `TestCmdRefreshStatsErrors.test_refresh_live_does_not_
   use_issues_found` (H1), `test_bypass_audit_fires_on_every_force_
   emit_not_only_fail` (SEC-L4).
+- **PE6** `MAX_ALLOWED_SECONDS` steady-state budget gains a 6x
+  multiplier on xdist-parallel runs (same gate as PE4's
+  ``_parallel_mode_active()`` detector, applied to the shared
+  module-level constant used by 10 tests in ``TestLargeDatabase``,
+  ``TestLargeInventory``, and ``TestLargePolicies``).  On a reference
+  WSL2 laptop under ``pytest -n auto``, 8 workers contending for
+  NTFS amplify SQLite WAL + syscall latency enough to push the
+  steady-state measurements past the 0.3s budget (observed timings:
+  ``test_inventory_with_1000_resources`` 0.32s,
+  ``test_parser_init_merge_large_db`` 0.80s,
+  ``test_policy_with_mixed_effects`` 0.98s).  6x (1.8s budget) gives
+  ~80% headroom above the observed p100 (0.98s) and 3/3 consecutive
+  full-suite parallel runs pass clean.  Native Linux / macOS CI
+  uses the same multiplier — these tests complete in 0.05-0.1s each
+  there, so 1.8s is effectively an "it completed" smoke test; the
+  authoritative perf gate on native hosts is the serial mode's
+  strict 0.3s budget.  WSL2 serial also keeps 0.3s.  Helpers
+  ``_parallel_mode_active`` and ``_wsl2_active`` relocated to the
+  top of ``tests/test_performance.py`` so module-level constants
+  can reference them at load time.
 - **PE5** `test_cold_start_under_500ms` stabilised against WSL2/NTFS
   long-tail variance via two complementary mechanisms:
 
