@@ -56,7 +56,8 @@ jobs:
         run: uv run ruff format --check .
 
       - name: mypy
-        run: uv run mypy src/
+        # U32: targets live in pyproject.toml [tool.mypy].
+        run: uv run mypy
 
       - name: Pytest (not live)
         run: uv run pytest -m "not live" -n auto --cov=src --cov-fail-under=80
