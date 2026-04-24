@@ -236,6 +236,21 @@ class Database:
             row = conn.execute(f'SELECT 1 FROM "{probe[0]}" LIMIT 1').fetchone()
             return row is None
 
+    def is_corpus_populated(self) -> bool:
+        """Return True when both services and actions tables have >=1 row.
+
+        Added in v0.8.0 (Issue 3).  Used by ``sentinel.cli.main()`` to warn
+        operators when the AWS action corpus is not populated: an empty
+        corpus means every policy action classifies as Tier 2 (unknown),
+        causing the rewriter to drop them silently in pre-v0.8.0 flows or
+        preserve them with a WARNING in v0.8.0+ flows.
+
+        Returns:
+            True iff both the ``services`` and ``actions`` tables exist
+            AND contain at least one row apiece.  Falsy otherwise.
+        """
+        return not self.is_empty("services") and not self.is_empty("actions")
+
     def create_schema(self) -> None:
         """Create database schema with all tables and indexes.
 

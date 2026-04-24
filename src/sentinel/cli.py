@@ -1485,6 +1485,17 @@ def cmd_info(args: argparse.Namespace) -> int:
     output = formatter.format_db_info(metadata, service_count, action_count)
     _write_output(args, output)
 
+    # Issue 3 (v0.8.0): also surface the empty-corpus banner from `sentinel
+    # info` so operators see it even when they're diagnosing DB state.
+    if service_count == 0 or action_count == 0:
+        print(
+            "[WARN] AWS action corpus is empty (services: 0, actions: 0). "
+            "Run: sentinel refresh --source policy-sentry --data-path <path-to-policy_sentry-json> "
+            "to populate it. Without this, all actions classify as Tier 2 (unknown) "
+            "and the rewriter operates in degraded mode.",
+            file=sys.stderr,
+        )
+
     return EXIT_SUCCESS
 
 
@@ -1709,6 +1720,24 @@ def main() -> None:
                 file=sys.stderr,
             )
             sys.exit(EXIT_IO_ERROR)
+
+        # Issue 3 (v0.8.0): warn when the AWS action corpus is empty.
+        # Without populated services + actions tables, every policy action
+        # classifies as Tier 2 (unknown) and the rewriter degrades — under
+        # Issue 2's preservation semantics the rewrite still emits, but the
+        # self-check verdict will be WARNING regardless. Prompt the operator
+        # to populate the corpus via `sentinel refresh --source policy-sentry`.
+        _CORPUS_DEPENDENT: frozenset[str] = frozenset(
+            {"validate", "analyze", "rewrite", "run", "fetch"}
+        )
+        if args.command in _CORPUS_DEPENDENT and not _probe_db.is_corpus_populated():
+            print(
+                "[WARN] AWS action corpus is empty (services: 0, actions: 0). "
+                "Run: sentinel refresh --source policy-sentry --data-path <path-to-policy_sentry-json> "
+                "to populate it. Without this, all actions classify as Tier 2 (unknown) "
+                "and the rewriter operates in degraded mode.",
+                file=sys.stderr,
+            )
 
     from .cli_cache import cmd_cache
     from .cli_managed import cmd_managed

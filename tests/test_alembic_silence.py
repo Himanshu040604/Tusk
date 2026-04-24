@@ -32,7 +32,7 @@ def test_sentinel_info_no_alembic_noise(tmp_path, monkeypatch):
     ``fileConfig()`` activates the default [loggers] sections.
     """
     result = subprocess.run(
-        [sys.executable, "-m", "sentinel.cli", "info"],
+        [sys.executable, "-m", "sentinel", "info"],
         capture_output=True,
         text=True,
         cwd=str(tmp_path),

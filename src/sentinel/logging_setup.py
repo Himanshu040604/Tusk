@@ -73,6 +73,19 @@ def configure(
         force=True,
     )
 
+    # Issue 4 (v0.8.0): cap third-party INFO-level chatter from Alembic.
+    # Even after removing fileConfig() from migrations/*/env.py and the
+    # [logger_*] sections from alembic.ini, Alembic's runtime still emits
+    # "setup plugin <x>", "Context impl SQLiteImpl", and "Will assume
+    # non-transactional DDL" lines at level=INFO. These are internal
+    # initialization events, not operator-actionable. We pin the alembic
+    # logger family to WARNING so sentinel's own INFO messages still appear
+    # but Alembic stays quiet unless the operator explicitly sets
+    # SENTINEL_LOG_LEVEL=DEBUG (which triggers DEBUG below WARNING anyway).
+    if level not in ("DEBUG",):
+        for _name in ("alembic", "alembic.runtime.migration", "alembic.runtime.plugins"):
+            logging.getLogger(_name).setLevel(logging.WARNING)
+
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
