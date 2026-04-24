@@ -16,6 +16,7 @@ from .client import (
 )
 from .guards import SSRFBlockedError, resolve_and_validate
 from .retry import NonRetryableHTTPError, RetryPolicy
+from .urls import strip_url_credentials
 
 __all__ = [
     "AllowList",
@@ -28,4 +29,5 @@ __all__ = [
     "SentinelHTTPClient",
     "SSRFBlockedError",
     "resolve_and_validate",
+    "strip_url_credentials",
 ]

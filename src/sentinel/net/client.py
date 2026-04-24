@@ -36,6 +36,7 @@ from .allow_list import AllowList
 from .cache import CacheEntry, DiskCache
 from .guards import SSRFBlockedError, resolve_and_validate
 from .retry import NonRetryableHTTPError, RetryPolicy, is_retryable_status, parse_retry_after
+from .urls import strip_url_credentials
 
 if TYPE_CHECKING:
     from ..config import Settings
@@ -127,7 +128,7 @@ class SentinelHTTPClient:
         if self._insecure:
             self._log.warning(
                 "tls_verify_disabled",
-                url=url,
+                url=strip_url_credentials(url),
                 note=(
                     "--insecure flag active; TLS certificate validation "
                     "DISABLED for this request.  Responses may be MITM-"
@@ -191,7 +192,7 @@ class SentinelHTTPClient:
             if declared_int > limit:
                 self._log.warning(
                     "http_response_too_large_preflight",
-                    url=url,
+                    url=strip_url_credentials(url),
                     source=source,
                     content_length=declared_int,
                     limit=limit,
@@ -203,7 +204,7 @@ class SentinelHTTPClient:
         if actual > limit:
             self._log.error(
                 "http_response_too_large",
-                url=url,
+                url=strip_url_credentials(url),
                 source=source,
                 actual_bytes=actual,
                 limit=limit,
@@ -261,7 +262,11 @@ class SentinelHTTPClient:
             cached = self._cache.get(url, source)
             if cached is not None:
                 span.set_attribute("sentinel.cache_status", "HIT")
-                self._log.info("http_cache_hit", url=url, source=source)
+                self._log.info(
+                    "http_cache_hit",
+                    url=strip_url_credentials(url),
+                    source=source,
+                )
                 return self._make_entry_response(cached)
 
             # Cache miss — go to network.
@@ -291,7 +296,9 @@ class SentinelHTTPClient:
         max_hops = self._settings.network.max_redirects
         redirect_count = 0
 
-        self._log.info("http_request", url=url, source=source)
+        self._log.info(
+            "http_request", url=strip_url_credentials(url), source=source
+        )
 
         while True:
             last_response: httpx.Response | None = None
@@ -336,16 +343,9 @@ class SentinelHTTPClient:
                         # is unchanged: legitimate prior-secure entries
                         # remain valid and may be served during insecure
                         # sessions.
-                        # Credential-stripping regex requires ``:`` between
-                        # user and password (RFC 3986 authority form) to
-                        # avoid false-positive redaction of ``@`` chars
-                        # legally appearing in query strings.
-                        safe_url = re.sub(
-                            r"//[^/@]+:[^@/]+@", "//**redacted**@", url
-                        )
                         self._log.warning(
                             "cache_write_suppressed_insecure",
-                            url=safe_url,
+                            url=strip_url_credentials(url),
                             source=source,
                             note=(
                                 "--insecure active; response NOT written "
@@ -368,7 +368,7 @@ class SentinelHTTPClient:
                         )
                 self._log.info(
                     "http_response",
-                    url=url,
+                    url=strip_url_credentials(url),
                     source=source,
                     status=resp.status_code,
                     cache=cache_status,
@@ -389,7 +389,7 @@ class SentinelHTTPClient:
                     span.set_attribute("http.status_code", resp.status_code)
                     self._log.warning(
                         "http_redirect_without_location",
-                        url=current_url,
+                        url=strip_url_credentials(current_url),
                         status=resp.status_code,
                     )
                     return resp
@@ -402,8 +402,8 @@ class SentinelHTTPClient:
 
                 self._log.info(
                     "http_redirect_followed",
-                    from_url=current_url,
-                    to_url=next_url,
+                    from_url=strip_url_credentials(current_url),
+                    to_url=strip_url_credentials(next_url),
                     status=resp.status_code,
                     hop=redirect_count + 1,
                 )

@@ -59,9 +59,10 @@ def canonical_url(url: str) -> str:
     netloc = host
     if port and port != default_port:
         netloc = f"{host}:{port}"
-    if parts.username:
-        # Strip creds-in-URL — they must not influence the cache key.
-        pass
+    # Note: ``parts.hostname`` already excludes any ``user[:pass]@``
+    # userinfo component (RFC 3986 §3.2.1), and ``netloc`` is rebuilt
+    # above from ``host`` / port — never from ``parts.netloc``.  So
+    # credentials are dropped implicitly; no explicit strip is needed.
     return urlunsplit((scheme, netloc, parts.path or "/", parts.query, ""))
 
 
