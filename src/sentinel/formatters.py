@@ -7,7 +7,7 @@ risk findings, rewrite results, and pipeline output.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, List, Dict, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 # P0-3 γ — defer `serialize_policy` import to function scope so importing
 # formatters (e.g., `sentinel --version` touches sentinel/__init__.py
