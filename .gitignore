@@ -50,9 +50,10 @@ data/policy_sentry_converted/
 # Docs folder
 docs/
 
-# All .md files except README.md
+# All .md files except README.md and CONTRIBUTING.md
 *.md
 !README.md
+!CONTRIBUTING.md
 
 # Specific excluded files
 verify_phase1.py
