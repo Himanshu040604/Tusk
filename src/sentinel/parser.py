@@ -972,27 +972,21 @@ class PolicyParser:
         Returns:
             List of similar service prefixes
         """
-        similar = []
+        similar: list[str] = []
 
-        # Use cached database service prefixes (loaded once in __init__)
-        db_service_prefixes = sorted(self.known_services)
+        # U29: ``self.known_services`` is already the merged set of DB
+        # prefixes and JSON-cached prefixes (see __init__ lines
+        # 199, 216, 219).  A previous implementation kept a separate
+        # ``db_service_prefixes = sorted(self.known_services)`` and
+        # iterated both — double work with identical content.
 
         # Try different matching strategies
         # 1. Exact prefix match (first N characters)
         for prefix_len in range(min(len(service_prefix), 3), 0, -1):
             match_prefix = service_prefix[:prefix_len]
-
-            # Check known services
             for svc in self.known_services:
                 if svc.startswith(match_prefix) and svc not in similar:
                     similar.append(svc)
-
-            # Check database services
-            for svc_prefix in db_service_prefixes:
-                if svc_prefix.startswith(match_prefix) and svc_prefix not in similar:
-                    similar.append(svc_prefix)
-
-            # If we found matches, return them
             if similar:
                 return sorted(similar)[:5]
 
@@ -1001,10 +995,6 @@ class PolicyParser:
         for svc in self.known_services:
             if svc and svc[0] == first_char and svc not in similar:
                 similar.append(svc)
-
-        for svc_prefix in db_service_prefixes:
-            if svc_prefix and svc_prefix[0] == first_char and svc_prefix not in similar:
-                similar.append(svc_prefix)
 
         return sorted(similar)[:5]
 
