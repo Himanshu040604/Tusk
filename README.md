@@ -183,7 +183,7 @@ python -m pytest tests/integration/ -v
 
 ## Tech Stack
 
-- Python 3.9+
+- Python 3.11+
 - SQLite3 for local data storage
 - PyYAML for YAML input support
 - pytest for testing
