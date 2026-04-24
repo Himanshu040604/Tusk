@@ -5,6 +5,88 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-04-24
+
+Phase 8 usability + output-correctness release. Six issues surfaced
+during real-world usage of v0.7.0, validated by 3-agent investigation
+pipeline, applied across 5 PRs.
+
+### Fixed
+
+- **Issue 4 — Alembic noise.** Removed `fileConfig()` calls in
+  `migrations/iam/env.py` and `migrations/inventory/env.py` and deleted
+  the `[loggers]` / `[handlers]` / `[formatters]` / `[logger_*]` /
+  `[handler_*]` / `[formatter_*]` sections from `alembic.ini`.
+  `logging_setup.configure()` now pins the `alembic` / `alembic.runtime.*`
+  logger family to WARNING unless root level is DEBUG, silencing
+  `setup plugin …`, `Context impl SQLiteImpl`, and
+  `Will assume non-transactional DDL` chatter on every CLI invocation.
+  Aligns with § 2 principle 5 (observable via structlog).
+- **Issue 6 — URL error UX.** `httpx.InvalidURL` (raised when
+  `--url` contains newlines, tabs, or other non-printable characters)
+  now produces an actionable stderr message at the CLI boundary in
+  `cmd_fetch` instead of a raw traceback. Returns `EXIT_INVALID_ARGS`.
+- **Issue 1 — Duplicate Sids.** AWS IAM requires Sid uniqueness within
+  a policy document. Rewriter now threads a shared `rewrite_used_sids`
+  set through `rewrite_policy` →
+  `_add_companion_permissions(used_sids=...)` →
+  `_reorganize_statements(pre_used_sids=...)`. Companion statements
+  mint Sids via `_generate_unique_sid` (numeric-suffix dedup). The
+  secondary path at `self_check.py::_apply_self_check_fixes` gained
+  the same counter-suffix logic for its literal
+  `"AllowCompanionPermissions"` Sid.
+- **Issue 5 — Fail-closed on rewrite.** Self-check FAIL verdicts now
+  suppress rewrite emission across all three formatters (text, JSON,
+  Markdown) unless the operator passes `--force-emit-rewrite`. Prior
+  behavior allowed shell pipelines like
+  `sentinel run policy.json > out.json` to silently write a failed
+  rewrite to disk. The flag is defined on the shared parent parser so
+  `cmd_run`, `cmd_fetch`, and `cmd_managed` (analyze) inherit it with
+  a single definition.
+
+### Added
+
+- **Issue 3 — Empty-corpus warn banner.** `sentinel {validate,analyze,
+  rewrite,run,fetch}` now emits a WARN banner on stderr at startup
+  when the IAM action corpus (services/actions tables) is empty.
+  `sentinel info` emits the same banner when `service_count == 0 or
+  action_count == 0`. Banner text guides the operator to run
+  `sentinel refresh --source policy-sentry --data-path <dir>`.
+  Introduces `Database.is_corpus_populated() -> bool`.
+- **Issue 2 — Tier-2 preservation.** Unknown actions are now PRESERVED
+  in the rewrite rather than silently removed. Rewrite heading renames
+  to "Suggested additions" when output is companion-only. JSON formatter
+  gains a top-level `"semantic"` field:
+  `"additions_only"` | `"complete_policy"`. See Amendment 10 in
+  `prod_imp.md § 17`.
+- **Amendment 10** in `prod_imp.md § 17` documenting the Tier-2
+  preservation semantic change, backward-compat notes, and
+  breaking-change inventory.
+
+### Changed
+
+- **`SelfCheckResult.tier2_excluded` renamed** to
+  `tier2_preserved_actions: list[str]` (Agent 3 integration addition —
+  the old bool became semantically meaningless once TIER2_IN_POLICY
+  severity dropped to WARNING). Backward-compat `@property
+  tier2_excluded` retained for one release cycle; slated for removal
+  in v1.0.
+- **`TIER2_IN_POLICY` findings downgrade** from `CheckSeverity.ERROR`
+  to `CheckSeverity.WARNING`. Policies previously failing due to
+  Tier-2 actions now produce WARNING verdict + preserved actions in
+  rewrite. `--strict` mode preserves the v0.7.0 safety behavior by
+  escalating WARNING → FAIL.
+- **`format_pipeline_result` methods** gain a keyword-only
+  `force_emit: bool = False` kwarg across all three formatters.
+
+### Internal
+
+- 3-agent investigation pipeline (validate+research / fit-check /
+  integration) applied for the second time since v0.7.0. Pattern
+  validated.
+- Test count: 779 (v0.7.0) → 791 (v0.8.0). Coverage maintained at 80%+.
+- Ruff + mypy clean.
+
 ## [0.7.0] - 2026-04-23
 
 Phase 7.3 test-harness restructure plus one safety-critical regression
