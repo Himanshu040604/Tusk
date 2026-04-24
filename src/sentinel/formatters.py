@@ -1,7 +1,49 @@
 """Output formatters for IAM Policy Sentinel.
 
-Provides text, JSON, and Markdown formatting for validation results,
-risk findings, rewrite results, and pipeline output.
+Three formatters render the same ``PipelineResult`` into different
+surfaces:
+
+* :class:`TextFormatter` -- human-readable report with origin badge,
+  findings table, "Actions Kept For Review" Tier-2 block, rewritten
+  policy, and force-emit bypass banner.
+* :class:`JsonFormatter` -- machine-readable; top-level fields per
+  ``prod_imp.md § 8.7``: ``origin``, ``final_verdict``, ``findings``,
+  ``rewrite_result``, ``self_check_result``, ``tier2_preserved_actions``,
+  ``rewritten_policy``, ``semantic``, ``force_emit_rewrite_bypass``,
+  ``bypass_reason``.
+* :class:`MarkdownFormatter` -- PR-comment-ready with admonition-style
+  blockquotes for the force-emit bypass banner.
+
+Key behaviors:
+
+* **Refuse-on-FAIL rewrite suppression** (Issue 5, v0.8.0): every
+  ``format_pipeline_result`` accepts a keyword-only ``force_emit: bool =
+  False`` parameter. On a FAIL verdict, the rewrite emission is
+  suppressed unless ``force_emit=True``. The CLI surfaces this via
+  ``--force-emit-rewrite`` (scoped to ``run`` / ``fetch`` /
+  ``managed analyze`` per L2 v0.8.1).
+* **Semantic field** (Amendment 10): JSON output gains a top-level
+  ``"semantic"`` key -- ``"additions_only"`` when the rewrite contains
+  only companion-addition changes (operator should MERGE with original);
+  ``"complete_policy"`` otherwise (operator can wholesale-replace).
+  Only present when ``rewrite_suppressed`` is ``False``.
+  ``_is_additions_only`` uses an explicit inclusion-based change-type
+  allowlist (L3 v0.8.1 -- robust to future change types).
+* **Force-emit audit trail** (M2 + SEC-L4, v0.8.1): when
+  ``force_emit=True``, JSON adds ``"force_emit_rewrite_bypass": true``
+  + ``"bypass_reason": <string>``, text emits a ``[!] WARNING:
+  --force-emit-rewrite bypassed FAIL verdict`` banner, markdown emits a
+  ``> [!] FORCE-EMIT BYPASS`` blockquote. Also fires an audit-log
+  structlog WARNING event ``force_emit_rewrite_bypass`` from the CLI
+  layer (``cmd_run`` / ``cmd_fetch`` / ``cmd_managed_analyze``) with a
+  ``bypass_of_failure`` boolean so SIEM rules can distinguish genuine
+  FAIL-bypass from belt-and-suspenders PASS/WARNING override.
+* **Deferred serialize_policy import** (P0-3 γ): the
+  ``rewriter.serialize_policy`` import is deferred to a lazy shim so
+  importing this module for ``sentinel --version`` doesn't pull the
+  rewriter -> analyzer -> constants -> pydantic-settings chain.
+* **Origin badge** (§ 8.4): the ``PolicyOrigin`` record is always
+  rendered at the top of every report as a provenance receipt.
 """
 
 from __future__ import annotations
