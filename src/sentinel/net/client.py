@@ -1,14 +1,37 @@
 """SentinelHTTPClient — hardened ``httpx.Client`` wrapper.
 
-Orchestrates the four Phase-3 defenses on every ``get()``:
+Orchestrates the SSRF defense quartet + cache + retry on every
+``get()``:
 
 1. **Allow-list** check (:class:`AllowList`, § 8.1).
 2. **SSRF** resolve-and-validate (:func:`guards.resolve_and_validate`,
-   § 8.2).  Re-runs on every redirect hop.
-3. **Cache** short-circuit (:class:`DiskCache.get`, § 8.5).  Cached
+   § 8.2). Re-runs on every redirect hop (H9). NAT64 / 6to4 / Teredo /
+   IPv4-mapped IPv6 extracted and transitively checked against
+   RFC 1918 / loopback / metadata ranges (H13).
+3. **Cache** short-circuit (:class:`DiskCache.get`, § 8.5). Cached
    entries return immediately with an ``X-Sentinel-Cache: HIT`` marker.
 4. **Retry** policy with per-source budgets + ``Retry-After`` honoring
-   (:class:`RetryPolicy`, § 8.6).
+   (:class:`RetryPolicy`, § 8.6). Hostile ``Retry-After: 99999`` capped
+   to ``max_total_wait_seconds`` (SEC-M2 post-v0.8.1).
+
+Key behaviors added post-original-authorship:
+
+* **Max-download enforcement** (SEC-M1 post-v0.8.1): preflight on
+  ``Content-Length`` + post-check on body size. Raises non-retryable
+  ``ResponseTooLargeError`` before the cache write so an arbitrarily
+  large hostile body cannot OOM the process or poison the cache.
+* **Insecure cache suppression** (SEC-M3 post-v0.8.1): when
+  ``self._insecure=True``, cache writes are skipped and a structlog
+  WARN ``cache_write_suppressed_insecure`` fires. MITM-poisoned
+  responses from a single insecure session cannot persist into a
+  signed cache entry that later secure sessions would trust.
+* **URL credential stripping** (SEC-L1 post-v0.8.1): every structlog
+  URL site calls ``strip_url_credentials`` from ``net.urls`` so
+  ``user:token@host`` in ``--url`` never leaks to logs.
+* **Redirect chaser re-validates** every hop (H9): allow-list + SSRF
+  re-run on each ``Location``.
+* **``--insecure`` loud-warn** (§ 5.2 ephemeral): unsuppressable
+  ``[WARN]`` per request when TLS verify is off.
 
 Observability:
 
@@ -16,10 +39,13 @@ Observability:
   so M10 secret redaction fires on headers.
 * Every request opens an OTel span (``net.request``) with url / source /
   cache_status / status_code attributes.
+* Audit events: ``http_request``, ``http_response``,
+  ``http_redirect_followed``, ``cache_hit``, ``cache_hmac_mismatch``,
+  ``cache_write_suppressed_insecure``, ``retry_after_cap_engaged``.
 
-Phase 3 implements **sync only**.  Async (``httpx.AsyncClient``) is
-Phase 4 work if a fetcher needs it; the public API here is designed so
-an async variant can be added without breaking callers.
+Implementation note: **sync only**. The public API is shaped so an
+``httpx.AsyncClient`` variant can be added later without breaking
+callers, but no current fetcher needs it.
 """
 
 from __future__ import annotations
