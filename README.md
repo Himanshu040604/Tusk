@@ -1,6 +1,6 @@
 # IAM Policy Sentinel
 
-> Version 0.8.1 -- offline AWS IAM policy validator, analyzer, and least-privilege rewriter.
+> Version 0.8.2 -- offline AWS IAM policy validator, analyzer, and least-privilege rewriter.
 
 A fully offline IAM policy analyzer with fail-closed safety guarantees. Sentinel parses an IAM policy, classifies every action against a local SQLite corpus, reports risk findings (wildcards, privilege escalation, exfiltration, destruction), and rewrites the policy toward least privilege with specific ARNs or clearly marked placeholders. Every fetched policy is origin-tracked; every cache entry and every security-critical database row is HMAC-signed; every network request passes through a four-layer SSRF defense. The tool performs **zero live AWS API calls** during validation.
 
@@ -149,7 +149,7 @@ sentinel run --strict policy.json
 
 Sentinel is a single-package Python project (`src/sentinel/`) with subpackages for network I/O (`net/`), fetchers (`fetchers/`), and DB refresh tools (`refresh/`). The four pipeline stages live in `parser.py`, `analyzer.py`, `rewriter.py`, and `self_check.py` respectively. Output formatters (text, JSON, Markdown) live in `formatters.py`. Configuration uses pydantic-settings with a 6-tier precedence chain. Alembic manages schema migrations for the dual-DB (`iam_actions.db` + `resource_inventory.db`) with WAL mode, filelock, and pre-migration backup.
 
-See [`prod_imp.md`](prod_imp.md) for the full design record including all 11 amendments (A1 critical findings -> A11 v0.8.1 maintenance notes).
+See [`prod_imp.md`](prod_imp.md) for the full design record including all 12 amendments (A1 critical findings -> A12 v0.8.2 audit cycle + documentation release).
 
 ## Configuration
 
