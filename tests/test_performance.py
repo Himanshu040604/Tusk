@@ -485,6 +485,22 @@ class TestLargePolicies:
 # ---------------------------------------------------------------------------
 
 
+def _parallel_mode_active() -> bool:
+    """Return True when pytest-xdist has split the session across workers.
+
+    v0.8.1 (PE4): under ``pytest -n auto``, each worker contends for
+    shared FS resources (on WSL2 + NTFS the contention amplifies the
+    WAL commit overhead per row insert). The bulk-insert perf tests
+    below are the only tests that run close to their 10s budget
+    isolated; under parallel contention they sometimes blow the budget.
+    Relax by 2x only when xdist is active.
+    """
+    import os
+
+    # pytest-xdist sets PYTEST_XDIST_WORKER env var in each worker.
+    return "PYTEST_XDIST_WORKER" in os.environ
+
+
 class TestLargeDatabase:
     """Tests for database operations with large datasets."""
 
@@ -493,8 +509,14 @@ class TestLargeDatabase:
     # rows.  Steady-state user-facing pipeline ops don't hit this path;
     # these tests exist to catch O(N^2) regressions, not to gate latency.
     # Carve out specific budgets rather than relaxing MAX_ALLOWED_SECONDS.
-    MAX_BULK_500_SERVICES_SECONDS = 10.0
-    MAX_BULK_5000_ACTIONS_SECONDS = 10.0
+    #
+    # v0.8.1 (PE4): budgets double under `-n auto` to compensate for WSL2
+    # + NTFS I/O contention across parallel workers. Isolated serial runs
+    # complete in ~1.5-2.5s; parallel WSL2 can approach 14s under peak
+    # contention. 20s is safely above the p99 observed window.
+    _BUDGET_MULT = 2.0 if _parallel_mode_active() else 1.0
+    MAX_BULK_500_SERVICES_SECONDS = 10.0 * _BUDGET_MULT
+    MAX_BULK_5000_ACTIONS_SECONDS = 10.0 * _BUDGET_MULT
 
     def test_db_with_500_services(self, tmp_path):
         """Database with 500 services returns all via get_services()."""
@@ -504,7 +526,9 @@ class TestLargeDatabase:
         elapsed = time.time() - start
 
         assert elapsed < self.MAX_BULK_500_SERVICES_SECONDS, (
-            f"Inserting and querying 500 services took {elapsed:.2f}s"
+            f"Inserting and querying 500 services took {elapsed:.2f}s "
+            f"(budget {self.MAX_BULK_500_SERVICES_SECONDS:.1f}s, "
+            f"parallel={_parallel_mode_active()})"
         )
         assert len(services) == 500
 
@@ -527,7 +551,9 @@ class TestLargeDatabase:
         elapsed = time.time() - start
 
         assert elapsed < self.MAX_BULK_5000_ACTIONS_SECONDS, (
-            f"Inserting and querying 5000 actions took {elapsed:.2f}s"
+            f"Inserting and querying 5000 actions took {elapsed:.2f}s "
+            f"(budget {self.MAX_BULK_5000_ACTIONS_SECONDS:.1f}s, "
+            f"parallel={_parallel_mode_active()})"
         )
         assert found_count == 25  # 5 services * 5 actions sampled
         assert len(svc0_actions) == 100
