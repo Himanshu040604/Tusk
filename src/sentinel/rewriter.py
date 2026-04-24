@@ -319,17 +319,25 @@ class PolicyRewriter:
 
             new_statements.append(working)
 
+        # Issue 1 (v0.8.0): shared Sid-registry threaded through step 4
+        # (companion addition) and step 5 (reorganize + splitting). Pre-seed
+        # with any Sids already on the input statements so new-minted Sids
+        # never collide with operator-authored ones.
+        rewrite_used_sids: set[str] = {s.sid for s in new_statements if s.sid}
+
         # Step 4: Add companion permissions
         if config.add_companions:
             new_statements, changes, companions = self._add_companion_permissions(
-                new_statements, config
+                new_statements, config, used_sids=rewrite_used_sids
             )
             all_changes.extend(changes)
             companions_added.extend(companions)
 
         # Step 5: Reorganize statements
         new_statements = self._reorganize_statements(
-            new_statements, config.max_actions_per_statement
+            new_statements,
+            config.max_actions_per_statement,
+            pre_used_sids=rewrite_used_sids,
         )
 
         # Build assumptions list
@@ -726,15 +734,29 @@ class PolicyRewriter:
         self,
         statements: list[Statement],
         config: RewriteConfig,
+        used_sids: set[str] | None = None,
     ) -> tuple[list[Statement], list[RewriteChange], list[CompanionPermission]]:
         """Add missing companion permissions.
 
         Uses CompanionPermissionDetector to identify missing companions
         and creates new statements for them.
 
+        Issue 1 (v0.8.0): threads ``used_sids`` so companion-statement Sids
+        are guaranteed unique against both the existing statements AND
+        against each other. Previously a pair of companion rules that
+        generated the same base Sid (e.g. two unrelated invocations both
+        producing ``AllowLogsAccess``) would collide, violating AWS IAM's
+        Sid-uniqueness requirement.
+
         Args:
             statements: Current list of statements
             config: Rewrite configuration
+            used_sids: Set of Sids already present in the policy. When
+                provided, new companion Sids are generated via
+                ``_generate_unique_sid`` against this set, and the set is
+                updated in-place as new Sids are minted. When None, a
+                fresh set is created (companions dedup among themselves
+                only).
 
         Returns:
             Tuple of (updated statements, changes, companions added)
@@ -744,6 +766,14 @@ class PolicyRewriter:
 
         # Work on a copy to avoid mutating the input list
         statements = list(statements)
+
+        # Issue 1: if caller didn't hand us a used_sids set, build one from
+        # the incoming statements so we still enforce global uniqueness.
+        local_sids: set[str] = used_sids if used_sids is not None else set()
+        if used_sids is None:
+            for stmt in statements:
+                if stmt.sid:
+                    local_sids.add(stmt.sid)
 
         # Collect all Allow actions across all statements
         all_allow_actions: list[str] = []
@@ -759,11 +789,15 @@ class PolicyRewriter:
 
         # Group companion actions by creating new statements
         for companion in missing:
+            new_sid = self._generate_unique_sid(
+                companion.companion_actions, "Allow", local_sids
+            )
+            local_sids.add(new_sid)
             companion_stmt = Statement(
                 effect="Allow",
                 actions=companion.companion_actions,
                 resources=["*"],
-                sid=self._generate_sid(companion.companion_actions, "Allow"),
+                sid=new_sid,
             )
 
             # Always attempt to scope companion resources
@@ -907,21 +941,31 @@ class PolicyRewriter:
         self,
         statements: list[Statement],
         max_actions: int = 15,
+        pre_used_sids: set[str] | None = None,
     ) -> list[Statement]:
         """Reorganize statements for clarity and readability.
 
         Groups related actions, splits large statements, and generates
         unique descriptive Sid values.
 
+        Issue 1 (v0.8.0): accepts ``pre_used_sids`` so the uniqueness set
+        can be pre-seeded with Sids minted earlier in ``rewrite_policy``
+        (e.g. from companion-statement addition). Without this, a Sid
+        generated during companion-add could collide with a freshly-minted
+        Sid during reorganize.
+
         Args:
             statements: List of statements to reorganize
             max_actions: Maximum actions per statement before splitting
+            pre_used_sids: Optional set of Sids already in use from prior
+                rewrite-pipeline steps.  Copied (not shared) so callers'
+                sets aren't mutated.
 
         Returns:
             Reorganized list of statements
         """
         result: list[Statement] = []
-        used_sids: set[str] = set()
+        used_sids: set[str] = set(pre_used_sids) if pre_used_sids else set()
 
         for stmt in statements:
             # Skip empty statements (no actions and no not_actions)

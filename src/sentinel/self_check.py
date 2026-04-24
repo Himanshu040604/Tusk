@@ -1134,11 +1134,22 @@ class Pipeline:
                     existing_actions.update(stmt.not_actions)
             new_companions = [a for a in companions_to_add if a not in existing_actions]
             if new_companions:
+                # Issue 1 (v0.8.0): The rewriter pass may already have
+                # emitted a statement named "AllowCompanionPermissions"
+                # (or the self_check pass may run multiple times via the
+                # retry loop).  Generate a unique Sid suffix so AWS IAM's
+                # Sid-uniqueness requirement is preserved.
+                existing_sids = {s.sid for s in fixed.statements if s.sid}
+                companion_sid = "AllowCompanionPermissions"
+                counter = 2
+                while companion_sid in existing_sids:
+                    companion_sid = f"AllowCompanionPermissions{counter}"
+                    counter += 1
                 companion_stmt = Statement(
                     effect="Allow",
                     actions=new_companions,
                     resources=["*"],
-                    sid="AllowCompanionPermissions",
+                    sid=companion_sid,
                 )
                 fixed.statements.append(companion_stmt)
 
