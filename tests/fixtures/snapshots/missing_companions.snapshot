@@ -1,15 +1,18 @@
 {
   "final_verdict": "CheckVerdict.WARNING",
-  "iterations": 2,
+  "iterations": 1,
   "rewritten_actions": [
     "kms:Decrypt",
+    "lambda:InvokeFunction",
     "logs:CreateLogGroup",
     "logs:CreateLogStream",
     "logs:PutLogEvents",
+    "s3:GetObject",
     "sqs:ChangeMessageVisibility",
     "sqs:DeleteMessage",
-    "sqs:GetQueueAttributes"
+    "sqs:GetQueueAttributes",
+    "sqs:ReceiveMessage"
   ],
-  "rewritten_statement_count": 3,
+  "rewritten_statement_count": 6,
   "validation_result_count": 3
 }

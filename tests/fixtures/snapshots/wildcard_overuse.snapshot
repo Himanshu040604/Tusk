@@ -1,9 +1,13 @@
 {
-  "final_verdict": "CheckVerdict.WARNING",
-  "iterations": 2,
+  "final_verdict": "CheckVerdict.FAIL",
+  "iterations": 1,
   "rewritten_actions": [
-    "kms:Decrypt"
+    "*",
+    "ec2:Describe*",
+    "kms:Decrypt",
+    "s3:*",
+    "s3:GetObject"
   ],
-  "rewritten_statement_count": 1,
+  "rewritten_statement_count": 5,
   "validation_result_count": 4
 }
