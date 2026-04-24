@@ -332,8 +332,9 @@ class SelfCheckValidator:
     def _validate_actions(self, policy: Policy) -> list[CheckFinding]:
         """Re-validate every action in the rewritten policy.
 
-        Flags Tier 3 (invalid) actions as ERROR and Tier 2 (unknown)
-        actions as ERROR since they should have been excluded by the rewriter.
+        Flags Tier 3 actions as ERROR and Tier 2 (unknown) actions as
+        WARNING — Tier 2 actions are preserved per Issue 2 (v0.8.0 /
+        Amendment 10) to avoid silently dropping user intent.
 
         P1-8 β completion (phase 7.1): when ``self.database`` is available,
         share a single DB connection across the per-action classify loop.
