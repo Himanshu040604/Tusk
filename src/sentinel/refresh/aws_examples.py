@@ -12,11 +12,11 @@ import json
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.sentinel.database import Database
-    from src.sentinel.inventory import ResourceInventory
+    from ..database import Database
+    from ..inventory import ResourceInventory
 
 
 # ---------------------------------------------------------------------------
@@ -456,8 +456,8 @@ class BenchmarkRunner:
     def _run_single(self, policy: NormalizedPolicy) -> BenchmarkEntry:
         """Run a single policy through the pipeline."""
         import time
-        from src.sentinel.self_check import Pipeline, PipelineConfig
-        from src.sentinel.parser import ValidationTier
+        from ..self_check import Pipeline, PipelineConfig
+        from ..parser import ValidationTier
 
         entry = BenchmarkEntry(
             policy_path=str(policy.local_path),
