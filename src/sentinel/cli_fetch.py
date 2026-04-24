@@ -186,6 +186,17 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     formatter = _get_formatter(args)
     # Issue 5 (v0.8.0): thread --force-emit-rewrite so FAIL suppresses output.
     force_emit = getattr(args, "force_emit_rewrite", False)
+    # v0.8.1 (M2): structlog audit trail for bypass of FAIL verdict.
+    from .self_check import CheckVerdict
+
+    if force_emit and result.self_check_result.verdict == CheckVerdict.FAIL:
+        import structlog
+
+        structlog.get_logger("sentinel.safety").warning(
+            "force_emit_rewrite_bypass",
+            verdict="FAIL",
+            subcommand="fetch",
+        )
     _write_output(args, formatter.format_pipeline_result(result, force_emit=force_emit))
     findings = list(result.risk_findings) + list(getattr(result.self_check_result, "findings", []))
     return _verdict_to_exit_code(findings)

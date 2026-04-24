@@ -236,6 +236,19 @@ class TextFormatter:
         from .self_check import CheckVerdict
 
         lines = ["=== IAM Policy Sentinel - Pipeline Result ===", ""]
+        # v0.8.1 (M2): prominent banner when --force-emit-rewrite bypasses a
+        # FAIL verdict so operators reading the text output can see that the
+        # rewrite below was emitted under bypass, not a clean pass.
+        bypass = (
+            force_emit
+            and result.self_check_result.verdict == CheckVerdict.FAIL
+        )
+        if bypass:
+            lines.append(
+                "[!] WARNING: --force-emit-rewrite bypassed FAIL verdict. "
+                "The rewritten policy below is NOT recommended for deployment."
+            )
+            lines.append("")
         origin_line = _origin_text(getattr(result, "origin", None))
         if origin_line:
             lines.append(origin_line)
@@ -502,6 +515,15 @@ class JsonFormatter:
             data["semantic"] = (
                 "additions_only" if _is_additions_only(result) else "complete_policy"
             )
+            # v0.8.1 (M2): when force_emit bypassed a FAIL verdict, tag the
+            # JSON so downstream consumers (CI, dashboards, audit log
+            # analysers) can detect bypass events without re-parsing the
+            # rewrite fields. OWASP A09 — Security Logging & Monitoring.
+            if force_emit and result.self_check_result.verdict == CheckVerdict.FAIL:
+                data["force_emit_rewrite_bypass"] = True
+                data["bypass_reason"] = (
+                    "self-check FAIL verdict overridden by --force-emit-rewrite"
+                )
         origin_sub = _origin_json(getattr(result, "origin", None))
         if origin_sub is not None:
             data["origin"] = origin_sub
@@ -660,6 +682,20 @@ class MarkdownFormatter:
         from .self_check import CheckVerdict
 
         lines = ["# IAM Policy Sentinel - Pipeline Result", ""]
+        # v0.8.1 (M2): prominent blockquote when --force-emit-rewrite
+        # bypasses a FAIL verdict. Markdown consumers (READMEs, CI
+        # comments) get a visible audit mark that the rewrite below is
+        # under bypass, not a clean pass.
+        bypass = (
+            force_emit
+            and result.self_check_result.verdict == CheckVerdict.FAIL
+        )
+        if bypass:
+            lines.append(
+                "> [!] **FORCE-EMIT BYPASS:** FAIL verdict overridden. "
+                "Not recommended for deployment."
+            )
+            lines.append("")
         origin_line = _origin_markdown(getattr(result, "origin", None))
         if origin_line:
             lines.append(origin_line)

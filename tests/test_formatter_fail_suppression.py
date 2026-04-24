@@ -185,3 +185,126 @@ def test_cmd_managed_analyze_respects_force_emit_flag(tmp_path: Path) -> None:
     assert "force_emit=force_emit" in src, (
         "cli_managed.py must pass force_emit kwarg to format_pipeline_result"
     )
+
+
+# ---------------------------------------------------------------------------
+# v0.8.1 (M2): audit-trail tests for --force-emit-rewrite bypass.
+#
+# Closes OWASP A09 — Security Logging & Monitoring Failure.  Previously,
+# a bypass was silent: no audit log, no JSON field.  v0.8.1 adds:
+#   - prominent text banner "[!] WARNING: --force-emit-rewrite bypassed..."
+#   - JSON fields ``force_emit_rewrite_bypass: true`` + ``bypass_reason``
+#   - Markdown ``> [!] **FORCE-EMIT BYPASS:**`` blockquote
+#   - structlog warning "force_emit_rewrite_bypass" at each CLI call site
+# ---------------------------------------------------------------------------
+
+
+def test_force_emit_bypass_text_emits_audit_banner() -> None:
+    """v0.8.1 M2: text output shows prominent bypass warning."""
+    result = _make_pipeline_result(verdict=CheckVerdict.FAIL)
+    out = TextFormatter().format_pipeline_result(result, force_emit=True)
+    assert "[!] WARNING: --force-emit-rewrite bypassed FAIL verdict" in out
+    # Ensure the rewrite content is still present (force_emit=True).
+    assert '"Version"' in out
+
+
+def test_force_emit_bypass_json_emits_audit_fields() -> None:
+    """v0.8.1 M2: JSON output has force_emit_rewrite_bypass=true + reason."""
+    result = _make_pipeline_result(verdict=CheckVerdict.FAIL)
+    out = JsonFormatter().format_pipeline_result(result, force_emit=True)
+    data = json.loads(out)
+    assert data["force_emit_rewrite_bypass"] is True
+    assert (
+        data["bypass_reason"]
+        == "self-check FAIL verdict overridden by --force-emit-rewrite"
+    )
+    # Ensure rewritten_policy is still present.
+    assert data["rewritten_policy"] is not None
+
+
+def test_force_emit_bypass_markdown_emits_audit_block() -> None:
+    """v0.8.1 M2: Markdown output has prominent bypass blockquote."""
+    result = _make_pipeline_result(verdict=CheckVerdict.FAIL)
+    out = MarkdownFormatter().format_pipeline_result(result, force_emit=True)
+    assert "**FORCE-EMIT BYPASS:**" in out
+    assert "```json" in out
+
+
+def test_no_bypass_banner_when_not_forcing() -> None:
+    """When force_emit=False on a FAIL, no bypass banner (suppression path)."""
+    result = _make_pipeline_result(verdict=CheckVerdict.FAIL)
+    text_out = TextFormatter().format_pipeline_result(result)
+    assert "bypassed FAIL verdict" not in text_out
+
+    json_data = json.loads(JsonFormatter().format_pipeline_result(result))
+    assert "force_emit_rewrite_bypass" not in json_data
+    assert "bypass_reason" not in json_data
+
+    md_out = MarkdownFormatter().format_pipeline_result(result)
+    assert "FORCE-EMIT BYPASS" not in md_out
+
+
+def test_no_bypass_banner_on_pass_verdict_even_with_force() -> None:
+    """When verdict is PASS, force_emit=True does NOT trigger bypass banner."""
+    result = _make_pipeline_result(verdict=CheckVerdict.PASS, with_findings=False)
+    text_out = TextFormatter().format_pipeline_result(result, force_emit=True)
+    assert "bypassed FAIL verdict" not in text_out
+
+    json_data = json.loads(
+        JsonFormatter().format_pipeline_result(result, force_emit=True)
+    )
+    assert "force_emit_rewrite_bypass" not in json_data
+
+    md_out = MarkdownFormatter().format_pipeline_result(result, force_emit=True)
+    assert "FORCE-EMIT BYPASS" not in md_out
+
+
+# ---------------------------------------------------------------------------
+# v0.8.1 (M2): per-subcommand source-grep tests that the structlog warning
+# is emitted at each CLI callsite before formatter invocation.
+# ---------------------------------------------------------------------------
+
+
+def test_cmd_run_emits_structlog_bypass_warning() -> None:
+    """cli.py cmd_run path emits structlog warning when bypass fires."""
+    src = (
+        Path(__file__).resolve().parent.parent
+        / "src"
+        / "sentinel"
+        / "cli.py"
+    ).read_text(encoding="utf-8")
+    assert 'structlog.get_logger("sentinel.safety")' in src, (
+        "cmd_run must get structlog 'sentinel.safety' logger for bypass audit"
+    )
+    assert '"force_emit_rewrite_bypass"' in src, (
+        "cmd_run must emit 'force_emit_rewrite_bypass' warning event name"
+    )
+    assert 'subcommand="run"' in src, (
+        "cmd_run audit log must tag subcommand='run'"
+    )
+
+
+def test_cmd_fetch_emits_structlog_bypass_warning() -> None:
+    """cli_fetch.py cmd_fetch path emits structlog warning when bypass fires."""
+    src = (
+        Path(__file__).resolve().parent.parent
+        / "src"
+        / "sentinel"
+        / "cli_fetch.py"
+    ).read_text(encoding="utf-8")
+    assert 'structlog.get_logger("sentinel.safety")' in src
+    assert '"force_emit_rewrite_bypass"' in src
+    assert 'subcommand="fetch"' in src
+
+
+def test_cmd_managed_emits_structlog_bypass_warning() -> None:
+    """cli_managed.py cmd_managed_analyze path emits structlog warning on bypass."""
+    src = (
+        Path(__file__).resolve().parent.parent
+        / "src"
+        / "sentinel"
+        / "cli_managed.py"
+    ).read_text(encoding="utf-8")
+    assert 'structlog.get_logger("sentinel.safety")' in src
+    assert '"force_emit_rewrite_bypass"' in src
+    assert 'subcommand="managed"' in src

@@ -85,6 +85,17 @@ def cmd_managed(args: argparse.Namespace) -> int:
         # Issue 5 (v0.8.0): thread --force-emit-rewrite through so FAIL
         # verdicts on managed-policy analysis suppress rewrite output too.
         force_emit = getattr(args, "force_emit_rewrite", False)
+        # v0.8.1 (M2): structlog audit trail for bypass of FAIL verdict.
+        from .self_check import CheckVerdict
+
+        if force_emit and result.self_check_result.verdict == CheckVerdict.FAIL:
+            import structlog
+
+            structlog.get_logger("sentinel.safety").warning(
+                "force_emit_rewrite_bypass",
+                verdict="FAIL",
+                subcommand="managed",
+            )
         _write_output(
             args, formatter.format_pipeline_result(result, force_emit=force_emit)
         )
