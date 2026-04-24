@@ -157,10 +157,15 @@ src/refresh/           Database refresh tools
   aws_docs_scraper.py       Load from AWS docs
   aws_examples.py           Fetch and benchmark AWS example policies
 
-data/                  SQLite databases
-  iam_actions.db       IAM actions database
-  resource_inventory.db Resource inventory
-  known_services.json  Exported service prefixes
+data/                  SQLite databases (tracked; small, public-metadata-only)
+  iam_actions.db       Ships pre-seeded with dangerous-action, companion-
+                       rule, and ARN-template baselines (HMAC-signed,
+                       source='shipped').  The AWS services/actions corpus
+                       itself is NOT shipped — run `sentinel refresh
+                       --source policy-sentry --data-path <policy_sentry.json>`
+                       on first use.  A [WARN] banner at startup prompts this.
+  resource_inventory.db Empty schema; populate via your own inventory loader.
+  known_services.json  Exported service prefixes.
 
 tests/                 Test suite (519 tests)
   test_*.py            Unit tests for each module
