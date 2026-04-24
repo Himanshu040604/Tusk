@@ -334,7 +334,7 @@ class PolicyParser:
             import yaml
         except ImportError:
             raise PolicyParserError(
-                "PyYAML is required for YAML input. Install it with: pip install pyyaml"
+                "PyYAML is required for YAML input. Install it with: uv add pyyaml"
             )
         try:
             data = yaml.safe_load(yaml_string)

@@ -1003,7 +1003,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             import yaml
         except ImportError:
             print(
-                "Error: PyYAML is required for YAML input. Install it with: pip install pyyaml",
+                "Error: PyYAML is required for YAML input. Install it with: uv add pyyaml",
                 file=sys.stderr,
             )
             return EXIT_INVALID_ARGS
