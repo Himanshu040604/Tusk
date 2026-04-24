@@ -66,3 +66,6 @@ work.png
 # Owner's uncommitted working files (never commit)
 final.png
 firebase-debug.log
+
+# Ephemeral log files (firebase debug logs, pytest logs, arbitrary tooling)
+*.log
