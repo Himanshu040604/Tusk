@@ -1,7 +1,56 @@
 """Command-line interface for IAM Policy Sentinel.
 
-Provides argparse-based CLI with subcommands: validate, analyze, rewrite,
-run, refresh, and info.
+Argparse-based CLI entrypoint. Dispatches to 14 subcommands covering
+the full pipeline, fetch surfaces, and admin operations:
+
+* **Pipeline** -- ``validate``, ``analyze``, ``rewrite``, ``run``
+  (+ ``--batch`` for directory mode).
+* **Fetch** -- ``fetch`` (with ``--url`` / ``--github`` / ``--aws-sample``
+  / ``--aws-managed`` / ``--cloudsplaining`` / ``--from-clipboard``,
+  ``--alert-on-new`` for continuous-monitor hash-compare).
+* **Admin / DB** -- ``info``, ``refresh`` (``--source X`` or ``--all``,
+  ``--live`` for hardened fetch, ``--dry-run``), ``cache`` (stats / ls /
+  purge / rotate-key), ``managed`` (list / show / analyze), ``config``
+  (show / path / init), ``export-services``, ``fetch-examples``.
+* **Interactive** -- ``watch <dir>``, ``wizard``, ``compare <a> <b>``,
+  ``search "<q>"``.
+
+Shared parent parser (applied to every subcommand):
+
+* ``-d/--database``, ``-i/--inventory`` -- DB path overrides.
+* ``-f/--output-format text|json|markdown``, ``-o/--output <path>``.
+* ``--profile``, ``--config`` -- config layer overrides.
+* ``--log-format human|json``, ``--log-level DEBUG|INFO|WARNING|ERROR``.
+* ``--insecure``, ``--allow-domain`` (repeatable), ``--skip-migrations``
+  -- ephemeral flags (HARD-FAIL if persisted in TOML / env; only the
+  ``SENTINEL_SKIP_MIGRATIONS=1`` env is a carve-out per Amendment 6
+  Theme F3).
+* ``--cache-dir`` -- cache directory override.
+
+``--force-emit-rewrite`` is scoped to the three subcommands that emit a
+rewrite (``run``, ``fetch``, ``managed analyze``) per L2 v0.8.1; it is
+NOT on the shared parent (help text would be misleading on the
+subcommands that never emit a rewrite).
+
+Exit codes (single source: ``exit_codes.py``):
+
+* 0 ``EXIT_SUCCESS`` -- clean PASS.
+* 1 ``EXIT_ISSUES_FOUND`` -- WARNING verdict.
+* 2 ``EXIT_INVALID_ARGS`` -- bad args / unparseable input.
+* 3 ``EXIT_IO_ERROR`` -- DB / HMAC / filesystem / migration / alembic
+  probe / refresh error (PE1 / PE2 v0.8.1).
+* 4 ``EXIT_CRITICAL_FINDING`` -- FAIL verdict.
+
+``main()`` orchestrates: config load -> logging_setup -> migrations ->
+baseline seed (fail-closed per B3) -> subcommand dispatch -> outer
+exception handler (``HMACError`` / ``DatabaseError`` / ``ConfigError``
+mapped to actionable stderr + ``EXIT_IO_ERROR`` per PE1 v0.8.1).
+
+Implementation note: this module is the dispatcher. Subcommand bodies
+for ``fetch`` / ``cache`` / ``managed`` / ``config`` / ``watch`` /
+``wizard`` / ``compare`` / ``search`` live in ``cli_fetch.py`` /
+``cli_cache.py`` / ``cli_managed.py`` / ``cli_config.py`` /
+``cli_misc.py`` respectively. Shared helpers live in ``cli_utils.py``.
 """
 
 from __future__ import annotations
