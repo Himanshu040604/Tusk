@@ -860,16 +860,26 @@ class TestColdStartBudget:
             }
         )
 
-        # Fresh Pipeline + parse round-trip — measures cold instantiation.
-        start = time.time()
-        pipeline = Pipeline(database=db)
-        pipeline.run_text(policy_json)
-        elapsed = time.time() - start
+        # PE5: median-of-3 run, matching the subprocess test's stability
+        # pattern (U26).  A single cold-start sample has long-tail
+        # variance on WSL2 (outliers up to p100=0.94s observed against
+        # p50=0.82s).  Measuring the median across 3 runs smooths FS-
+        # cache variance while still detecting genuine regressions —
+        # a +200ms regression moves the median, not just the tail.
+        # Each iteration rebuilds a fresh Pipeline to exercise the
+        # cold-instantiation path we actually care about guarding.
+        timings: list[float] = []
+        for _ in range(3):
+            start = time.time()
+            pipeline = Pipeline(database=db)
+            pipeline.run_text(policy_json)
+            timings.append(time.time() - start)
+        median = sorted(timings)[1]
 
-        assert elapsed < self.COLD_START_BUDGET_SECONDS, (
-            f"Cold-start pipeline.run exceeded budget: {elapsed:.3f}s "
-            f"(budget {self.COLD_START_BUDGET_SECONDS:.3f}s, "
-            f"wsl2={_wsl2_active()})"
+        assert median < self.COLD_START_BUDGET_SECONDS, (
+            f"Cold-start pipeline.run median exceeded budget: "
+            f"{median:.3f}s (budget {self.COLD_START_BUDGET_SECONDS:.3f}s, "
+            f"wsl2={_wsl2_active()}, timings={timings})"
         )
 
     def test_version_subprocess_cold_start(self):

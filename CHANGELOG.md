@@ -94,18 +94,29 @@ finding and per doc file.
   (SEC-M3), `TestCmdRefreshStatsErrors.test_refresh_live_does_not_
   use_issues_found` (H1), `test_bypass_audit_fires_on_every_force_
   emit_not_only_fail` (SEC-L4).
-- **PE5** `TestColdStartBudget.COLD_START_BUDGET_SECONDS` relaxed to
-  1.25s on WSL2/NTFS hosts via new `_wsl2_active()` helper (mirrors
-  the `_parallel_mode_active()` pattern from PE4).  CI (native Ubuntu)
-  and macOS runners keep the strict 0.5s gate.  Calibrated against a
-  15-run sample on a reference WSL2 laptop (min 0.597s, p50 0.816s,
-  p100 0.939s) — 2.5x multiplier gives ~25% headroom above observed
-  p100.  An earlier 1.5x attempt still flaked on ~70% of runs against
-  a 0.75s budget; the 2.5x value is data-driven, not guessed.  10/10
-  consecutive runs pass on the reference host.
+- **PE5** `test_cold_start_under_500ms` stabilised against WSL2/NTFS
+  long-tail variance via two complementary mechanisms:
+
+    1. **Median-of-3**: matches the U26 subprocess test's stability
+       pattern — each invocation runs the Pipeline construct + parse
+       three times with fresh Pipeline instances, then asserts the
+       median (not the max) against the budget.  A +200ms regression
+       shifts the median; a single-run FS-cache outlier does not.
+
+    2. **WSL2-aware budget**: new `_wsl2_active()` helper (mirrors the
+       `_parallel_mode_active()` pattern from PE4) applies a 2.5x
+       multiplier on WSL2 only — `COLD_START_BUDGET_SECONDS` becomes
+       1.25s there, stays at 0.5s on native Linux / macOS CI.
+       Calibrated against a 15-run sample on a reference WSL2 laptop
+       (min 0.597s, p50 0.816s, p100 0.939s).  An earlier 1.5x attempt
+       still flaked on ~70% of runs against a 0.75s budget; the 2.5x
+       value is data-driven, not guessed.
+
+  Combined: 10/10 consecutive runs pass on the reference host.
   `SUBPROCESS_COLD_START_BUDGET_SECONDS` unchanged at 1.0s (already
-  WSL2-sized per U26 comment).  Assertion message now reports the
-  active budget and `wsl2=` flag so failures are self-explanatory.
+  WSL2-sized per U26 comment).  Assertion message reports the active
+  budget, `wsl2=` flag, and the 3 timings so failures are self-
+  explanatory.
 
 ### Documentation
 
