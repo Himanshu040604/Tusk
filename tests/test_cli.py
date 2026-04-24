@@ -905,3 +905,60 @@ class TestPipelineFormatters:
         output = fmt.format_pipeline_result(sample_pipeline_result)
         assert "# IAM Policy Sentinel" in output
         assert "PASS" in output
+
+
+# -----------------------------------------------------------------------
+# v0.8.1 (PE1): HMACError handling at CLI boundary
+# -----------------------------------------------------------------------
+
+
+class TestCLIHMACErrorHandling:
+    """Outer main() must catch HMACError and emit actionable guidance."""
+
+    def test_main_catches_hmac_error_with_recovery_message(
+        self, capsys, monkeypatch, tmp_path
+    ):
+        """HMACError raised by a handler => clean EXIT_IO_ERROR + message."""
+        from src.sentinel.cli import main
+        from src.sentinel.hmac_keys import HMACError
+
+        def _fake_handler(args):
+            raise HMACError("cache.key has broad world-permissions (0o777)")
+
+        # Redirect main() to a fake handler that raises HMACError.
+        monkeypatch.setattr("sys.argv", ["sentinel", "info"])
+        monkeypatch.setenv("SENTINEL_DATA_DIR", str(tmp_path))
+        # Bypass alembic/migration machinery and force dispatch to our handler
+        monkeypatch.setattr(
+            "src.sentinel.cli._bootstrap_config_and_logging", lambda args: None
+        )
+        monkeypatch.setattr(
+            "src.sentinel.cli.check_and_upgrade_all_dbs",
+            lambda *a, **kw: None,
+            raising=False,
+        )
+        # Patch the handlers dict at dispatch — since handlers is built
+        # inside main(), monkey-patch the cmd_info global instead.
+        monkeypatch.setattr("src.sentinel.cli.cmd_info", _fake_handler)
+
+        with pytest.raises(SystemExit) as exc:
+            main()
+        assert exc.value.code == EXIT_IO_ERROR
+        captured = capsys.readouterr()
+        assert "HMAC key failure" in captured.err
+        assert "sentinel cache rotate-key" in captured.err
+
+    def test_main_hmac_handler_source_grep(self):
+        """Source contains the HMAC outer-handler pattern."""
+        src_path = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "sentinel"
+            / "cli.py"
+        )
+        src = src_path.read_text(encoding="utf-8")
+        assert "except HMACError as e:" in src, (
+            "main() must catch HMACError at the outer handler dispatch"
+        )
+        assert "sentinel cache rotate-key" in src
+        assert "from .hmac_keys import HMACError" in src

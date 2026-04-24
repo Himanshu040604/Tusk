@@ -1831,5 +1831,23 @@ def main() -> None:
         parser.print_help()
         sys.exit(EXIT_INVALID_ARGS)
 
-    exit_code = handler(args)
+    # v0.8.1 (PE1): HMACError (raised when cache.key is unreadable,
+    # corrupted, or has broad world-permissions) was previously
+    # uncaught at the CLI boundary — users saw a raw traceback. Catch
+    # it here with an actionable recovery message so SIEMs and operators
+    # get a clean EXIT_IO_ERROR plus the rotate-key command to run.
+    # Deferred import so cold-start paths that never touch the cache
+    # (sentinel --version, sentinel info) don't pay the penalty.
+    from .hmac_keys import HMACError
+
+    try:
+        exit_code = handler(args)
+    except HMACError as e:
+        print(f"[ERROR] HMAC key failure: {e}", file=sys.stderr)
+        print(
+            "[ERROR] Recovery: run `sentinel cache rotate-key` if the HMAC "
+            "key is compromised or has incorrect file permissions.",
+            file=sys.stderr,
+        )
+        sys.exit(EXIT_IO_ERROR)
     sys.exit(exit_code)
