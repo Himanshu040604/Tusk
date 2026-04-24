@@ -7,7 +7,7 @@ IAM actions, services, resource types, and condition keys.
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple, Iterator
+from collections.abc import Iterator
 from contextlib import contextmanager
 
 from .constants import SCHEMA_VERSION
