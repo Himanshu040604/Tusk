@@ -1430,8 +1430,15 @@ def _refresh_live(db, source: str) -> int:
     if source == "managed-policies":
         from .refresh.aws_managed_policies import ManagedPoliciesLiveScraper
 
-        client = _build_live_client()
-        try:
+        # H2 fix: mirror cloudsplaining branch (Architect Concern 3, v0.6.2)
+        # — use context manager so the client is closed even if an
+        # exception fires between _build_live_client() and the try-block.
+        # The prior bare ``client = _build_live_client()`` pattern raised
+        # UnboundLocalError in the finally block whenever the constructor
+        # itself raised (HMACError from derive_cache_key, OSError on
+        # settings load, etc.), masking the real exception from main()'s
+        # outer HMACError handler.
+        with _build_live_client() as client:
             scraper = ManagedPoliciesLiveScraper(db, client)
             added = 0
             updated = 0
@@ -1445,8 +1452,6 @@ def _refresh_live(db, source: str) -> int:
                         updated += 1
                 except Exception as exc:  # noqa: BLE001
                     errors.append(f"{name}: {exc}")
-        finally:
-            client.close()
         print(f"Refresh complete: {added} added, {updated} updated.")
         for err in errors:
             print(f"[WARN] {err}", file=sys.stderr)

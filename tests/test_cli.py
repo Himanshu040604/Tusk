@@ -1071,3 +1071,94 @@ class TestCmdRefreshStatsErrors:
             "H1 regression: _refresh_live must not use EXIT_ISSUES_FOUND; "
             "partial ingestion failures return EXIT_IO_ERROR (PE2 parity)."
         )
+
+
+class TestRefreshLiveContextManager:
+    """H2: _refresh_live must use `with` for the HTTP client in both branches.
+
+    Regression guard for the UnboundLocalError masking bug: the bare
+    ``client = _build_live_client()`` + ``finally: client.close()`` pattern
+    raises UnboundLocalError when the constructor itself raises (HMACError,
+    OSError), masking the real exception from main()'s outer handler.
+    """
+
+    def test_managed_policies_uses_context_manager(self):
+        """Source-grep: managed-policies branch must wrap the client in `with`.
+
+        This pins the fix so that a future refactor cannot silently
+        reintroduce the bare-assignment pattern.
+        """
+        src_path = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "sentinel"
+            / "cli.py"
+        )
+        src = src_path.read_text(encoding="utf-8")
+        marker = "def _refresh_live("
+        body = src.split(marker, 1)[1].split("\ndef ", 1)[0]
+        # Both managed-policies and cloudsplaining branches must use
+        # `with _build_live_client() as client:` — two occurrences total.
+        occurrences = body.count("with _build_live_client() as client:")
+        assert occurrences >= 2, (
+            f"Expected >=2 'with _build_live_client() as client:' in "
+            f"_refresh_live (managed-policies + cloudsplaining); found "
+            f"{occurrences}"
+        )
+
+    def test_managed_policies_build_client_raises_propagates(self, monkeypatch):
+        """If _build_live_client() raises, the real exception propagates.
+
+        Pre-H2: a ``finally: client.close()`` on an unbound ``client``
+        raised UnboundLocalError, masking HMACError/OSError.
+        Post-H2: ``with`` never enters __enter__ if the builder raises,
+        so the original exception surfaces cleanly.
+        """
+        from src.sentinel.hmac_keys import HMACError
+        import src.sentinel.cli as cli_mod
+
+        def _raise_hmac():
+            raise HMACError("simulated key-permission failure")
+
+        monkeypatch.setattr(cli_mod, "_build_live_client", _raise_hmac)
+        # db argument is unused before the raise, so None is safe.
+        with pytest.raises(HMACError, match="simulated key-permission failure"):
+            cli_mod._refresh_live(db=None, source="managed-policies")
+
+    def test_managed_policies_closes_client_on_success(self, monkeypatch):
+        """On success, the client's __exit__ is invoked (cleanup guaranteed)."""
+        import src.sentinel.cli as cli_mod
+
+        class _FakeClient:
+            def __init__(self) -> None:
+                self.closed = False
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_exc) -> None:
+                self.closed = True
+
+            def close(self) -> None:
+                self.closed = True
+
+        fake = _FakeClient()
+        monkeypatch.setattr(cli_mod, "_build_live_client", lambda: fake)
+
+        class _NoOpScraper:
+            def __init__(self, db, client) -> None:  # noqa: ARG002
+                pass
+
+            def scrape_one(self, *, name, arn, url):  # noqa: ARG002
+                return "ADD"
+
+        monkeypatch.setattr(
+            "src.sentinel.refresh.aws_managed_policies.ManagedPoliciesLiveScraper",
+            _NoOpScraper,
+        )
+        rc = cli_mod._refresh_live(db=None, source="managed-policies")
+        assert rc == EXIT_SUCCESS
+        assert fake.closed is True, (
+            "H2: managed-policies branch must close the client via "
+            "context-manager __exit__; client.closed was never set."
+        )
