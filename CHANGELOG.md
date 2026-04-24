@@ -92,6 +92,45 @@ integration side-effects), one commit per finding.
   use_issues_found` (H1), `test_bypass_audit_fires_on_every_force_
   emit_not_only_fail` (SEC-L4).
 
+## [0.8.2] - 2026-04-24
+
+Documentation release. Comprehensive doc sweep to reflect v0.8.1 state.
+
+### Documentation
+
+- `README.md` rewritten for v0.8.1 state (features, CLI reference,
+  architecture, doc map, 5-level exit-code scheme, project-structure
+  diagram refreshed for Amendment 7 layout).
+- `CONTRIBUTING.md` updated for current test baseline (856 tests at
+  working-tree; v0.8.1 shipped at 813) and release-process notes
+  including the 3-agent investigation pipeline pattern.
+- `CLAUDE.md` updated with post-Phase-8.1 state (Amendment 7 layout,
+  Amendment 10 semantics, consolidated v0.5.0 -> v0.8.1 thinking-log
+  entry replacing stale "Phase 4 is next" section).
+- New `docs/FEATURES.md` -- comprehensive feature catalogue organized
+  by domain (policy analysis, input sources, output formats, safety +
+  security, observability, CLI, config, DB layer) with file:symbol
+  pointers for every entry.
+- New `docs/USAGE.md` -- end-user how-to guide with CI integration
+  examples, troubleshooting for HMAC errors / empty corpus /
+  cold-start / WSL2, and advanced workflows (profiles,
+  `--allow-domain`, `SENTINEL_SKIP_MIGRATIONS` carve-out).
+- Module docstrings refreshed in: `self_check.py` (Amendment 10 Tier-2
+  preservation), `rewriter.py` (unique Sid / Tier-2 integration),
+  `formatters.py` (force_emit / semantic / bypass audit),
+  `hmac_keys.py` (drop stale Phase-3 relocation note; add
+  refuse-to-load / signed-row probe), `cli.py` (14-subcommand
+  inventory + exit-code scheme), `net/client.py` (SEC-M1/M2/M3/L1
+  behaviors + audit-event inventory), `net/cache.py` (atomic writes,
+  insecure suppression, HMACError propagation), `migrations.py`
+  (Phase-2 verify + NEW-A fix + Amendment 9 test-harness note).
+- `.gitignore` restructured to whitelist `docs/FEATURES.md` and
+  `docs/USAGE.md` (prior blanket `docs/` ignore made tracking
+  unreachable).
+
+No code changes; no behavior changes; no test changes. Safe drop-in
+for v0.8.1 consumers.
+
 ## [0.8.1] - 2026-04-24
 
 Maintenance release. Eight post-v0.8.0 review findings, four pre-existing
