@@ -1,8 +1,37 @@
 """Self-check validator and pipeline orchestrator for IAM Policy Sentinel.
 
-This module provides re-validation of rewritten policies, functional completeness
-checking, remaining wildcard detection, Tier 2 exclusion verification, assumption
-validation, and a loop-back mechanism that feeds failures back to the rewriter.
+This module provides re-validation of rewritten policies, functional
+completeness checking, remaining wildcard detection, Tier-2 action
+preservation verification (Amendment 10, v0.8.0 -- NOT exclusion;
+unknown actions are preserved in the rewrite with WARNING verdict),
+assumption validation, and a loop-back mechanism that feeds failures
+back to the rewriter bounded by ``--max-retries``.
+
+Key behaviors:
+
+* **Tier-2 preservation** (Amendment 10): ``_check_tier2_exclusion``
+  emits findings at ``CheckSeverity.WARNING`` (was ``ERROR`` pre-v0.8.0);
+  ``_apply_self_check_fixes`` only removes Tier-3 / ``ACTION_VALIDATION``
+  (INVALID) actions. Unknown actions stay in ``rewritten_policy.statements``.
+* **--strict** escalates WARNING verdict -> FAIL, restoring pre-v0.8.0
+  safety for Tier-2 presence.
+* **Issue 5 refuse-on-FAIL**: a FAIL verdict suppresses rewrite emission
+  in the formatters unless ``--force-emit-rewrite`` is set (audited).
+* **Pipeline DI** (P2-14): ``SelfCheckValidator.__init__`` accepts
+  optional ``analyzer=`` and ``companion_detector=`` kwargs so Pipeline
+  can reuse a single pre-built instance across the retry loop.
+* **Shared DB connection** (P1-8 completion): the ``_validate_actions``
+  loop wraps all classify calls in one ``get_connection()`` context.
+* **Deferred constants import** (P0-3 α+γ): ``WRITE_PREFIXES`` and
+  ``READ_INTENT_KEYWORDS`` are imported at function scope to avoid
+  pulling pydantic-settings (~1.1s) on module import.
+* **tier2_preserved_actions**: ``SelfCheckResult`` now exposes the list
+  of preserved Tier-2 action strings (unions TIER2_IN_POLICY +
+  TIER2_ACTION_KEPT -- M1 v0.8.1 fix). The deprecated
+  ``tier2_excluded: bool`` shim remains for one release cycle but emits
+  ``DeprecationWarning`` (L4 v0.8.1); scheduled for removal in v0.9.0.
+
+See ``prod_imp.md § 17 Amendments 10 and 11`` for the decision record.
 """
 
 from __future__ import annotations
