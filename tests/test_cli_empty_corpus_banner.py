@@ -84,9 +84,7 @@ def test_cli_empty_corpus_banner_on_run(tmp_path: Path) -> None:
     assert "sentinel refresh --source policy-sentry" in result.stderr
 
 
-def test_cli_populated_corpus_no_banner(
-    tmp_path: Path, migrated_db_template: Path
-) -> None:
+def test_cli_populated_corpus_no_banner(tmp_path: Path, migrated_db_template: Path) -> None:
     """`sentinel run` on a fully-populated DB does NOT emit the banner.
 
     ``migrated_db_template`` is migrated + seeded with baseline classification

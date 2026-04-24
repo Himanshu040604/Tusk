@@ -39,6 +39,7 @@ class HMACError(Exception):
     is read-only (graceful in-memory degradation path).
     """
 
+
 # Domain-separation labels.  "sentinel-v1/..." versions the KDF contract —
 # bump the v1 prefix if the scheme ever changes (e.g., HKDF upgrade).
 _LABEL_CACHE = b"sentinel-v1/cache"
@@ -187,8 +188,7 @@ def _db_has_signed_rows(data_dir: Path) -> bool:
             ):
                 try:
                     cur = conn.execute(
-                        f'SELECT 1 FROM "{table}" '
-                        f'WHERE "{hmac_col}" IS NOT NULL LIMIT 1'
+                        f'SELECT 1 FROM "{table}" WHERE "{hmac_col}" IS NOT NULL LIMIT 1'
                     )
                     if cur.fetchone() is not None:
                         return True

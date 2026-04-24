@@ -41,21 +41,14 @@ def test_migrated_db_template_exists(migrated_db_template: Path) -> None:
 
     conn = sqlite3.connect(str(migrated_db_template))
     try:
-        tables = {
-            r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
-        }
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     finally:
         conn.close()
     assert "dangerous_actions" in tables
     assert "companion_rules" in tables
 
 
-def test_make_test_db_fast_copy_from_template(
-    tmp_path: Path, migrated_db_template: Path
-) -> None:
+def test_make_test_db_fast_copy_from_template(tmp_path: Path, migrated_db_template: Path) -> None:
     """make_test_db(template=...) path returns a usable per-test DB."""
     path = make_test_db(tmp_path, template=migrated_db_template)
     assert path.exists()
@@ -67,9 +60,7 @@ def test_make_test_db_fast_copy_from_template(
 
     conn = sqlite3.connect(str(path))
     try:
-        rows = conn.execute(
-            "SELECT COUNT(*) FROM dangerous_actions"
-        ).fetchone()
+        rows = conn.execute("SELECT COUNT(*) FROM dangerous_actions").fetchone()
     finally:
         conn.close()
     assert rows is not None and rows[0] > 0, (

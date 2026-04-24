@@ -287,9 +287,7 @@ class TestInsecureWarn:
         )
         with patch("socket.getaddrinfo", return_value=fake_info):
             with patch.object(insecure_client._client, "get", return_value=live):
-                resp = insecure_client.get(
-                    "https://example.com/insecure", source="user_url"
-                )
+                resp = insecure_client.get("https://example.com/insecure", source="user_url")
         # Response still returned to caller.
         assert resp.status_code == 200
         assert resp.content == b"live-body-over-insecure"
@@ -324,12 +322,11 @@ class TestInsecureWarn:
             insecure=True,
         )
         with patch.object(
-            insecure_client._client, "get",
+            insecure_client._client,
+            "get",
             side_effect=AssertionError("should not hit network on HIT"),
         ):
-            resp = insecure_client.get(
-                "https://example.com/prior", source="user_url"
-            )
+            resp = insecure_client.get("https://example.com/prior", source="user_url")
         assert resp.content == b"secure-cached-body"
         assert resp.headers.get("X-Sentinel-Cache") == "HIT"
 
@@ -423,9 +420,7 @@ class TestMaxDownloadBytes:
         # Cache must NOT be poisoned.
         assert cache.get("https://example.com/liar", "user_url") is None
 
-    def test_under_limit_passes(
-        self, tight_client: SentinelHTTPClient, cache: DiskCache
-    ) -> None:
+    def test_under_limit_passes(self, tight_client: SentinelHTTPClient, cache: DiskCache) -> None:
         """Small body under the limit flows through normally."""
         fake_info = [(socket.AF_INET, 0, 0, "", ("93.184.216.34", 0))]
         live = httpx.Response(
@@ -435,9 +430,7 @@ class TestMaxDownloadBytes:
         )
         with patch("socket.getaddrinfo", return_value=fake_info):
             with patch.object(tight_client._client, "get", return_value=live):
-                resp = tight_client.get(
-                    "https://example.com/small", source="user_url"
-                )
+                resp = tight_client.get("https://example.com/small", source="user_url")
         assert resp.status_code == 200
         assert resp.content == b"ok" * 100
         # Cache populated on MISS.

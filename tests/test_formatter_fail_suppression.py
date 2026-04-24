@@ -38,9 +38,7 @@ from sentinel.self_check import (
 # ---------------------------------------------------------------------------
 
 
-def _make_pipeline_result(
-    *, verdict: CheckVerdict, with_findings: bool = True
-) -> PipelineResult:
+def _make_pipeline_result(*, verdict: CheckVerdict, with_findings: bool = True) -> PipelineResult:
     """Build a minimal PipelineResult parameterized by verdict."""
     policy = Policy(
         version="2012-10-17",
@@ -137,9 +135,7 @@ def test_force_emit_bypasses_suppression() -> None:
     assert "NOT EMITTED" not in text_out
     assert '"Version"' in text_out  # JSON body present
 
-    json_out = json.loads(
-        JsonFormatter().format_pipeline_result(result, force_emit=True)
-    )
+    json_out = json.loads(JsonFormatter().format_pipeline_result(result, force_emit=True))
     assert json_out["rewritten_policy"] is not None
     assert "rewrite_suppressed" not in json_out
 
@@ -214,10 +210,7 @@ def test_force_emit_bypass_json_emits_audit_fields() -> None:
     out = JsonFormatter().format_pipeline_result(result, force_emit=True)
     data = json.loads(out)
     assert data["force_emit_rewrite_bypass"] is True
-    assert (
-        data["bypass_reason"]
-        == "self-check FAIL verdict overridden by --force-emit-rewrite"
-    )
+    assert data["bypass_reason"] == "self-check FAIL verdict overridden by --force-emit-rewrite"
     # Ensure rewritten_policy is still present.
     assert data["rewritten_policy"] is not None
 
@@ -250,9 +243,7 @@ def test_no_bypass_banner_on_pass_verdict_even_with_force() -> None:
     text_out = TextFormatter().format_pipeline_result(result, force_emit=True)
     assert "bypassed FAIL verdict" not in text_out
 
-    json_data = json.loads(
-        JsonFormatter().format_pipeline_result(result, force_emit=True)
-    )
+    json_data = json.loads(JsonFormatter().format_pipeline_result(result, force_emit=True))
     assert "force_emit_rewrite_bypass" not in json_data
 
     md_out = MarkdownFormatter().format_pipeline_result(result, force_emit=True)
@@ -267,31 +258,23 @@ def test_no_bypass_banner_on_pass_verdict_even_with_force() -> None:
 
 def test_cmd_run_emits_structlog_bypass_warning() -> None:
     """cli.py cmd_run path emits structlog warning when bypass fires."""
-    src = (
-        Path(__file__).resolve().parent.parent
-        / "src"
-        / "sentinel"
-        / "cli.py"
-    ).read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parent.parent / "src" / "sentinel" / "cli.py").read_text(
+        encoding="utf-8"
+    )
     assert 'structlog.get_logger("sentinel.safety")' in src, (
         "cmd_run must get structlog 'sentinel.safety' logger for bypass audit"
     )
     assert '"force_emit_rewrite_bypass"' in src, (
         "cmd_run must emit 'force_emit_rewrite_bypass' warning event name"
     )
-    assert 'subcommand="run"' in src, (
-        "cmd_run audit log must tag subcommand='run'"
-    )
+    assert 'subcommand="run"' in src, "cmd_run audit log must tag subcommand='run'"
 
 
 def test_cmd_fetch_emits_structlog_bypass_warning() -> None:
     """cli_fetch.py cmd_fetch path emits structlog warning when bypass fires."""
-    src = (
-        Path(__file__).resolve().parent.parent
-        / "src"
-        / "sentinel"
-        / "cli_fetch.py"
-    ).read_text(encoding="utf-8")
+    src = (Path(__file__).resolve().parent.parent / "src" / "sentinel" / "cli_fetch.py").read_text(
+        encoding="utf-8"
+    )
     assert 'structlog.get_logger("sentinel.safety")' in src
     assert '"force_emit_rewrite_bypass"' in src
     assert 'subcommand="fetch"' in src
@@ -300,10 +283,7 @@ def test_cmd_fetch_emits_structlog_bypass_warning() -> None:
 def test_cmd_managed_emits_structlog_bypass_warning() -> None:
     """cli_managed.py cmd_managed_analyze path emits structlog warning on bypass."""
     src = (
-        Path(__file__).resolve().parent.parent
-        / "src"
-        / "sentinel"
-        / "cli_managed.py"
+        Path(__file__).resolve().parent.parent / "src" / "sentinel" / "cli_managed.py"
     ).read_text(encoding="utf-8")
     assert 'structlog.get_logger("sentinel.safety")' in src
     assert '"force_emit_rewrite_bypass"' in src
@@ -319,18 +299,12 @@ def test_bypass_audit_fires_on_every_force_emit_not_only_fail() -> None:
     re-adds the FAIL guard breaks this test.
     """
     for relpath in ("cli.py", "cli_fetch.py", "cli_managed.py"):
-        src = (
-            Path(__file__).resolve().parent.parent
-            / "src"
-            / "sentinel"
-            / relpath
-        ).read_text(encoding="utf-8")
+        src = (Path(__file__).resolve().parent.parent / "src" / "sentinel" / relpath).read_text(
+            encoding="utf-8"
+        )
         # The emission must be inside a plain ``if force_emit:`` guard
         # — NOT ``if force_emit and ... verdict == CheckVerdict.FAIL:``.
-        assert (
-            "if force_emit and result.self_check_result.verdict"
-            not in src
-        ), (
+        assert "if force_emit and result.self_check_result.verdict" not in src, (
             f"{relpath}: audit emission is gated on verdict == FAIL; "
             "SEC-L4 requires emitting on every --force-emit-rewrite use "
             "to close the OWASP A09 bypass-visibility gap."

@@ -128,6 +128,6 @@ def test_self_check_companion_sid_dedupes_against_existing(
     # Pre-existing Sid untouched.
     assert "AllowCompanionPermissions" in sids
     # Newly-minted Sid uses the counter suffix.
-    assert any(s.startswith("AllowCompanionPermissions") and s != "AllowCompanionPermissions" for s in sids), (
-        f"Expected counter-suffixed Sid in {sids}"
-    )
+    assert any(
+        s.startswith("AllowCompanionPermissions") and s != "AllowCompanionPermissions" for s in sids
+    ), f"Expected counter-suffixed Sid in {sids}"

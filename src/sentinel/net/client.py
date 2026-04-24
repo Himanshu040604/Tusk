@@ -55,9 +55,7 @@ class ResponseTooLargeError(Exception):
     """
 
     def __init__(self, url: str, size: int, limit: int) -> None:
-        super().__init__(
-            f"Response body {size} bytes exceeds limit {limit} for {url!r}"
-        )
+        super().__init__(f"Response body {size} bytes exceeds limit {limit} for {url!r}")
         self.url = url
         self.size = size
         self.limit = limit
@@ -296,9 +294,7 @@ class SentinelHTTPClient:
         max_hops = self._settings.network.max_redirects
         redirect_count = 0
 
-        self._log.info(
-            "http_request", url=strip_url_credentials(url), source=source
-        )
+        self._log.info("http_request", url=strip_url_credentials(url), source=source)
 
         while True:
             last_response: httpx.Response | None = None

@@ -91,11 +91,7 @@ def test_check_and_upgrade_db_alias_delegates(tmp_path: Path) -> None:
 
     conn = sqlite3.connect(str(db_path))
     try:
-        tables = {
-            r[0] for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
-        }
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     finally:
         conn.close()
     assert "alembic_version" in tables

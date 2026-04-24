@@ -190,8 +190,7 @@ class PolicyRewriter:
         # P0-1 α — no outer `except Exception`.  Let DatabaseError propagate.
         with database.get_connection() as conn:
             probe = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name='action_resource_map'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='action_resource_map'"
             ).fetchone()
             if not probe:
                 return
@@ -789,9 +788,7 @@ class PolicyRewriter:
 
         # Group companion actions by creating new statements
         for companion in missing:
-            new_sid = self._generate_unique_sid(
-                companion.companion_actions, "Allow", local_sids
-            )
+            new_sid = self._generate_unique_sid(companion.companion_actions, "Allow", local_sids)
             local_sids.add(new_sid)
             companion_stmt = Statement(
                 effect="Allow",

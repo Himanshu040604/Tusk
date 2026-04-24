@@ -329,10 +329,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--force-emit-rewrite",
         action="store_true",
         default=False,
-        help=(
-            "Emit rewritten policy even when self-check FAILs "
-            "(NOT recommended for deployment)"
-        ),
+        help=("Emit rewritten policy even when self-check FAILs (NOT recommended for deployment)"),
     )
 
     # refresh
@@ -449,10 +446,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--force-emit-rewrite",
         action="store_true",
         default=False,
-        help=(
-            "Emit rewritten policy even when self-check FAILs "
-            "(NOT recommended for deployment)"
-        ),
+        help=("Emit rewritten policy even when self-check FAILs (NOT recommended for deployment)"),
     )
 
     # config (Phase 5 Task 8)
@@ -496,10 +490,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--force-emit-rewrite",
         action="store_true",
         default=False,
-        help=(
-            "Emit rewritten policy even when self-check FAILs "
-            "(NOT recommended for deployment)"
-        ),
+        help=("Emit rewritten policy even when self-check FAILs (NOT recommended for deployment)"),
     )
 
     # watch (Phase 5 Task 2 — M6)

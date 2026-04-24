@@ -18,10 +18,7 @@ class TestStripUrlCredentials:
         assert strip_url_credentials(url) is url
 
     def test_user_only_stripped(self):
-        assert (
-            strip_url_credentials("https://alice@example.com/path")
-            == "https://example.com/path"
-        )
+        assert strip_url_credentials("https://alice@example.com/path") == "https://example.com/path"
 
     def test_user_and_password_stripped(self):
         assert (
@@ -31,25 +28,19 @@ class TestStripUrlCredentials:
 
     def test_port_preserved(self):
         assert (
-            strip_url_credentials(
-                "https://alice:s3cret@example.com:8443/path"
-            )
+            strip_url_credentials("https://alice:s3cret@example.com:8443/path")
             == "https://example.com:8443/path"
         )
 
     def test_query_preserved(self):
         assert (
-            strip_url_credentials(
-                "https://alice:s3cret@example.com/path?q=1&r=2"
-            )
+            strip_url_credentials("https://alice:s3cret@example.com/path?q=1&r=2")
             == "https://example.com/path?q=1&r=2"
         )
 
     def test_fragment_preserved(self):
         assert (
-            strip_url_credentials(
-                "https://alice:s3cret@example.com/path#frag"
-            )
+            strip_url_credentials("https://alice:s3cret@example.com/path#frag")
             == "https://example.com/path#frag"
         )
 
@@ -72,10 +63,7 @@ class TestStripUrlCredentials:
         assert "alice" in result
 
     def test_http_scheme_also_stripped(self):
-        assert (
-            strip_url_credentials("http://alice:s3cret@example.com/")
-            == "http://example.com/"
-        )
+        assert strip_url_credentials("http://alice:s3cret@example.com/") == "http://example.com/"
 
     def test_empty_string_safe(self):
         assert strip_url_credentials("") == ""
@@ -87,8 +75,6 @@ class TestStripUrlCredentials:
 
     def test_token_like_username_stripped(self):
         assert (
-            strip_url_credentials(
-                "https://ghp_abc123def456@github.com/owner/repo"
-            )
+            strip_url_credentials("https://ghp_abc123def456@github.com/owner/repo")
             == "https://github.com/owner/repo"
         )

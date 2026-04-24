@@ -115,9 +115,7 @@ def _current_revision(db_path: Path) -> str | None:
         # Narrow per Architect Concern 2 (v0.6.2): MigrationContext.configure /
         # get_current_revision failure is logged so operators have forensic
         # signal instead of silently returning None.
-        logger.debug(
-            "_current_revision: failed to query revision for %s: %s", db_path, exc
-        )
+        logger.debug("_current_revision: failed to query revision for %s: %s", db_path, exc)
         return None
     finally:
         engine.dispose()
@@ -151,15 +149,17 @@ def _db_has_tables(db_path: Path) -> bool:
 # Option C (fail-closed): at startup, after migrations settle, verify the
 # expected Phase-2 tables are present.  If any are missing, abort with a
 # clear recovery message.
-_PHASE2_EXPECTED_TABLES: frozenset[str] = frozenset({
-    "dangerous_actions",
-    "companion_rules",
-    "dangerous_combinations",
-    "action_resource_map",
-    "arn_templates",
-    "managed_policies",
-    "verb_prefixes",
-})
+_PHASE2_EXPECTED_TABLES: frozenset[str] = frozenset(
+    {
+        "dangerous_actions",
+        "companion_rules",
+        "dangerous_combinations",
+        "action_resource_map",
+        "arn_templates",
+        "managed_policies",
+        "verb_prefixes",
+    }
+)
 
 
 def _phase2_missing_tables(db_path: Path) -> list[str]:
@@ -190,9 +190,8 @@ def _phase2_missing_tables(db_path: Path) -> list[str]:
         ) from exc
     try:
         existing = {
-            r[0] for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+            r[0]
+            for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         }
         return sorted(_PHASE2_EXPECTED_TABLES - existing)
     except sqlite3.Error as exc:

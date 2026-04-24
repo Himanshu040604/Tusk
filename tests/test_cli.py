@@ -356,9 +356,7 @@ class TestCmdValidate:
 class TestCmdRun:
     """Test the run subcommand handler."""
 
-    def test_run_pipeline_returns_exit_code(
-        self, tmp_policy_file: Path, cli_db_path: str
-    ):
+    def test_run_pipeline_returns_exit_code(self, tmp_policy_file: Path, cli_db_path: str):
         args = Namespace(
             policy_file=str(tmp_policy_file),
             database=cli_db_path,
@@ -379,9 +377,7 @@ class TestCmdRun:
         # Without DB, self-check may find warnings
         assert code in (EXIT_SUCCESS, EXIT_ISSUES_FOUND)
 
-    def test_run_pipeline_with_intent(
-        self, tmp_policy_file: Path, cli_db_path: str
-    ):
+    def test_run_pipeline_with_intent(self, tmp_policy_file: Path, cli_db_path: str):
         args = Namespace(
             policy_file=str(tmp_policy_file),
             database=cli_db_path,
@@ -731,9 +727,7 @@ class TestCmdAnalyze:
             f"s3:GetObject exfil classification; got {code}."
         )
 
-    def test_analyze_truly_safe_policy_exits_success(
-        self, tmp_path: Path, cli_db_path: str
-    ):
+    def test_analyze_truly_safe_policy_exits_success(self, tmp_path: Path, cli_db_path: str):
         """v0.6.2 split: a policy containing only a List-tier action with
         no exfil/destruction/escalation classification must return
         EXIT_SUCCESS strictly.
@@ -770,9 +764,7 @@ class TestCmdAnalyze:
             f"Expected EXIT_SUCCESS ({EXIT_SUCCESS}) for safe policy; got {code}."
         )
 
-    def test_analyze_wildcard_returns_issues(
-        self, tmp_wildcard_policy: Path, cli_db_path: str
-    ):
+    def test_analyze_wildcard_returns_issues(self, tmp_wildcard_policy: Path, cli_db_path: str):
         args = Namespace(
             policy_file=str(tmp_wildcard_policy),
             database=cli_db_path,
@@ -795,9 +787,7 @@ class TestCmdAnalyze:
 class TestCmdRewrite:
     """Test the rewrite subcommand handler."""
 
-    def test_rewrite_returns_success(
-        self, tmp_policy_file: Path, cli_db_path: str
-    ):
+    def test_rewrite_returns_success(self, tmp_policy_file: Path, cli_db_path: str):
         args = Namespace(
             policy_file=str(tmp_policy_file),
             database=cli_db_path,
@@ -814,9 +804,7 @@ class TestCmdRewrite:
         code = cmd_rewrite(args)
         assert code == EXIT_SUCCESS
 
-    def test_rewrite_json_output(
-        self, tmp_policy_file: Path, tmp_path: Path, cli_db_path: str
-    ):
+    def test_rewrite_json_output(self, tmp_policy_file: Path, tmp_path: Path, cli_db_path: str):
         out_file = tmp_path / "rewritten.json"
         args = Namespace(
             policy_file=str(tmp_policy_file),
@@ -915,9 +903,7 @@ class TestPipelineFormatters:
 class TestCLIHMACErrorHandling:
     """Outer main() must catch HMACError and emit actionable guidance."""
 
-    def test_main_catches_hmac_error_with_recovery_message(
-        self, capsys, monkeypatch, tmp_path
-    ):
+    def test_main_catches_hmac_error_with_recovery_message(self, capsys, monkeypatch, tmp_path):
         """HMACError raised by a handler => clean EXIT_IO_ERROR + message."""
         from src.sentinel.cli import main
         from src.sentinel.hmac_keys import HMACError
@@ -929,9 +915,7 @@ class TestCLIHMACErrorHandling:
         monkeypatch.setattr("sys.argv", ["sentinel", "info"])
         monkeypatch.setenv("SENTINEL_DATA_DIR", str(tmp_path))
         # Bypass alembic/migration machinery and force dispatch to our handler
-        monkeypatch.setattr(
-            "src.sentinel.cli._bootstrap_config_and_logging", lambda args: None
-        )
+        monkeypatch.setattr("src.sentinel.cli._bootstrap_config_and_logging", lambda args: None)
         monkeypatch.setattr(
             "src.sentinel.cli.check_and_upgrade_all_dbs",
             lambda *a, **kw: None,
@@ -950,12 +934,7 @@ class TestCLIHMACErrorHandling:
 
     def test_main_hmac_handler_source_grep(self):
         """Source contains the HMAC outer-handler pattern."""
-        src_path = (
-            Path(__file__).resolve().parent.parent
-            / "src"
-            / "sentinel"
-            / "cli.py"
-        )
+        src_path = Path(__file__).resolve().parent.parent / "src" / "sentinel" / "cli.py"
         src = src_path.read_text(encoding="utf-8")
         assert "except HMACError as e:" in src, (
             "main() must catch HMACError at the outer handler dispatch"
@@ -972,9 +951,7 @@ class TestCLIHMACErrorHandling:
 class TestCmdInfoAlembicProbe:
     """cmd_info alembic probe must propagate failures as EXIT_IO_ERROR."""
 
-    def test_alembic_probe_failure_returns_io_error(
-        self, capsys, monkeypatch, fresh_db
-    ):
+    def test_alembic_probe_failure_returns_io_error(self, capsys, monkeypatch, fresh_db):
         """When _current_revision raises, cmd_info returns EXIT_IO_ERROR."""
         args = Namespace(
             database=str(fresh_db.db_path),
@@ -986,9 +963,7 @@ class TestCmdInfoAlembicProbe:
         def _raising_current_revision(db_path):
             raise RuntimeError("alembic_version query failed (simulated)")
 
-        monkeypatch.setattr(
-            "src.sentinel.migrations._current_revision", _raising_current_revision
-        )
+        monkeypatch.setattr("src.sentinel.migrations._current_revision", _raising_current_revision)
         exit_code = cmd_info(args)
         assert exit_code == EXIT_IO_ERROR
         captured = capsys.readouterr()
@@ -996,9 +971,7 @@ class TestCmdInfoAlembicProbe:
         # The alembic_revision field should still be rendered in the info block.
         assert "<error:" in captured.out
 
-    def test_alembic_probe_none_returns_success(
-        self, capsys, monkeypatch, fresh_db
-    ):
+    def test_alembic_probe_none_returns_success(self, capsys, monkeypatch, fresh_db):
         """When _current_revision returns None (pre-Alembic DB), EXIT_SUCCESS."""
         args = Namespace(
             database=str(fresh_db.db_path),
@@ -1007,9 +980,7 @@ class TestCmdInfoAlembicProbe:
             output=None,
         )
 
-        monkeypatch.setattr(
-            "src.sentinel.migrations._current_revision", lambda _: None
-        )
+        monkeypatch.setattr("src.sentinel.migrations._current_revision", lambda _: None)
         exit_code = cmd_info(args)
         assert exit_code == EXIT_SUCCESS
 
@@ -1031,12 +1002,7 @@ class TestCmdRefreshStatsErrors:
         """
         import re as _re
 
-        src_path = (
-            Path(__file__).resolve().parent.parent
-            / "src"
-            / "sentinel"
-            / "cli.py"
-        )
+        src_path = Path(__file__).resolve().parent.parent / "src" / "sentinel" / "cli.py"
         src = src_path.read_text(encoding="utf-8")
         pattern = _re.compile(
             r"if stats\.errors:\s+return EXIT_IO_ERROR",
@@ -1055,12 +1021,7 @@ class TestCmdRefreshStatsErrors:
         ingestion failures.  Per exit_codes.py docstrings, a partial-seed
         fetch failure is an IO error.
         """
-        src_path = (
-            Path(__file__).resolve().parent.parent
-            / "src"
-            / "sentinel"
-            / "cli.py"
-        )
+        src_path = Path(__file__).resolve().parent.parent / "src" / "sentinel" / "cli.py"
         src = src_path.read_text(encoding="utf-8")
         # Slice out the _refresh_live function body.
         marker = "def _refresh_live("
@@ -1088,12 +1049,7 @@ class TestRefreshLiveContextManager:
         This pins the fix so that a future refactor cannot silently
         reintroduce the bare-assignment pattern.
         """
-        src_path = (
-            Path(__file__).resolve().parent.parent
-            / "src"
-            / "sentinel"
-            / "cli.py"
-        )
+        src_path = Path(__file__).resolve().parent.parent / "src" / "sentinel" / "cli.py"
         src = src_path.read_text(encoding="utf-8")
         marker = "def _refresh_live("
         body = src.split(marker, 1)[1].split("\ndef ", 1)[0]

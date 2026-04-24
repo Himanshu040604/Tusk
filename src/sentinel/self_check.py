@@ -261,8 +261,7 @@ class SelfCheckValidator:
         from .constants import READ_INTENT_KEYWORDS
 
         self._compiled_read_intent_patterns: list[re.Pattern[str]] = [
-            re.compile(r"\b" + re.escape(kw) + r"\b")
-            for kw in READ_INTENT_KEYWORDS
+            re.compile(r"\b" + re.escape(kw) + r"\b") for kw in READ_INTENT_KEYWORDS
         ]
 
     def run_self_check(
@@ -329,8 +328,7 @@ class SelfCheckValidator:
             {
                 f.action
                 for f in findings
-                if f.check_type in ("TIER2_IN_POLICY", "TIER2_ACTION_KEPT")
-                and f.action is not None
+                if f.check_type in ("TIER2_IN_POLICY", "TIER2_ACTION_KEPT") and f.action is not None
             }
         )
 
@@ -417,9 +415,7 @@ class SelfCheckValidator:
                 CheckFinding(
                     check_type="ACTION_VALIDATION",
                     severity=CheckSeverity.ERROR,
-                    message=(
-                        f"Invalid action '{action}' in rewritten policy: {result.reason}"
-                    ),
+                    message=(f"Invalid action '{action}' in rewritten policy: {result.reason}"),
                     action=action,
                     remediation=f"Remove invalid action '{action}'",
                 )
@@ -434,9 +430,7 @@ class SelfCheckValidator:
                         "rewritten policy (requires manual review)"
                     ),
                     action=action,
-                    remediation=(
-                        f"Verify action '{action}' exists or refresh the IAM database"
-                    ),
+                    remediation=(f"Verify action '{action}' exists or refresh the IAM database"),
                 )
             )
 
@@ -563,8 +557,7 @@ class SelfCheckValidator:
             # U27: iterate precompiled patterns built at __init__ time.
             intent_lower = config.intent.lower()
             is_read_only = any(
-                pat.search(intent_lower)
-                for pat in self._compiled_read_intent_patterns
+                pat.search(intent_lower) for pat in self._compiled_read_intent_patterns
             )
             if is_read_only:
                 write_actions = self._find_write_actions(policy)

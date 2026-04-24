@@ -38,9 +38,7 @@ import sentinel.hmac_keys as hk
 # ---------------------------------------------------------------------------
 
 
-def test_data_dir_honors_sentinel_data_dir(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_data_dir_honors_sentinel_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """SENTINEL_DATA_DIR is the highest precedence layer."""
     monkeypatch.setenv("SENTINEL_DATA_DIR", str(tmp_path / "overlay"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
@@ -48,9 +46,7 @@ def test_data_dir_honors_sentinel_data_dir(
     assert resolved == tmp_path / "overlay"
 
 
-def test_data_dir_honors_xdg_data_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_data_dir_honors_xdg_data_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """XDG_DATA_HOME fallback when SENTINEL_DATA_DIR absent."""
     monkeypatch.delenv("SENTINEL_DATA_DIR", raising=False)
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
@@ -145,9 +141,7 @@ def test_sign_row_rejects_row_hmac_in_columns() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_write_key_swallows_chmod_oserror(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_key_swallows_chmod_oserror(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """_write_key must swallow OSError from os.chmod (Windows no-op path).
 
     Exercises line 212-214 (except OSError: pass).

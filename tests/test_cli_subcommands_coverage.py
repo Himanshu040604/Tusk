@@ -383,9 +383,7 @@ def test_cmd_managed_unknown_subcommand(
 # ---------------------------------------------------------------------------
 
 
-def test_state_path_honors_xdg_data_home(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_state_path_honors_xdg_data_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """_state_path respects XDG_DATA_HOME env var."""
     from sentinel.cli_fetch import _state_path
 
@@ -394,9 +392,7 @@ def test_state_path_honors_xdg_data_home(
     assert p == tmp_path / "xdg" / "sentinel" / "fetch_state.json"
 
 
-def test_state_path_default_when_no_env(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_state_path_default_when_no_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """_state_path falls back to ~/.local/share when XDG_DATA_HOME absent."""
     from sentinel.cli_fetch import _state_path
 
@@ -452,9 +448,7 @@ def test_check_alert_warns_on_hash_change(
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     state_file = tmp_path / "sentinel" / "fetch_state.json"
     state_file.parent.mkdir(parents=True, exist_ok=True)
-    state_file.write_text(
-        _json.dumps({"url::https://example.com/policy.json": "a" * 64})
-    )
+    state_file.write_text(_json.dumps({"url::https://example.com/policy.json": "a" * 64}))
 
     origin = PolicyOrigin(
         source_type="url",

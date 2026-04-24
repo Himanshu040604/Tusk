@@ -38,8 +38,7 @@ class TestRetryAfterCap:
         wait = _extract_wait(policy, "user_url", lambda: 99999.0)
         returned = wait(self._fake_state())
         assert returned == 5.0, (
-            "Retry-After hint above max_total_wait_seconds must be "
-            "capped to the wall-clock budget"
+            "Retry-After hint above max_total_wait_seconds must be capped to the wall-clock budget"
         )
 
     def test_hint_under_cap_passes_through(self):
@@ -96,10 +95,14 @@ class TestRetryAfterCap:
             returned = wait(self._fake_state())
         assert returned == 5.0
         # Event name should appear in at least one captured record.
-        assert any(
-            "retry_after_cap_engaged" in (r.msg if isinstance(r.msg, str) else str(r))
-            for r in caplog.records
-        ) or any("retry_after_cap_engaged" in str(r.args) for r in caplog.records) or True
+        assert (
+            any(
+                "retry_after_cap_engaged" in (r.msg if isinstance(r.msg, str) else str(r))
+                for r in caplog.records
+            )
+            or any("retry_after_cap_engaged" in str(r.args) for r in caplog.records)
+            or True
+        )
         # Note: structlog event rendering depends on logging_setup
         # configuration; the cap-return value is the authoritative
         # behavioural check.

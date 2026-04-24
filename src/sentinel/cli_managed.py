@@ -95,9 +95,7 @@ def cmd_managed(args: argparse.Namespace) -> int:
                 bypass_of_failure=(verdict == CheckVerdict.FAIL),
                 subcommand="managed",
             )
-        write_output(
-            args, formatter.format_pipeline_result(result, force_emit=force_emit)
-        )
+        write_output(args, formatter.format_pipeline_result(result, force_emit=force_emit))
         findings = list(result.risk_findings) + list(
             getattr(result.self_check_result, "findings", [])
         )

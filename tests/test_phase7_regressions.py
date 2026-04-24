@@ -62,8 +62,7 @@ def test_verify_phase2_tables_aborts_on_safe_stamp(tmp_path: Path) -> None:
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(
-            "CREATE TABLE services (service_prefix TEXT PRIMARY KEY, "
-            "service_name TEXT NOT NULL)"
+            "CREATE TABLE services (service_prefix TEXT PRIMARY KEY, service_name TEXT NOT NULL)"
         )
         conn.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT)")
         conn.commit()
@@ -114,8 +113,7 @@ def test_cmd_wizard_refuses_unknown_intent() -> None:
     )
     # Crucially: no wildcard fallback policy should be emitted.
     assert "service:*" not in result.stdout, (
-        f"Wizard leaked `service:*` wildcard on an unrecognized intent — "
-        f"stdout={result.stdout!r}"
+        f"Wizard leaked `service:*` wildcard on an unrecognized intent — stdout={result.stdout!r}"
     )
 
 
@@ -159,10 +157,7 @@ def test_is_empty_rejects_sql_injection(tmp_path: Path) -> None:
     # payload must never have reached SQL.
     with db.get_connection() as conn:
         tables = {
-            row[0]
-            for row in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
+            row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
     assert "actions" in tables, (
         f"`actions` table missing after SQL-injection probe — "
@@ -175,9 +170,7 @@ def test_is_empty_rejects_sql_injection(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(
-    sys.platform == "win32", reason="POSIX perm check is platform-guarded"
-)
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX perm check is platform-guarded")
 def test_hmac_refuses_to_load_on_broad_perms(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -232,13 +225,10 @@ def test_p0_1_alpha_bulk_load_raises_on_hmac_tamper(
     # recomputing row_hmac -> verify_row() will reject it.
     with db.get_connection() as conn:
         # Pick any seeded row.
-        row = conn.execute(
-            "SELECT action_name, category FROM dangerous_actions LIMIT 1"
-        ).fetchone()
+        row = conn.execute("SELECT action_name, category FROM dangerous_actions LIMIT 1").fetchone()
         assert row is not None, "Expected seeded dangerous_actions rows"
         conn.execute(
-            "UPDATE dangerous_actions SET description = ? "
-            "WHERE action_name = ? AND category = ?",
+            "UPDATE dangerous_actions SET description = ? WHERE action_name = ? AND category = ?",
             ("TAMPERED", row[0], row[1]),
         )
         conn.commit()
@@ -268,8 +258,7 @@ def test_p0_3_cold_start_no_pydantic_settings_in_self_check() -> None:
     # pydantic_settings MUST NOT be imported as a side effect.
     combined = result.stdout + result.stderr
     assert "pydantic_settings" not in combined, (
-        f"Cold-start regression: pydantic_settings imported via self_check.\n"
-        f"Output:\n{combined}"
+        f"Cold-start regression: pydantic_settings imported via self_check.\nOutput:\n{combined}"
     )
 
 
@@ -289,9 +278,7 @@ def test_p1_5_fetchers_refresh_imports_resolve() -> None:
     from sentinel.refresh.cloudsplaining import CloudSplainingLiveFetcher  # noqa: F401
 
 
-def test_p1_8_classify_with_conn_path_used(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_p1_8_classify_with_conn_path_used(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """P1-8: validate_policy on a policy with N actions must open only ONE
     connection via `_classify_action_with_conn`, not N.
     """
@@ -468,8 +455,7 @@ def test_serial_mode_test_isolation_via_per_test_db(tmp_path: Path) -> None:
         conn = sqlite3.connect(p)
         try:
             rows = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' "
-                "AND name='dangerous_actions'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='dangerous_actions'"
             ).fetchall()
         finally:
             conn.close()

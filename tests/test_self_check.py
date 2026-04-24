@@ -324,9 +324,7 @@ class TestSelfCheckResultDataclass:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             _ = result.tier2_excluded
-            deprecations = [
-                w for w in caught if issubclass(w.category, DeprecationWarning)
-            ]
+            deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
             assert len(deprecations) == 1
             assert "tier2_excluded is deprecated" in str(deprecations[0].message)
             assert "tier2_preserved_actions" in str(deprecations[0].message)
@@ -1071,28 +1069,24 @@ class TestTier2Exclusion:
         in_policy_findings = [
             f
             for f in check_result.findings
-            if f.check_type == "TIER2_IN_POLICY"
-            and f.action == "s3:NewUnknownAction"
+            if f.check_type == "TIER2_IN_POLICY" and f.action == "s3:NewUnknownAction"
         ]
         kept_findings = [
             f
             for f in check_result.findings
-            if f.check_type == "TIER2_ACTION_KEPT"
-            and f.action == "s3:NewUnknownAction"
+            if f.check_type == "TIER2_ACTION_KEPT" and f.action == "s3:NewUnknownAction"
         ]
         assert len(in_policy_findings) >= 1, (
-            "TIER2_IN_POLICY must fire for original-validated Tier-2 action "
-            "preserved in rewrite"
+            "TIER2_IN_POLICY must fire for original-validated Tier-2 action preserved in rewrite"
         )
         assert len(kept_findings) >= 1, (
-            "TIER2_ACTION_KEPT must fire for action missing from DB corpus "
-            "in rewritten policy"
+            "TIER2_ACTION_KEPT must fire for action missing from DB corpus in rewritten policy"
         )
         # Aggregation must be deduplicated (set-based).
         # Count the occurrences of the action in tier2_preserved_actions.
-        assert check_result.tier2_preserved_actions.count(
-            "s3:NewUnknownAction"
-        ) == 1, "tier2_preserved_actions must deduplicate via set comprehension"
+        assert check_result.tier2_preserved_actions.count("s3:NewUnknownAction") == 1, (
+            "tier2_preserved_actions must deduplicate via set comprehension"
+        )
 
 
 # ---------------------------------------------------------------------------

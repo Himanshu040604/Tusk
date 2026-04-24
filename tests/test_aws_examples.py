@@ -344,9 +344,7 @@ class TestWriteManifest:
 class TestBenchmarkRunner:
     """Tests for the BenchmarkRunner class."""
 
-    def test_run_single_success(
-        self, tmp_path: Path, migrated_db_template: Path
-    ) -> None:
+    def test_run_single_success(self, tmp_path: Path, migrated_db_template: Path) -> None:
         policy_file = tmp_path / "policy.json"
         policy_file.write_text(json.dumps(VALID_IDENTITY), encoding="utf-8")
         np = NormalizedPolicy(

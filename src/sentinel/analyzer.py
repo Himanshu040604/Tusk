@@ -512,8 +512,7 @@ class RiskAnalyzer:
                     from .database import DatabaseError
 
                     raise DatabaseError(
-                        f"Invalid regex in dangerous_actions "
-                        f"({action_name!r}, {category!r}): {exc}"
+                        f"Invalid regex in dangerous_actions ({action_name!r}, {category!r}): {exc}"
                     ) from exc
                 if category == "exfiltration":
                     exfil.append((compiled, description))

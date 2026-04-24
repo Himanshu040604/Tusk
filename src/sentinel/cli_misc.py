@@ -26,9 +26,7 @@ from .exit_codes import EXIT_INVALID_ARGS, EXIT_IO_ERROR, EXIT_SUCCESS
 _DEBOUNCE_SECONDS = 0.2
 
 
-def _run_pipeline_on_file(
-    path: Path, parent_args: argparse.Namespace
-) -> int:
+def _run_pipeline_on_file(path: Path, parent_args: argparse.Namespace) -> int:
     """Re-run ``cmd_run`` for ``path``, inheriting watch's Namespace.
 
     Previously (U14) this synthesized a fresh ``argparse.Namespace`` with

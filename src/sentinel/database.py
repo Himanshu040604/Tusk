@@ -120,31 +120,33 @@ class DatabaseError(Exception):
 # can never reach the interpolated SELECT path even if the caller forgets
 # the usual ``(table,)`` binding.  Keep in sync with Alembic migrations
 # 0001–0008; updates land atomically with new migration commits.
-_EXPECTED_TABLES: frozenset[str] = frozenset({
-    # Phase 1 (initial schema + Phase-1.5 tweaks)
-    "services",
-    "actions",
-    "resource_types",
-    "condition_keys",
-    "arn_condition_keys",
-    "action_condition_keys",
-    "action_resource_types",
-    "action_dependent_actions",
-    "metadata",
-    "validation_errors",
-    # Phase 2 (dynamic data tables + Task 6 HMAC + Task 7 lookup + Task 10 seeds)
-    "verb_prefixes",
-    "dangerous_actions",
-    "companion_rules",
-    "dangerous_combinations",
-    "action_resource_map",
-    "arn_templates",
-    "managed_policies",
-    # Phase 2 / inventory — lives in inventory.db, included here so the
-    # is_empty shim on inventory Database instances (if any) short-circuits
-    # cleanly rather than raising.
-    "resources",
-})
+_EXPECTED_TABLES: frozenset[str] = frozenset(
+    {
+        # Phase 1 (initial schema + Phase-1.5 tweaks)
+        "services",
+        "actions",
+        "resource_types",
+        "condition_keys",
+        "arn_condition_keys",
+        "action_condition_keys",
+        "action_resource_types",
+        "action_dependent_actions",
+        "metadata",
+        "validation_errors",
+        # Phase 2 (dynamic data tables + Task 6 HMAC + Task 7 lookup + Task 10 seeds)
+        "verb_prefixes",
+        "dangerous_actions",
+        "companion_rules",
+        "dangerous_combinations",
+        "action_resource_map",
+        "arn_templates",
+        "managed_policies",
+        # Phase 2 / inventory — lives in inventory.db, included here so the
+        # is_empty shim on inventory Database instances (if any) short-circuits
+        # cleanly rather than raising.
+        "resources",
+    }
+)
 
 
 class Database:
@@ -267,9 +269,7 @@ class Database:
                     return False
                 # probe[0] is the SQLite-round-tripped identifier —
                 # safe to interpolate inside ANSI quotes.
-                row = conn.execute(
-                    f'SELECT 1 FROM "{probe[0]}" LIMIT 1'
-                ).fetchone()
+                row = conn.execute(f'SELECT 1 FROM "{probe[0]}" LIMIT 1').fetchone()
                 if row is None:
                     return False
             return True

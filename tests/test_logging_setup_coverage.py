@@ -89,9 +89,7 @@ def test_ssl_cert_file_audit_no_env_var(
     ssl_cert_file_audit()
 
 
-def test_ssl_cert_file_audit_missing_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_ssl_cert_file_audit_missing_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """ssl_cert_file_audit warns when env var points at non-existent file."""
     missing = tmp_path / "nonexistent.pem"
     monkeypatch.setenv("SSL_CERT_FILE", str(missing))
@@ -102,9 +100,7 @@ def test_ssl_cert_file_audit_missing_file(
     assert "ssl_cert_file_set_but_missing" in output
 
 
-def test_ssl_cert_file_audit_happy_path(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_ssl_cert_file_audit_happy_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """ssl_cert_file_audit logs sha256 when env var points at a real file."""
     bundle = tmp_path / "ca.pem"
     bundle.write_bytes(b"-----BEGIN CERTIFICATE-----\nstub\n-----END CERTIFICATE-----")

@@ -861,13 +861,9 @@ class TestColdStartBudget:
         timings: list[float] = []
         for _ in range(3):
             t0 = time.time()
-            result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=10
-            )
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             timings.append(time.time() - t0)
-            assert result.returncode == 0, (
-                f"sentinel --version failed: {result.stderr}"
-            )
+            assert result.returncode == 0, f"sentinel --version failed: {result.stderr}"
         median = sorted(timings)[1]
         assert median < self.SUBPROCESS_COLD_START_BUDGET_SECONDS, (
             f"subprocess --version median exceeded "

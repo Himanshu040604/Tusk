@@ -774,9 +774,7 @@ class TestIntegration:
         lambda_missing = [m for m in missing if m.primary_action == "lambda:InvokeFunction"]
         assert len(lambda_missing) > 0
 
-    def test_risk_analyzer_initializes_from_template(
-        self, tmp_path, migrated_db_template
-    ):
+    def test_risk_analyzer_initializes_from_template(self, tmp_path, migrated_db_template):
         """P2-11 α fixture wiring: RiskAnalyzer can bootstrap from a
         template-copied DB without paying migration cost.
 

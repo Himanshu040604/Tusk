@@ -37,6 +37,4 @@ def strip_url_credentials(url: str) -> str:
     host = parts.hostname or ""
     port = parts.port
     netloc = f"{host}:{port}" if port else host
-    return urlunsplit(
-        (parts.scheme, netloc, parts.path, parts.query, parts.fragment)
-    )
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))

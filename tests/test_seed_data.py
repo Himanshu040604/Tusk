@@ -64,21 +64,16 @@ class TestSeedAllBaseline:
         # Cross-check by direct SQL on the resulting DB.
         with sqlite3.connect(str(path)) as conn:
             for table, expected in first.items():
-                got = conn.execute(
-                    f"SELECT COUNT(*) FROM {table}"
-                ).fetchone()[0]
+                got = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
                 assert got == expected, (
-                    f"{table}: {got} rows after second seed, "
-                    f"expected {expected}"
+                    f"{table}: {got} rows after second seed, expected {expected}"
                 )
 
 
 class TestSeedIndividualTables:
     """Per-function tests focusing on the HMAC-signing contract."""
 
-    def test_dangerous_actions_rows_are_hmac_signed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_dangerous_actions_rows_are_hmac_signed(self, tmp_path: Path) -> None:
         """Every seeded ``dangerous_actions`` row must carry row_hmac."""
         path = make_test_db(tmp_path, seed=False)
         with sqlite3.connect(str(path)) as conn:
@@ -93,9 +88,7 @@ class TestSeedIndividualTables:
         # SHA-256 hex = 64 chars; every row must have one.
         assert all(r[0] and len(r[0]) == 64 for r in rows)
 
-    def test_companion_rules_rows_are_hmac_signed(
-        self, tmp_path: Path
-    ) -> None:
+    def test_companion_rules_rows_are_hmac_signed(self, tmp_path: Path) -> None:
         path = make_test_db(tmp_path, seed=False)
         with sqlite3.connect(str(path)) as conn:
             n = seed_companion_rules(conn)
@@ -142,9 +135,7 @@ class TestSeedIndividualTables:
         with pytest.raises(RuntimeError, match="boom"):
             seed_all_baseline(path)
         with sqlite3.connect(str(path)) as conn:
-            remaining = conn.execute(
-                "SELECT COUNT(*) FROM dangerous_actions"
-            ).fetchone()[0]
+            remaining = conn.execute("SELECT COUNT(*) FROM dangerous_actions").fetchone()[0]
         assert remaining == 0, (
             "Baseline seeder must roll the transaction back on a "
             "mid-batch failure; found partial writes."
