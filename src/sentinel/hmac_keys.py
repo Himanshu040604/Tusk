@@ -1,18 +1,42 @@
 """HMAC key derivation for Sentinel — domain-separated sub-keys (Theme D).
 
-Amendment 6 Theme D / NIST SP 800-108 KDF pattern.  The root key at
-``$SENTINEL_DATA_DIR/cache.key`` is NEVER used directly.  Two sub-keys:
+Amendment 6 Theme D / NIST SP 800-108 KDF pattern. The root key at
+``$SENTINEL_DATA_DIR/cache.key`` is NEVER used directly. Two sub-keys
+derived at module import time:
 
 * ``K_cache = HMAC-SHA256(root, b"sentinel-v1/cache")`` — cache integrity.
 * ``K_db    = HMAC-SHA256(root, b"sentinel-v1/db-row")`` — DB row signing.
 
 Rationale: without domain separation, compromise of ``K_cache`` (low-trust
-cache poisoning surface) would also unlock ``K_db`` (high-trust ReDoS
-injection surface).  Derivation happens once per process and is cached in
-module-level globals.
+cache-poisoning surface) would also unlock ``K_db`` (high-trust ReDoS
+injection surface via signed regex rows). Derivation happens once per
+process and is cached in module-level globals.
 
-Phase 3 may relocate this module to ``src/sentinel/net/cache.py::_derive_keys``
-once the ``net/`` package exists; for Phase 2 it lives at the top level.
+Key behaviors:
+
+* **Refuse-to-load on broad POSIX perms** (P2-13 β, v0.6.0):
+  ``_load_or_create_root_key`` stats the key file; if
+  ``mode & 0o077`` is non-zero, raises ``HMACError`` with a
+  ``rotate-key`` recovery hint. Platform-conditionalized -- Windows
+  skips the check (chmod may silently no-op on non-POSIX filesystems).
+* **Signed-row probe on regen** (B2, v0.6.1): ``_db_has_signed_rows``
+  scopes to the key's own data_dir. If signed rows exist and the key
+  is missing / truncated, ``HMACError`` is raised rather than a
+  silent re-generation that would invalidate every signed row.
+  Auto-generation still runs on a genuine first-install state.
+* **Row signing** via ``sign_row`` / ``verify_row`` over canonicalized
+  ``(table, primary_key, row_data)``; used on ``dangerous_actions``,
+  ``companion_rules``, ``managed_policies``, ``arn_templates``,
+  ``action_resource_map``, ``dangerous_combinations``, ``verb_prefixes``.
+* **regenerate_root_key**: admin operation triggered by
+  ``sentinel cache rotate-key``. Purges the derived sub-keys and all
+  cache entries; raises if signed DB rows exist (operator must
+  intentionally accept the invalidation).
+
+This module lives at the top level rather than under ``net/`` because
+both the cache (``net/cache.py``) and the database row signer
+(``database.py``) consume it; co-locating it with either would create
+an awkward dependency.
 """
 
 from __future__ import annotations
