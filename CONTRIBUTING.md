@@ -10,7 +10,11 @@ hygiene and audit-trail discipline are non-negotiable.
 - **OS:** WSL2 (Ubuntu) recommended. Native Linux works identically. macOS
   works for most paths but some filesystem-contention tests budget for
   NTFS-backed WSL2 I/O and may run faster than the budget elsewhere.
-- **Python:** 3.12 pinned via `.python-version`.
+- **Python:** 3.11+ required (3.12 recommended). Enforced at runtime in
+  both `src/sentinel/__init__.py` and `src/sentinel/__main__.py`;
+  `pyproject.toml` sets `requires-python = ">=3.11"`.  There is no
+  `.python-version` file — `uv sync` respects `requires-python`
+  without one.
 - **Package manager:** `uv` (do NOT use plain `pip install`).
 - Clone, then:
   ```bash
@@ -63,16 +67,23 @@ under certain `sys.path` permutations.
 
 If `sentinel fetch` / `sentinel run` fails with a `HMACError`, the local
 `cache.key` is either corrupted, has broad world-permissions (`0o777`),
-or is out of sync with an existing cache. Recovery:
+or is out of sync with an existing cache.  Recover with the targeted
+fix first; the destructive rebuild is a last resort:
 
 ```bash
-# Rebuild the DB + derive a fresh key
-rm data/iam_actions.db
-.venv/bin/sentinel info
+# Preferred: targeted fix — wipe cache entries + regenerate HMAC root
+# key.  Does NOT touch data/iam_actions.db (no re-fetch needed).
+uv run sentinel cache rotate-key
 ```
 
-Alternatively, `sentinel cache rotate-key` wipes the cache and regenerates
-the key without touching the IAM DB.
+If `rotate-key` does not resolve the error (e.g. the IAM DB itself is
+corrupted, not just the cache key), fall back to a full rebuild:
+
+```bash
+# Last resort: destroys the IAM DB and forces a full refetch.
+rm data/iam_actions.db
+uv run sentinel info
+```
 
 ## Commit conventions
 
