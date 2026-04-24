@@ -26,32 +26,53 @@ from .exit_codes import EXIT_INVALID_ARGS, EXIT_IO_ERROR, EXIT_SUCCESS
 _DEBOUNCE_SECONDS = 0.2
 
 
-def _run_pipeline_on_file(path: Path) -> int:
-    """Re-use the standard run path by minting a synthetic argparse NS."""
+def _run_pipeline_on_file(
+    path: Path, parent_args: argparse.Namespace
+) -> int:
+    """Re-run ``cmd_run`` for ``path``, inheriting watch's Namespace.
+
+    Previously (U14) this synthesized a fresh ``argparse.Namespace`` with
+    18 hardcoded field defaults.  That pattern had two problems:
+      1. Every time ``p_run`` gained a new flag (e.g. ``force_emit_rewrite``
+         in v0.8.1), this function silently fell out of sync — the flag
+         would default to whatever ``getattr(args, ..., default)`` saw in
+         ``cmd_run`` rather than the parser's registered default.
+      2. Hardcoded ``output_format="text"``, ``output=None``, ``database=
+         None``, ``inventory=None`` overrode any user-supplied
+         ``-f/-o/-d/-i`` flags the operator passed to ``sentinel watch``.
+
+    Fix: clone the watch-level Namespace (which already carries the shared
+    ``parent`` parser's flags), override the two truly run-specific bits
+    (``policy_file``, ``input_format``), and fill in the remaining
+    ``p_run``-only defaults only when absent.
+    """
     from .cli import cmd_run
 
-    ns = argparse.Namespace(
-        policy_file=str(path),
-        input_format="auto",
-        intent=None,
-        account_id=None,
-        region=None,
-        strict=False,
-        max_retries=3,
-        no_companions=False,
-        no_conditions=False,
-        interactive=False,
-        policy_type=None,
-        condition_profile="moderate",
-        allow_wildcard_actions=False,
-        allow_wildcard_resources=False,
-        output_format="text",
-        output=None,
-        database=None,
-        inventory=None,
-        batch=None,
-        fail_fast=False,
+    ns = argparse.Namespace(**vars(parent_args))
+    ns.policy_file = str(path)
+    ns.input_format = "auto"
+    # Keep in sync with p_run in cli.py.  Fields ``cmd_run`` reads that
+    # ``p_watch`` does not expose on its own parser.
+    _RUN_DEFAULTS: tuple[tuple[str, object], ...] = (
+        ("intent", None),
+        ("account_id", None),
+        ("region", None),
+        ("strict", False),
+        ("max_retries", 3),
+        ("no_companions", False),
+        ("no_conditions", False),
+        ("interactive", False),
+        ("policy_type", None),
+        ("condition_profile", "moderate"),
+        ("allow_wildcard_actions", False),
+        ("allow_wildcard_resources", False),
+        ("force_emit_rewrite", False),
+        ("batch", None),
+        ("fail_fast", False),
     )
+    for field, default in _RUN_DEFAULTS:
+        if not hasattr(ns, field):
+            setattr(ns, field, default)
     return cmd_run(ns)
 
 
@@ -82,7 +103,7 @@ def cmd_watch(args: argparse.Namespace) -> int:
                 last_fire[path_str] = now
                 print(f"[WARN] re-validating {p}", file=sys.stderr)
                 try:
-                    _run_pipeline_on_file(p)
+                    _run_pipeline_on_file(p, args)
                 except Exception as exc:  # noqa: BLE001 — surface + keep watching.
                     print(f"[ERROR] {p}: {exc}", file=sys.stderr)
     except KeyboardInterrupt:
