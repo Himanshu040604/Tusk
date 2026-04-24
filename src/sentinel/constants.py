@@ -13,6 +13,14 @@ module-level ``__getattr__`` accessor that reads live ``Settings`` at
 call time.  The public import surface (``from .constants import X``)
 stays unchanged so callers don't churn, but the underlying values now
 resolve from TOML.
+
+Access-pattern note (U15 audit): the ``__getattr__`` resolver is invoked
+only on attribute lookups against the module object (``constants.X``).
+``from .constants import X`` triggers it ONCE at import time and binds
+the resolved value into the importer's namespace; subsequent references
+are local-name lookups with zero resolver overhead.  Callers should
+therefore always use ``from .constants import X`` at module or function
+scope rather than ``import sentinel.constants as c; c.X`` in a hot loop.
 """
 
 from __future__ import annotations
