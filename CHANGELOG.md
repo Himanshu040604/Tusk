@@ -5,6 +5,44 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2026-04-24
+
+Maintenance release. Eight post-v0.8.0 review findings, four pre-existing
+items carried forward from earlier audits, docs realignment, and working-tree
+hygiene.
+
+### Fixed (review findings)
+
+- **M1** `tier2_preserved_actions` now unions TIER2_IN_POLICY + TIER2_ACTION_KEPT (field was structurally incomplete).
+- **M2** `--force-emit-rewrite` bypass now emits audit-trail log + JSON field (OWASP A09 gap closed).
+- **L1** Stale `_validate_actions` docstring fixed to reflect v0.8.0 Tier-2 preservation semantics.
+- **L2** `--force-emit-rewrite` moved off shared parser onto `run`/`fetch`/`managed analyze` subcommands only (help text no longer misleading).
+- **L3** `_is_additions_only` now uses explicit inclusion-based change-type allowlist (robust to future change types).
+
+### Fixed (pre-existing items)
+
+- **PE1** `HMACError` now caught at CLI outer handlers with actionable recovery message + `EXIT_IO_ERROR`.
+- **PE2** `cmd_info` and `sentinel refresh` now return `EXIT_IO_ERROR` on alembic-probe / refresh-errors (previously `EXIT_SUCCESS`, hid failures).
+- **PE3** Fetch-state `OSError` in `--alert-on-new` path now visible via stderr `[WARN]`.
+- **PE4** `test_db_with_500_services` WSL2 perf flake handled via adaptive budget under parallel mode.
+
+### Deprecated
+
+- **L4** `SelfCheckResult.tier2_excluded` now emits `DeprecationWarning`. Removal scheduled for v0.9.0. Use `tier2_preserved_actions: list[str]` (added in v0.8.0).
+
+### Changed
+
+- JSON output gains `"force_emit_rewrite_bypass": true` and `"bypass_reason"` fields when bypass is used.
+- Text formatter emits `[!] WARNING: --force-emit-rewrite bypassed FAIL verdict` banner when bypass occurs.
+- Markdown formatter emits `> [!] **FORCE-EMIT BYPASS:**` blockquote when bypass occurs.
+
+### Internal
+
+- **C1** Dead `typing.List/Dict/Optional` imports removed from `formatters.py`.
+- **C2** `yaml` import deferred to callsite in `parser.py` — cold-start ~140ms median (from ~191ms) on `sentinel --version`.
+- Docs debt closed: `prod_imp.md § 4.2` forward-reference updated to include Amendment 10, § 6.3 migration-contract updated, new § 8.7 documents JSON schema fields. New `CONTRIBUTING.md`. Amendment 11 in § 17.
+- Working-tree cleanup: `demo.py` committed as stakeholder demo runner; `.gitignore` additions for `*.log` pattern; `demo_phase2.py` deletion staged.
+
 ## [0.8.0] - 2026-04-24
 
 Phase 8 usability + output-correctness release. Six issues surfaced
