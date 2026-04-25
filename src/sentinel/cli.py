@@ -1210,6 +1210,22 @@ def cmd_refresh(args: argparse.Namespace) -> int:
     if source in _NEW_SOURCES:
         return _cmd_refresh_new_source(args, source, db_path)
 
+    # PE9: policy-sentry now supports --live (fetches the upstream
+    # iam-definition.json over the SSRF-guarded HTTP client and ingests
+    # via PolicySentryLoader).  Routed directly to _refresh_live without
+    # joining _NEW_SOURCES because the offline (--data-path) path uses
+    # the same loader anyway — the only difference is the byte source.
+    if source == "policy-sentry" and getattr(args, "live", False):
+        from .database import Database, DatabaseError
+
+        try:
+            db = Database(Path(db_path))
+            db.create_schema()
+        except DatabaseError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return EXIT_IO_ERROR
+        return _refresh_live(db, source)
+
     # Legacy sources (policy-sentry, aws-docs) require --data-path.
     if args.data_path is None:
         print(
@@ -1401,10 +1417,13 @@ _MANAGED_POLICY_SEEDS: tuple[tuple[str, str, str], ...] = (
 )
 
 
-_CLOUDSPLAINING_RULESET_URL = (
+# PE9: replaces ``_CLOUDSPLAINING_RULESET_URL`` (deleted).  Cloudsplaining
+# does NOT host an iam_definition.json — it imports policy_sentry's at
+# runtime.  The new URL is the actual upstream the data lives at.
+_POLICY_SENTRY_LIVE_URL = (
     "https://raw.githubusercontent.com/"
-    "salesforce/cloudsplaining/main/"
-    "cloudsplaining/shared/iam_definition.json"
+    "salesforce/policy_sentry/master/"
+    "policy_sentry/shared/data/iam-definition.json"
 )
 
 
@@ -1415,13 +1434,68 @@ def _build_live_client():
     return _build_http_client()
 
 
-def _refresh_live(db, source: str) -> int:
+def _refresh_live(db: "Database", source: str) -> int:
     """Run the live scraper for Phase 4 sources (Task 11).
 
-    ``managed-policies`` enumerates :data:`_MANAGED_POLICY_SEEDS` and
-    upserts each.  ``cloudsplaining`` fetches the full ruleset JSON
-    and ingests it.  Errors per-source aggregate into the stats block.
+    ``policy-sentry`` (PE9) fetches the upstream IAM definition JSON and
+    delegates to :class:`PolicySentryLoader`.  ``managed-policies``
+    enumerates :data:`_MANAGED_POLICY_SEEDS` and upserts each.
+    ``cloudsplaining`` is deprecated (PE9) — the URL it pointed at never
+    existed; the deprecation stub returns ``EXIT_INVALID_ARGS`` with an
+    actionable message.  Errors per-source aggregate into the stats
+    block where applicable.
     """
+    if source == "policy-sentry":
+        # PE9: live-fetch path for policy_sentry's IAM definition
+        # (~19MB).  Bypasses the SEC-M1 default 10MB cap via the
+        # ``max_bytes_override`` opt-in escape hatch on
+        # ``SentinelHTTPClient.get`` — a per-call kwarg that does NOT
+        # mutate the global cap or affect other call sites.
+        import tempfile
+        from .refresh.policy_sentry_loader import PolicySentryLoader
+
+        with _build_live_client() as client:
+            try:
+                resp = client.get(
+                    _POLICY_SENTRY_LIVE_URL,
+                    source="github",
+                    max_bytes_override=26_214_400,  # 25MB headroom
+                )
+            except Exception as exc:  # noqa: BLE001
+                print(
+                    f"Error: policy-sentry live fetch failed: {exc}",
+                    file=sys.stderr,
+                )
+                return EXIT_IO_ERROR
+        # ``PolicySentryLoader.load_from_file`` accepts a Path, not raw
+        # bytes — spool the response body through a tempfile rather than
+        # refactor the loader's I/O surface for one caller.  ``wb`` mode
+        # + ``resp.content`` keeps the body byte-exact (no charset
+        # re-encoding round-trip).
+        with tempfile.NamedTemporaryFile(mode="wb", suffix=".json", delete=False) as tmp:
+            tmp.write(resp.content)
+            tmp_path = Path(tmp.name)
+        try:
+            loader = PolicySentryLoader(db)
+            stats, _changelog = loader.load_from_file(tmp_path)
+        finally:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+        print(
+            f"Refresh complete: {stats.services_added} services, "
+            f"{stats.actions_added} actions, "
+            f"{stats.resource_types_added} resource types, "
+            f"{stats.condition_keys_added} condition keys"
+        )
+        for err in stats.errors:
+            print(f"[WARN] {err}", file=sys.stderr)
+        # H1 / PE2 parity: stats.errors non-empty => EXIT_IO_ERROR.
+        if stats.errors:
+            return EXIT_IO_ERROR
+        return EXIT_SUCCESS
+
     if source == "managed-policies":
         from .refresh.aws_managed_policies import ManagedPoliciesLiveScraper
 
@@ -1455,30 +1529,24 @@ def _refresh_live(db, source: str) -> int:
         return EXIT_SUCCESS if not errors else EXIT_IO_ERROR
 
     if source == "cloudsplaining":
-        from .refresh.cloudsplaining import CloudSplainingLiveFetcher
-
-        # Architect Concern 3 (v0.6.2): use context manager so the client is
-        # closed even if an exception fires between _build_live_client() and
-        # the try-block.  SentinelHTTPClient.__enter__/__exit__ is defined
-        # in net/client.py.
-        with _build_live_client() as client:
-            try:
-                fetcher = CloudSplainingLiveFetcher(db, client)
-                stats = fetcher.fetch_and_load(_CLOUDSPLAINING_RULESET_URL)
-            except Exception as exc:  # noqa: BLE001
-                print(f"Error: cloudsplaining live fetch failed: {exc}", file=sys.stderr)
-                return EXIT_IO_ERROR
+        # PE9: deprecation stub.  The previous implementation fetched
+        # ``raw.githubusercontent.com/.../cloudsplaining/.../iam_definition.json``
+        # which has always returned 404 — cloudsplaining doesn't host an
+        # IAM definition file; it imports policy_sentry's at runtime.
+        # The whole live-fetch path was architecturally confused: the
+        # data labelled "cloudsplaining" was actually policy_sentry's.
+        # Use ``--source policy-sentry --live`` for the IAM definition
+        # (PE9 wired this above).  Offline ``--source cloudsplaining
+        # --data-path <file>`` ingestion of dangerous_actions /
+        # dangerous_combinations rules is unaffected.
         print(
-            f"Refresh complete: {stats.actions_added} dangerous actions, "
-            f"{stats.combinations_added} combinations, "
-            f"{stats.skipped} skipped."
+            "Error: --source cloudsplaining --live has been removed "
+            "(upstream URL never existed).  Use --source policy-sentry "
+            "--live for the IAM definition, or --source cloudsplaining "
+            "--data-path <file> for offline rule ingestion.",
+            file=sys.stderr,
         )
-        for err in stats.errors:
-            print(f"[WARN] {err}", file=sys.stderr)
-        # H1 fix: mirror PE2 — stats.errors non-empty => EXIT_IO_ERROR.
-        if stats.errors:
-            return EXIT_IO_ERROR
-        return EXIT_SUCCESS
+        return EXIT_INVALID_ARGS
 
     print(f"Error: --live not supported for source {source!r}", file=sys.stderr)
     return EXIT_INVALID_ARGS

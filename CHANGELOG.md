@@ -5,6 +5,70 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2026-04-25
+
+PE9 release: refresh-source repoint after upstream cloudsplaining /
+policy_sentry data-layer reorganisation.
+
+### Fixed
+
+- **PE9** `sentinel refresh --source policy-sentry --live` now actually
+  fetches and ingests the upstream IAM definition file
+  (``https://raw.githubusercontent.com/salesforce/policy_sentry/master/policy_sentry/shared/data/iam-definition.json``,
+  ~19MB).  Previously, no `--live` branch existed for `policy-sentry`,
+  so the flag silently fell through to the legacy `--data-path`
+  requirement and errored out.  The new branch fetches via
+  ``SentinelHTTPClient.get`` (SSRF-guarded, retry-budgeted, audit-
+  logged), spools the response bytes through a `tempfile.NamedTemporary
+  File` in `wb` mode (byte-exact, no charset re-encoding), and
+  delegates to ``PolicySentryLoader.load_from_file``.  Ingests 445
+  services, 20,455 actions, 2,167 resource types, 2,242 condition
+  keys end-to-end on the reference upstream snapshot.
+
+### Added
+
+- **PE9** New keyword-only `max_bytes_override: int | None = None`
+  parameter on `SentinelHTTPClient.get` (and threaded through
+  `_fetch_live` → `_one_attempt`).  Per-call opt-in escape hatch
+  around SEC-M1's response-size cap for known-large fetches whose
+  source is trusted (e.g. policy_sentry's IAM definition).  Default
+  `None` preserves the global `settings.network.max_download_bytes`
+  ceiling for every other call site.  Keyword-only positioning
+  prevents accidental positional misuse.  Override propagates
+  through redirect hops; do not opt in for URLs whose redirect
+  target you cannot vouch for.
+
+### Removed
+
+- **PE9** `--source cloudsplaining --live` removed.  The hardcoded
+  URL it fetched (``raw.githubusercontent.com/salesforce/cloudsplaining/main/cloudsplaining/shared/iam_definition.json``)
+  has always returned 404 — cloudsplaining doesn't host an IAM
+  definition file; it imports policy_sentry's at runtime.  The whole
+  live-fetch path was architecturally confused: data labelled
+  "cloudsplaining" was actually policy_sentry's.  Calling the flag
+  now returns `EXIT_INVALID_ARGS` with an actionable message
+  pointing at `--source policy-sentry --live`.  Offline `--source
+  cloudsplaining --data-path <file>` ingestion of `dangerous_actions`
+  / `dangerous_combinations` rules is unaffected — the
+  `CloudSplainingLoader` class remains exported.
+- `CloudSplainingLiveFetcher` removed from
+  `sentinel.refresh.cloudsplaining.__all__`.  The class itself is
+  kept for now as scaffolding in case a real upstream
+  cloudsplaining-specific live endpoint surfaces; until then,
+  importing it triggers a deprecation pointer in PR review rather
+  than a NameError.
+
+### Tests
+
+- New `TestRefreshLiveContextManager.test_cloudsplaining_live_returns_invalid_args`
+  pins the deprecation stub at `EXIT_INVALID_ARGS` with the
+  ``policy-sentry --live`` pointer in stderr.
+- New `TestRefreshLiveContextManager.test_policy_sentry_live_build_client_raises_propagates`
+  parallels the H2 regression for managed-policies — confirms the
+  new policy-sentry branch uses ``with _build_live_client()`` and
+  propagates ``HMACError`` (and other constructor failures)
+  cleanly rather than ``UnboundLocalError``.
+
 ## [0.8.2] - 2026-04-24
 
 Audit cycle + documentation release. Eight post-v0.8.1 findings from a

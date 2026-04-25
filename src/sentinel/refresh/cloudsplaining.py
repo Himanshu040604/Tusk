@@ -124,8 +124,16 @@ class CloudSplainingLiveFetcher:
         return self._loader._ingest(raw)
 
 
+# PE9: ``CloudSplainingLiveFetcher`` is no longer wired into the
+# ``--source cloudsplaining --live`` CLI path (the upstream URL never
+# existed).  Removed from ``__all__`` to signal it is no longer a
+# supported public API surface.  The class itself is kept for now as
+# scaffolding in case a real upstream cloudsplaining-specific live
+# endpoint surfaces — at which point a follow-up commit would re-export
+# it and wire a new ``cloudsplaining --live`` URL.  Until then,
+# attempting to import it triggers a deprecation pointer in PR review
+# rather than a NameError.
 __all__ = [
-    "CloudSplainingLiveFetcher",
     "CloudSplainingLoader",
     "CloudSplainingStats",
 ]

@@ -1118,3 +1118,37 @@ class TestRefreshLiveContextManager:
             "H2: managed-policies branch must close the client via "
             "context-manager __exit__; client.closed was never set."
         )
+
+    def test_cloudsplaining_live_returns_invalid_args(self, capsys):
+        """PE9: --source cloudsplaining --live is deprecated.
+
+        The previous implementation fetched a 404 URL (cloudsplaining
+        never hosted iam_definition.json — it imports policy_sentry's
+        at runtime).  The deprecation stub returns EXIT_INVALID_ARGS
+        with an actionable pointer at ``--source policy-sentry --live``.
+        """
+        import src.sentinel.cli as cli_mod
+
+        rc = cli_mod._refresh_live(db=None, source="cloudsplaining")
+        assert rc == EXIT_INVALID_ARGS
+        captured = capsys.readouterr()
+        assert "policy-sentry --live" in captured.err, (
+            "Deprecation message must point users at the working policy-sentry --live source."
+        )
+
+    def test_policy_sentry_live_build_client_raises_propagates(self, monkeypatch):
+        """PE9: HMACError on _build_live_client surfaces cleanly.
+
+        Mirrors the H2 regression test for managed-policies — confirms
+        the new policy-sentry branch uses ``with _build_live_client()``
+        and propagates constructor errors rather than UnboundLocalError.
+        """
+        from src.sentinel.hmac_keys import HMACError
+        import src.sentinel.cli as cli_mod
+
+        def _raise_hmac():
+            raise HMACError("simulated key-permission failure")
+
+        monkeypatch.setattr(cli_mod, "_build_live_client", _raise_hmac)
+        with pytest.raises(HMACError, match="simulated key-permission failure"):
+            cli_mod._refresh_live(db=None, source="policy-sentry")

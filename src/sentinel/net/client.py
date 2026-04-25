@@ -177,6 +177,7 @@ class SentinelHTTPClient:
         source: str,
         headers: dict[str, str] | None,
         etag: str | None,
+        max_bytes_override: int | None = None,
     ) -> tuple[httpx.Response, dict[str, str]]:
         """Issue one HTTP GET and classify the response.
 
@@ -206,7 +207,17 @@ class SentinelHTTPClient:
         # once — but it reliably prevents cache poisoning and downstream
         # consumption of oversized responses.  A full streaming
         # rewrite is the long-term answer (tracked separately).
-        limit = self._settings.network.max_download_bytes
+        # PE9: ``max_bytes_override`` is an opt-in per-call escape hatch
+        # for known-large fetches (e.g. policy_sentry's ~19MB IAM
+        # definition).  When None (default), the global SEC-M1 cap
+        # applies.  Override propagates through redirect hops too — if
+        # the larger cap is unsafe for an attacker-controlled redirect
+        # target, the caller must not opt in.
+        limit = (
+            max_bytes_override
+            if max_bytes_override is not None
+            else self._settings.network.max_download_bytes
+        )
         declared = resp.headers.get("Content-Length")
         if declared is not None:
             try:
@@ -254,6 +265,8 @@ class SentinelHTTPClient:
         url: str,
         source: str = "user_url",
         headers: dict[str, str] | None = None,
+        *,
+        max_bytes_override: int | None = None,
     ) -> httpx.Response:
         """Fetch ``url`` through the full hardened pipeline.
 
@@ -267,6 +280,12 @@ class SentinelHTTPClient:
                 back to ``user_url`` budgets.
             headers: Additional request headers; ``If-None-Match`` auto-
                 injected when the cache has a stored ETag.
+            max_bytes_override: PE9 opt-in per-call escape hatch around
+                SEC-M1's response-size cap.  When None (default), the
+                global ``settings.network.max_download_bytes`` applies.
+                Use ONLY for known-large fetches whose source is trusted
+                (e.g. policy_sentry's ~19MB IAM definition file).
+                Keyword-only to prevent accidental positional misuse.
 
         Returns:
             :class:`httpx.Response`.  Cache hits synthesise a 200 response
@@ -295,7 +314,14 @@ class SentinelHTTPClient:
 
             # Cache miss — go to network.
             etag_for_request: str | None = None  # no stored entry either
-            return self._fetch_live(url, source, headers, etag_for_request, span)
+            return self._fetch_live(
+                url,
+                source,
+                headers,
+                etag_for_request,
+                span,
+                max_bytes_override=max_bytes_override,
+            )
 
     def _fetch_live(
         self,
@@ -304,6 +330,7 @@ class SentinelHTTPClient:
         headers: dict[str, str] | None,
         etag: str | None,
         span,  # OTel span; typed as Any to avoid SDK dep
+        max_bytes_override: int | None = None,
     ) -> httpx.Response:
         """Execute a retrying GET with manual redirect chasing.
 
@@ -333,7 +360,13 @@ class SentinelHTTPClient:
             for attempt in self._retry.retrying(source, retry_after_hook=_retry_after_hint):
                 with attempt:
                     try:
-                        resp, _sent = self._one_attempt(current_url, source, headers, etag)
+                        resp, _sent = self._one_attempt(
+                            current_url,
+                            source,
+                            headers,
+                            etag,
+                            max_bytes_override=max_bytes_override,
+                        )
                         last_response = resp
                     except httpx.HTTPStatusError as hse:
                         last_response = hse.response
