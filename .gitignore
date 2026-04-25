@@ -20,8 +20,24 @@ htmlcov/
 *.swp
 *.swo
 
-# Claude Code
+# Editor / agent caches (any agentic tooling)
 .claude/
+
+# Local-only project context — not shipped, owners may keep a private
+# copy on disk for personal workflow notes.
+CLAUDE.md
+FILE_TREE.txt
+
+# Tooling caches (explicit; previously inherited from a global gitignore)
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+
+# Sub-agent / review scratch reports (parallel review chains write these)
+.agent*_report.md
+
+# Loose screenshots in repo root (test captures, demo grabs)
+w[0-9]*.png
 
 # OS
 .DS_Store
@@ -47,6 +63,16 @@ agent_state/
 # than the benchmark fixture (see test_performance.py:858-861), so
 # this directory normally stays empty — the gitignore is defensive.
 .benchmarks/
+
+# SQLite databases populated on first run.  Users run
+# `sentinel refresh --source policy-sentry --live` (see README
+# "Getting started" Step 4) which creates these files locally.
+# Tracking the populated corpus would mean a 5.7 MB binary diff
+# per refresh AND HMAC signatures derived from the developer's
+# local key would not validate on user machines.
+data/iam_actions.db
+data/resource_inventory.db
+data/known_services.json
 
 # Downloaded AWS examples (generated at runtime)
 data/aws_examples/
