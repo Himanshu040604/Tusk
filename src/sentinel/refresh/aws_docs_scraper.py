@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.sentinel.database import Database
+    from ..database import Database
 
 from .policy_sentry_loader import RefreshStats, ChangelogEntry
 

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from src.sentinel.database import Database
+    from ..database import Database
 
 
 @dataclass
@@ -230,7 +230,7 @@ class PolicySentryLoader:
             return stats, changelog
 
         # Insert service
-        from src.sentinel.database import Service
+        from ..database import Service
 
         self.database.insert_service(Service(service_prefix=prefix, service_name=service_name))
         stats.services_added += 1
@@ -287,7 +287,7 @@ class PolicySentryLoader:
             stats: Stats counter to update.
             changelog: Changelog list to append to.
         """
-        from src.sentinel.database import Action
+        from ..database import Action
 
         action_name = priv_data.get("privilege", "")
         access_level = priv_data.get("access_level", "Read")
