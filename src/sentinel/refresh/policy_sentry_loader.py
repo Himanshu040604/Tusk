@@ -62,6 +62,26 @@ _ACCESS_LEVEL_MAP: dict[str, str] = {
 }
 
 
+def _iter_items(container: Any) -> Any:
+    """Tolerate old ``list[dict]`` and new ``dict[str, dict]`` shapes (PE8).
+
+    Upstream policy_sentry's IAM definition file changed shape: the
+    ``privileges`` / ``resources`` / ``conditions`` collections are
+    now keyed by name (``dict[str, dict]``) instead of being a flat
+    ``list[dict]``.  Iterating a dict directly yields keys (strings),
+    which then crash when the loader calls ``.get()`` on them.
+
+    This helper unwraps both shapes to a values-only iterable so the
+    loader works against either schema.  Malformed inputs (None,
+    string, int) iterate empty rather than crashing.
+    """
+    if isinstance(container, dict):
+        return container.values()
+    if isinstance(container, list):
+        return container
+    return []
+
+
 class PolicySentryLoader:
     """Load data from policy_sentry JSON into the IAM actions database.
 
@@ -243,31 +263,43 @@ class PolicySentryLoader:
             )
         )
 
+        # PE8: ``_iter_items`` tolerates both old list[dict] and new
+        # dict[str, dict] shapes that upstream policy_sentry has shipped.
+        # ``_safe_label`` keeps the exception handler from double-faulting
+        # when an item happens to be non-dict (defensive against future
+        # schema drift).
+        def _safe_label(item: Any, key: str) -> str:
+            return (
+                item.get(key, "?")
+                if isinstance(item, dict)
+                else f"<non-dict:{type(item).__name__}>"
+            )
+
         # Insert privileges (actions)
-        for priv in data.get("privileges", []):
+        for priv in _iter_items(data.get("privileges", [])):
             try:
                 self._insert_action(prefix, priv, stats, changelog)
             except Exception as e:
                 stats.errors.append(
-                    f"Error inserting action {prefix}:{priv.get('privilege', '?')}: {e}"
+                    f"Error inserting action {prefix}:{_safe_label(priv, 'privilege')}: {e}"
                 )
 
         # Insert resource types
-        for rt in data.get("resources", []):
+        for rt in _iter_items(data.get("resources", [])):
             try:
                 self._insert_resource_type(prefix, rt, stats, changelog)
             except Exception as e:
                 stats.errors.append(
-                    f"Error inserting resource type {prefix}/{rt.get('resource', '?')}: {e}"
+                    f"Error inserting resource type {prefix}/{_safe_label(rt, 'resource')}: {e}"
                 )
 
         # Insert condition keys
-        for ck in data.get("conditions", []):
+        for ck in _iter_items(data.get("conditions", [])):
             try:
                 self._insert_condition_key(prefix, ck, stats, changelog)
             except Exception as e:
                 stats.errors.append(
-                    f"Error inserting condition key {ck.get('condition', '?')}: {e}"
+                    f"Error inserting condition key {_safe_label(ck, 'condition')}: {e}"
                 )
 
         return stats, changelog
@@ -445,7 +477,16 @@ class PolicySentryLoader:
         if not prefix:
             errors.append(f"{source_name}: Missing 'prefix' field")
 
-        for priv in data.get("privileges", []):
+        for priv in _iter_items(data.get("privileges", [])):
+            # PE8: defensive against malformed entries — Agent 3 noted
+            # ``_validate_service_data`` lacks the try/except wrapper
+            # ``_process_service_data`` has, so a non-dict item would
+            # crash the dry-run path here.
+            if not isinstance(priv, dict):
+                errors.append(
+                    f"{source_name}: Privilege entry is not a dict (got {type(priv).__name__})"
+                )
+                continue
             if not priv.get("privilege"):
                 errors.append(f"{source_name}: Privilege entry missing 'privilege' field")
             al = priv.get("access_level", "")
