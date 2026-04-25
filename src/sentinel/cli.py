@@ -1638,9 +1638,11 @@ def cmd_info(args: argparse.Namespace) -> int:
     if service_count == 0 or action_count == 0:
         print(
             "[WARN] AWS action corpus is empty (services: 0, actions: 0). "
-            "Run: sentinel refresh --source policy-sentry --data-path <path-to-policy_sentry-json> "
-            "to populate it. Without this, all actions classify as Tier 2 (unknown) "
-            "and the rewriter operates in degraded mode.",
+            "Run: sentinel refresh --source policy-sentry --live "
+            "to fetch + load the corpus (~19 MB, 1-3 min). "
+            "Offline alternative: --data-path <path-to-policy_sentry-json>. "
+            "Without populating the corpus, all actions classify as Tier 2 "
+            "(unknown) and the rewriter operates in degraded mode.",
             file=sys.stderr,
         )
 
@@ -1886,9 +1888,11 @@ def main() -> None:
     if args.command in _CORPUS_DEPENDENT and not _probe_db.is_corpus_populated():
         print(
             "[WARN] AWS action corpus is empty (services: 0, actions: 0). "
-            "Run: sentinel refresh --source policy-sentry --data-path <path-to-policy_sentry-json> "
-            "to populate it. Without this, all actions classify as Tier 2 (unknown) "
-            "and the rewriter operates in degraded mode.",
+            "Run: sentinel refresh --source policy-sentry --live "
+            "to fetch + load the corpus (~19 MB, 1-3 min). "
+            "Offline alternative: --data-path <path-to-policy_sentry-json>. "
+            "Without populating the corpus, all actions classify as Tier 2 "
+            "(unknown) and the rewriter operates in degraded mode.",
             file=sys.stderr,
         )
 
