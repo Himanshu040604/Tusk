@@ -72,7 +72,13 @@ agent_state/
 # local key would not validate on user machines.
 data/iam_actions.db
 data/resource_inventory.db
-data/known_services.json
+
+# NOTE: data/known_services.json is intentionally NOT ignored.
+# It is the Layer 2 fallback the parser loads when no DB is present
+# (see src/sentinel/parser.py:183 and src/sentinel/constants.py:145).
+# At ~8 KB and HMAC-free, it is a shipped artifact, not a generated
+# one.  Refreshes overwrite it; commit the diff like any other source
+# file.  See tests/test_data_files.py for the regression guard.
 
 # Downloaded AWS examples (generated at runtime)
 data/aws_examples/
