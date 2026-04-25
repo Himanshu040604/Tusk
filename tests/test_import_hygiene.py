@@ -31,18 +31,13 @@ def test_no_absolute_src_sentinel_imports_in_package() -> None:
     ``tests/`` legitimately use ``from src.sentinel.*`` because pytest
     sets ``pythonpath = ["src"]`` and that absolute form works there.
     """
-    pkg_root = (
-        pathlib.Path(__file__).resolve().parent.parent / "src" / "sentinel"
-    )
+    pkg_root = pathlib.Path(__file__).resolve().parent.parent / "src" / "sentinel"
     offenders: list[str] = []
     for path in pkg_root.rglob("*.py"):
         text = path.read_text(encoding="utf-8")
         for i, line in enumerate(text.splitlines(), start=1):
             if _PATTERN.match(line):
-                offenders.append(
-                    f"{path.relative_to(pkg_root.parent.parent)}:{i}: "
-                    f"{line.strip()}"
-                )
+                offenders.append(f"{path.relative_to(pkg_root.parent.parent)}:{i}: {line.strip()}")
     assert not offenders, (
         "Absolute ``from src.sentinel.*`` imports break runtime under "
         "``uv run sentinel`` because ``src`` is not a package — only "
