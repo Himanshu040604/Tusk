@@ -15,17 +15,96 @@ Sentinel runs a four-step pipeline on an IAM policy document:
 
 A policy input can be a local file, stdin, clipboard, URL, GitHub path, AWS sample page, AWS managed policy (local DB), CloudSplaining example, or a whole directory (batch mode).
 
-## Quickstart
+## Getting started
+
+New to the project? This walks you through install, first run, and common tasks. No prior knowledge of the codebase is assumed.
+
+### Step 1 -- Check your prerequisites
+
+You need:
+
+- **Python 3.11 or newer** (`python3 --version` to check)
+- **Git** (`git --version`)
+- **`uv`** -- the package manager this project uses. Install it once with:
+  ```bash
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  ```
+  (Windows: `powershell -c "irm https://astral.sh/uv/install.ps1 | iex"`. More options at https://docs.astral.sh/uv/getting-started/installation.)
+
+### Step 2 -- Clone and install
 
 ```bash
 git clone <repo-url>
 cd klarna
-uv sync --all-extras             # installs runtime + dev deps
-uv run sentinel info             # sanity-check the install
+uv sync --all-extras
+```
+
+`uv sync` reads `pyproject.toml`, creates a virtual environment in `.venv/`, and installs everything in one shot. You don't need to run `python -m venv` yourself.
+
+### Step 3 -- Verify the install works
+
+```bash
+uv run sentinel --version
+uv run sentinel info
+```
+
+If `info` shows `Services: 0  Actions: 0`, that's expected on first install -- the IAM action database starts empty.
+
+### Step 4 -- Load the IAM action database (one-time)
+
+The action corpus (~20,000 IAM actions across ~445 AWS services) is fetched live from the `policy_sentry` upstream project:
+
+```bash
+uv run sentinel refresh --source policy-sentry --live
+```
+
+This downloads ~19 MB and takes 1-3 minutes. When done, `sentinel info` will show:
+```
+Services: 445
+Actions:  20455
+```
+
+You only need to do this once. Re-run it monthly to pick up new AWS services.
+
+### Step 5 -- Run your first policy
+
+Use one of the bundled test policies:
+
+```bash
 uv run sentinel run tests/fixtures/test_policies/wildcard_overuse.json
 ```
 
-Python 3.11+ is required. `sentinel info` prints database stats and an empty-corpus banner if the IAM action corpus has not yet been loaded -- run `sentinel refresh --source policy-sentry --data-path <policy_sentry.json>` on first use.
+You'll see the four-stage pipeline output: validation results, risk findings, and either a rewritten policy or a "rewrite suppressed" message if the policy failed self-check.
+
+### What's next?
+
+| Task | Command |
+|------|---------|
+| Validate a policy file | `uv run sentinel run path/to/policy.json` |
+| Validate JSON from stdin | `cat policy.json \| uv run sentinel run -` |
+| Get JSON output for CI | `uv run sentinel run policy.json -f json` |
+| Strict mode (fail on warnings) | `uv run sentinel run policy.json --strict` |
+| Watch a directory for changes | `uv run sentinel watch ./policies/` |
+| Browse AWS managed policies | `uv run sentinel managed list` |
+| See all commands | `uv run sentinel --help` |
+
+### Common gotchas
+
+- **`uv: command not found`** -- run the install step from Step 1 again, then open a fresh terminal.
+- **`Error: file not found`** -- check the path. Use absolute paths if relative paths confuse your shell.
+- **`Empty corpus` warning at startup** -- you skipped Step 4. Run the `refresh` command above.
+- **`sentinel: command not found`** without `uv run` prefix -- the binary lives in `.venv/bin/`. Either always prefix with `uv run`, or activate the venv with `source .venv/bin/activate` once.
+- **Refresh takes forever or seems stuck** -- it isn't. The 19 MB download is followed by ~25,000 SQLite inserts which can take 3-5 minutes on slow disks (especially WSL2 on NTFS).
+
+### For developers
+
+Running tests, linting, and the full dev loop is documented in [`CONTRIBUTING.md`](CONTRIBUTING.md). TL;DR:
+
+```bash
+uv run pytest -n auto     # full test suite, ~45s parallel
+uv run ruff check .       # lint
+uv run mypy               # type check
+```
 
 ## Features
 
