@@ -1,6 +1,6 @@
 # IAM Policy Sentinel
 
-> Version 0.8.2 -- offline AWS IAM policy validator, analyzer, and least-privilege rewriter.
+> Version 0.8.3 -- offline AWS IAM policy validator, analyzer, and least-privilege rewriter.
 
 A fully offline IAM policy analyzer with fail-closed safety guarantees. Sentinel parses an IAM policy, classifies every action against a local SQLite corpus, reports risk findings (wildcards, privilege escalation, exfiltration, destruction), and rewrites the policy toward least privilege with specific ARNs or clearly marked placeholders. Every fetched policy is origin-tracked; every cache entry and every security-critical database row is HMAC-signed; every network request passes through a four-layer SSRF defense. The tool performs **zero live AWS API calls** during validation.
 

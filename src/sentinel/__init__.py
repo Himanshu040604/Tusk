@@ -27,7 +27,7 @@ if sys.version_info < (3, 11):
 
 from typing import Any
 
-__version__ = "0.8.2"
+__version__ = "0.8.3"
 
 # Mapping of lazily-exposed public name -> (submodule, attribute).  When a
 # caller does `from sentinel import RiskAnalyzer`, the first access walks
