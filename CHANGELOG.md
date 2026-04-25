@@ -210,9 +210,9 @@ finding and per doc file.
 - `CONTRIBUTING.md` updated for current test baseline (856 tests at
   working-tree; v0.8.1 shipped at 813) and release-process notes
   including the 3-agent investigation pipeline pattern.
-- `CLAUDE.md` updated with post-Phase-8.1 state (Amendment 7 layout,
-  Amendment 10 semantics, consolidated v0.5.0 -> v0.8.1 thinking-log
-  entry replacing stale "Phase 4 is next" section).
+- `prod_imp.md` thinking log refreshed to reflect post-Phase-8.1 state
+  (Amendment 7 layout, Amendment 10 semantics, consolidated v0.5.0 ->
+  v0.8.1 entry replacing stale "Phase 4 is next" section).
 - New `docs/FEATURES.md` -- comprehensive feature catalogue organized
   by domain (policy analysis, input sources, output formats, safety +
   security, observability, CLI, config, DB layer) with file:symbol

@@ -163,8 +163,8 @@ Common scopes:
    ruff format --check, mypy, cold-start budget.
 5. **Sync prose version locations** — update version references in
    `README.md` (landing header), `docs/FEATURES.md` (top paragraph),
-   `docs/USAGE.md` (top paragraph), `CLAUDE.md` (Current Phase). One
-   commit per doc keeps history granular.
+   `docs/USAGE.md` (top paragraph), and `prod_imp.md` (Current Phase
+   marker). One commit per doc keeps history granular.
 6. **Commit release**: `chore(release): vX.Y.Z — <short summary>`.
 7. **Annotated tag**:
    ```bash

@@ -253,7 +253,6 @@ Secrets such as `SENTINEL_GITHUB_TOKEN` are wrapped in `pydantic.SecretStr`; `se
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Local development loop, testing, release process |
 | [`CHANGELOG.md`](CHANGELOG.md) | Per-release feature narrative (Keep-a-Changelog format) |
 | [`prod_imp.md`](prod_imp.md) | Full design record + § 17 amendment log |
-| [`CLAUDE.md`](CLAUDE.md) | AI-agent project context and thinking log |
 
 ## Known limitations
 

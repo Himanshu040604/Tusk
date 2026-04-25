@@ -116,7 +116,6 @@ klarna/
 ├── uv.lock                          [NEW — committed]
 ├── prod_imp.md                      [this file]
 ├── README.md
-├── CLAUDE.md
 ├── defaults.toml                    [NEW — shipped default config]
 ├── .github/workflows/
 │   └── sentinel-monitor.yml         [NEW — GitHub Action template]
@@ -1364,14 +1363,14 @@ Tasks:
 4. Security pass: fuzz `parser.py` with pathological inputs (deeply nested JSON, huge strings, malformed Unicode)
 5. `ruff check` and `mypy` clean
 6. Update README.md for installation, config, all new commands
-7. CLAUDE.md update to reflect new architecture
+7. Project context doc update to reflect new architecture
 8. Final smoke test: fresh clone → `uv sync` → `uv run sentinel info` → `uv run sentinel run tests/fixtures/test_policies/wildcard_overuse.json` → clean exit 1 (wildcards flagged), report artifact produced, terminal summary concise
 
 Exit criteria:
 - 100% of existing tests still pass (backwards compat proven)
 - New test count ≥ 200 additional (covering config, network, fetchers, monitor)
 - `ruff check` and `mypy` green
-- README + CLAUDE.md updated
+- README and project context doc updated
 - `demo.py` still produces clean `DEMO.md` (regression check)
 - **`.github/workflows/ci.yml` (C-F1) green on a throwaway PR** — enforces the above on every subsequent change.
 - **Cold-start gate green** — `test_cold_start_budget < 500ms` on CI runner (Amendment 6, Theme G2).
@@ -1410,7 +1409,7 @@ After code is written, definition of "done":
 - [ ] `ruff check` clean, `mypy` clean
 - [ ] `python demo.py` still generates a clean `DEMO.md` (regression safety net)
 - [ ] No `.py` file contains a hardcoded list or dict of AWS action names, service prefixes, or policy data
-- [ ] README and CLAUDE.md updated
+- [ ] README and project context doc updated
 - [ ] PR-gate CI (`.github/workflows/ci.yml`) is green on main (Amendment 6, C-F1)
 - [ ] Git tag `v0.4.0` (annotated) exists on the release commit (Amendment 6, Theme I)
 - [ ] `test_alembic_roundtrip.py` green for both `iam_actions.db` and `resource_inventory.db` (Amendment 6, Theme E)
@@ -2015,7 +2014,7 @@ This is a plan-premise correction, not a design change. No implementation impact
 **Documentation sweep:**
 - `README.md` rewritten for v0.8.1+ state (features, CLI, architecture, doc map, 5-level exit scheme, Amendment 7 layout).
 - `CONTRIBUTING.md` updated for working-tree test baseline (856 tests) + release process + 3-agent investigation pipeline pattern.
-- `CLAUDE.md` reshaped: Amendment 7 layout + Amendment 10 semantics + consolidated v0.5.0 → v0.8.2 thinking-log entry.
+- Project context doc reshaped: Amendment 7 layout + Amendment 10 semantics + consolidated v0.5.0 → v0.8.2 thinking-log entry.
 - New `docs/FEATURES.md` — comprehensive feature catalogue organized by domain (policy analysis, input sources, output formats, safety + security, observability, CLI, config, DB layer) with file:symbol pointers.
 - New `docs/USAGE.md` — end-user how-to guide with CI integration examples, troubleshooting (HMAC errors, empty corpus, cold-start, WSL2), advanced workflows.
 - Module docstrings refreshed in `self_check.py`, `rewriter.py`, `formatters.py`, `hmac_keys.py`, `cli.py`, `net/client.py`, `net/cache.py`, `migrations.py`.

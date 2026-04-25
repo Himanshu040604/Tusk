@@ -14,17 +14,15 @@ HTTP client.
 
 ## Where to read further
 
-- `CLAUDE.md` — project conventions, design decisions, current phase,
-  and historical thinking log.
-- `docs/CODEBASE_MAP.md` — generated codebase map (local only, not
-  tracked; regenerate manually via `cartographer.md` workflow after
-  each phase hardening lands).
-- `CHANGELOG.md` — release-by-release change history, each entry
-  cross-linked to its audit label.
 - `prod_imp.md` — production-migration spec (Phase 1-8) including
   the four-step pipeline (Validate → Analyze → Rewrite → Self-check),
-  HMAC-signed disk cache protocol, and the SSRF guard / allow-list
-  contract.
+  HMAC-signed disk cache protocol, the SSRF guard / allow-list
+  contract, project conventions, design decisions, current phase,
+  the full historical thinking log, and the § 17 amendment log.
+- `docs/CODEBASE_MAP.md` — generated codebase map (local only, not
+  tracked; regenerate manually after each phase hardening lands).
+- `CHANGELOG.md` — release-by-release change history, each entry
+  cross-linked to its audit label.
 - `CONTRIBUTING.md` — local setup, test / lint / type-check commands,
   commit and release workflow.
 
