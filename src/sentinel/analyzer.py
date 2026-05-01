@@ -20,6 +20,7 @@ import re
 
 if TYPE_CHECKING:
     from .database import Database
+    from .intent_spec import IntentSpec
 
 
 class AccessLevel(Enum):
@@ -53,6 +54,9 @@ class IntentMapping:
         actions: List of specific action names matching intent
         confidence: Mapping confidence score (0.0-1.0)
         explanation: Human-readable explanation of mapping
+        intent_spec: Typed parse of the same intent (Amendment 13). Carries
+            ``resource_hints`` in addition to services/access_levels for
+            downstream consumers (the rewriter) to consume without re-parsing.
     """
 
     original_intent: str
@@ -61,6 +65,7 @@ class IntentMapping:
     actions: list[str] = field(default_factory=list)
     confidence: float = 1.0
     explanation: str = ""
+    intent_spec: "IntentSpec | None" = None
 
 
 @dataclass
