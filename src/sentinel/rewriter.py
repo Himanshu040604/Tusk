@@ -616,10 +616,33 @@ class PolicyRewriter:
                 new_resources.append(resource)
                 continue
 
-            # Try to resolve real ARNs for each service
+            # Try to resolve real ARNs for each service.  Amendment 13:
+            # if config carries IntentSpec.resource_hints, narrow the
+            # candidate set per service before recording the scope change.
             resolved_any = False
+            spec = config.resolved_intent_spec()
+            hints = spec.resource_hints if spec else []
             for service in sorted(services_needed):
                 arns = self._resolve_resource_arns_for_service(service, statement.actions, config)
+                if arns and hints:
+                    pre_filter = len(arns)
+                    arns = self._filter_arns_by_intent_hints(arns, hints)
+                    if len(arns) < pre_filter:
+                        changes.append(
+                            RewriteChange(
+                                change_type="ARN_FILTERED_BY_INTENT",
+                                description=(
+                                    f"Narrowed {service} ARNs from {pre_filter} to "
+                                    f"{len(arns)} using intent hints {hints}"
+                                ),
+                                original_value=f"{pre_filter} ARNs",
+                                new_value=f"{len(arns)} ARNs",
+                                statement_index=stmt_index,
+                                rationale=(
+                                    f"Intent hints {hints} matched a subset of inventory ARNs."
+                                ),
+                            )
+                        )
                 if arns:
                     new_resources.extend(arns)
                     resolved_any = True
