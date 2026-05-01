@@ -70,6 +70,7 @@ from .analyzer import (
 
 if TYPE_CHECKING:
     from .database import Database
+    from .intent_spec import IntentSpec
     from .inventory import ResourceInventory
 
 
@@ -78,7 +79,11 @@ class RewriteConfig:
     """Configuration for policy rewriting.
 
     Attributes:
-        intent: Developer intent description (e.g., 'read-only s3')
+        intent: Developer intent description (e.g., 'read-only s3'). DEPRECATED
+            in v0.9.0 in favor of intent_spec; kept for backwards compatibility.
+        intent_spec: Typed parsed intent (Amendment 13). When set, takes
+            precedence over ``intent``. The CLI parses ``--intent`` into an
+            ``IntentSpec`` once at command entry and passes both fields.
         account_id: AWS account ID for ARN generation
         region: AWS region for ARN generation
         add_companions: Whether to add companion permissions
@@ -91,6 +96,7 @@ class RewriteConfig:
     """
 
     intent: str | None = None
+    intent_spec: "IntentSpec | None" = None
     account_id: str | None = None
     region: str | None = None
     add_companions: bool = True
