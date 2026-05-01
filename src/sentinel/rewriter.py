@@ -723,9 +723,7 @@ class PolicyRewriter:
         return sorted(arns)
 
     @staticmethod
-    def _filter_arns_by_intent_hints(
-        arns: list[str], hints: list[str]
-    ) -> list[str]:
+    def _filter_arns_by_intent_hints(arns: list[str], hints: list[str]) -> list[str]:
         """Filter candidate ARNs to those matching at least one resource hint.
 
         Returns the original list unchanged if ``hints`` is empty or if no

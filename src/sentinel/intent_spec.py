@@ -24,9 +24,33 @@ if TYPE_CHECKING:
 
 _STOP_WORDS: frozenset[str] = frozenset(
     {
-        "a", "an", "and", "the", "for", "to", "of", "in", "on", "with",
-        "from", "by", "at", "as", "is", "be", "or", "only", "all", "any",
-        "this", "that", "these", "those", "my", "our", "your",
+        "a",
+        "an",
+        "and",
+        "the",
+        "for",
+        "to",
+        "of",
+        "in",
+        "on",
+        "with",
+        "from",
+        "by",
+        "at",
+        "as",
+        "is",
+        "be",
+        "or",
+        "only",
+        "all",
+        "any",
+        "this",
+        "that",
+        "these",
+        "those",
+        "my",
+        "our",
+        "your",
     }
 )
 
@@ -35,8 +59,21 @@ _STOP_WORDS: frozenset[str] = frozenset(
 # (so "deploy", "deployment", "permissions" deliberately stay as hints).
 _PURE_ACCESS_VERBS: frozenset[str] = frozenset(
     {
-        "read", "write", "list", "view", "get", "put", "modify", "update",
-        "create", "delete", "manage", "grant", "tag", "fetch", "enumerate",
+        "read",
+        "write",
+        "list",
+        "view",
+        "get",
+        "put",
+        "modify",
+        "update",
+        "create",
+        "delete",
+        "manage",
+        "grant",
+        "tag",
+        "fetch",
+        "enumerate",
         "remove",
     }
 )

@@ -1017,9 +1017,7 @@ class TestFilterArnsByIntentHints:
             "arn:aws:s3:::artifacts-bucket",
             "arn:aws:s3:::other-bucket",
         ]
-        filtered = PolicyRewriter._filter_arns_by_intent_hints(
-            arns, ["deploy", "artifacts"]
-        )
+        filtered = PolicyRewriter._filter_arns_by_intent_hints(arns, ["deploy", "artifacts"])
         assert "arn:aws:s3:::deploy-bucket" in filtered
         assert "arn:aws:s3:::artifacts-bucket" in filtered
         assert "arn:aws:s3:::other-bucket" not in filtered
@@ -1053,9 +1051,7 @@ class TestIntentDrivenScoping:
             )
 
         rewriter = PolicyRewriter(database=tmp_db, inventory=inventory)
-        statement = Statement(
-            effect="Allow", actions=["s3:GetObject"], resources=["*"]
-        )
+        statement = Statement(effect="Allow", actions=["s3:GetObject"], resources=["*"])
         spec = IntentSpec.from_string("read s3 deploy artifacts")
         config = RewriteConfig(intent_spec=spec)
 
@@ -1070,9 +1066,7 @@ class TestIntentDrivenScoping:
 
     def test_no_intent_does_not_filter(self, tmp_db, tmp_inventory):
         """Without intent_spec, _scope_resources keeps existing behavior."""
-        statement = Statement(
-            effect="Allow", actions=["s3:GetObject"], resources=["*"]
-        )
+        statement = Statement(effect="Allow", actions=["s3:GetObject"], resources=["*"])
         rewriter = PolicyRewriter(database=tmp_db, inventory=tmp_inventory)
         config = RewriteConfig()  # no intent
 
