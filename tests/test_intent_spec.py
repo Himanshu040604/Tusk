@@ -39,3 +39,29 @@ class TestIntentSpecConstruction:
             raw_intent="x", services={"s3"}, access_levels=set(), resource_hints=[]
         )
         assert not spec_with_service.is_empty()
+
+
+class TestIntentSpecFromString:
+    """from_string() parses raw intent into typed fields."""
+
+    def test_read_only_s3(self) -> None:
+        spec = IntentSpec.from_string("read-only s3")
+        assert spec.raw_intent == "read-only s3"
+        assert "s3" in spec.services
+        assert AccessLevel.READ in spec.access_levels
+
+    def test_resource_hints_extracted(self) -> None:
+        spec = IntentSpec.from_string("read s3 deploy artifacts")
+        assert "deploy" in spec.resource_hints
+        assert "artifacts" in spec.resource_hints
+        assert "s3" not in spec.resource_hints
+        assert "read" not in spec.resource_hints
+
+    def test_empty_string(self) -> None:
+        spec = IntentSpec.from_string("")
+        assert spec.is_empty()
+
+    def test_no_database_required(self) -> None:
+        spec = IntentSpec.from_string("write to lambda for deployments")
+        assert "lambda" in spec.services
+        assert "deployments" in spec.resource_hints
