@@ -911,8 +911,15 @@ def cmd_rewrite(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return EXIT_INVALID_ARGS
 
+    # Amendment 13: parse --intent into a typed IntentSpec at the CLI
+    # boundary so the rewriter's _scope_resources can read resource_hints.
+    from .intent_spec import IntentSpec
+
+    intent_spec = IntentSpec.from_string(args.intent) if args.intent else None
+
     config = RewriteConfig(
         intent=args.intent,
+        intent_spec=intent_spec,
         account_id=args.account_id,
         region=args.region,
         add_companions=not args.no_companions,
