@@ -936,3 +936,39 @@ class TestRewriteConfig:
         rewriter = PolicyRewriter(database=tmp_db)
         result = rewriter.rewrite_policy(simple_policy)
         assert result.rewritten_policy is not None
+
+
+class TestRewriteConfigIntentSpec:
+    """RewriteConfig carries an optional IntentSpec alongside intent: str."""
+
+    def test_rewrite_config_accepts_intent_spec(self):
+        from sentinel.intent_spec import IntentSpec
+
+        spec = IntentSpec.from_string("read s3 deploy")
+        config = RewriteConfig(intent="read s3 deploy", intent_spec=spec)
+        assert config.intent_spec is spec
+        assert config.intent == "read s3 deploy"
+
+    def test_rewrite_config_intent_spec_optional(self):
+        config = RewriteConfig()
+        assert config.intent is None
+        assert config.intent_spec is None
+
+    def test_resolved_intent_spec_parses_string(self):
+        """When only intent string is set, resolved_intent_spec() lazily parses it."""
+        config = RewriteConfig(intent="read s3")
+        spec = config.resolved_intent_spec()
+        assert spec is not None
+        assert "s3" in spec.services
+
+    def test_resolved_intent_spec_returns_none_when_neither_set(self):
+        config = RewriteConfig()
+        assert config.resolved_intent_spec() is None
+
+    def test_resolved_intent_spec_prefers_intent_spec_over_string(self):
+        """If both fields are set, the typed intent_spec wins."""
+        from sentinel.intent_spec import IntentSpec
+
+        typed = IntentSpec.from_string("read s3")
+        config = RewriteConfig(intent="completely different string", intent_spec=typed)
+        assert config.resolved_intent_spec() is typed
