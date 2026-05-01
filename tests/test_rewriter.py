@@ -972,3 +972,54 @@ class TestRewriteConfigIntentSpec:
         typed = IntentSpec.from_string("read s3")
         config = RewriteConfig(intent="completely different string", intent_spec=typed)
         assert config.resolved_intent_spec() is typed
+
+
+class TestFilterArnsByIntentHints:
+    """The hint filter narrows candidate ARNs to those matching user intent."""
+
+    def test_filter_keeps_only_matching_arns(self):
+        arns = [
+            "arn:aws:s3:::prod-deploy-artifacts",
+            "arn:aws:s3:::prod-customer-data",
+            "arn:aws:s3:::staging-deploy-artifacts",
+        ]
+        filtered = PolicyRewriter._filter_arns_by_intent_hints(arns, ["deploy"])
+        assert "arn:aws:s3:::prod-deploy-artifacts" in filtered
+        assert "arn:aws:s3:::staging-deploy-artifacts" in filtered
+        assert "arn:aws:s3:::prod-customer-data" not in filtered
+
+    def test_filter_passthrough_when_no_hints(self):
+        arns = ["arn:aws:s3:::a", "arn:aws:s3:::b"]
+        assert PolicyRewriter._filter_arns_by_intent_hints(arns, []) == arns
+
+    def test_filter_passthrough_when_no_arns_match(self):
+        """If no ARN matches any hint, return original list (typo safeguard)."""
+        arns = ["arn:aws:s3:::prod-customer-data"]
+        result = PolicyRewriter._filter_arns_by_intent_hints(arns, ["nonexistent"])
+        assert result == arns
+
+    def test_filter_word_boundary(self):
+        """Hint matches at word boundaries (hyphen-delimited)."""
+        arns = [
+            "arn:aws:s3:::deploys-prod",
+            "arn:aws:s3:::deploy-prod",
+            "arn:aws:s3:::predeploy-prod",
+        ]
+        filtered = PolicyRewriter._filter_arns_by_intent_hints(arns, ["deploy"])
+        assert "arn:aws:s3:::deploy-prod" in filtered
+        assert "arn:aws:s3:::deploys-prod" not in filtered
+        assert "arn:aws:s3:::predeploy-prod" not in filtered
+
+    def test_filter_multiple_hints_or_logic(self):
+        """Multiple hints use OR logic — any match keeps the ARN."""
+        arns = [
+            "arn:aws:s3:::deploy-bucket",
+            "arn:aws:s3:::artifacts-bucket",
+            "arn:aws:s3:::other-bucket",
+        ]
+        filtered = PolicyRewriter._filter_arns_by_intent_hints(
+            arns, ["deploy", "artifacts"]
+        )
+        assert "arn:aws:s3:::deploy-bucket" in filtered
+        assert "arn:aws:s3:::artifacts-bucket" in filtered
+        assert "arn:aws:s3:::other-bucket" not in filtered
