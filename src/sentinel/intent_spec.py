@@ -14,11 +14,34 @@ place and exposes ``resource_hints`` for the rewriter to consume.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .analyzer import AccessLevel
+
+
+_STOP_WORDS: frozenset[str] = frozenset(
+    {
+        "a", "an", "and", "the", "for", "to", "of", "in", "on", "with",
+        "from", "by", "at", "as", "is", "be", "or", "only", "all", "any",
+        "this", "that", "these", "those", "my", "our", "your",
+    }
+)
+
+# Tokens treated as access verbs and excluded from resource_hints. Curated
+# narrowly: only words that are essentially never used as resource nouns
+# (so "deploy", "deployment", "permissions" deliberately stay as hints).
+_PURE_ACCESS_VERBS: frozenset[str] = frozenset(
+    {
+        "read", "write", "list", "view", "get", "put", "modify", "update",
+        "create", "delete", "manage", "grant", "tag", "fetch", "enumerate",
+        "remove",
+    }
+)
+
+_TOKEN_RE: re.Pattern[str] = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
 
 
 @dataclass(frozen=True)
