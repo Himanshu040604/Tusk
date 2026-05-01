@@ -699,6 +699,31 @@ class PolicyRewriter:
 
         return sorted(arns)
 
+    @staticmethod
+    def _filter_arns_by_intent_hints(
+        arns: list[str], hints: list[str]
+    ) -> list[str]:
+        """Filter candidate ARNs to those matching at least one resource hint.
+
+        Returns the original list unchanged if ``hints`` is empty or if no
+        ARN matches any hint -- preventing the "filter to empty" failure
+        mode where an unfamiliar hint would silently produce an unusable
+        scope. The caller can rely on the result being non-empty when the
+        input was non-empty.
+
+        Args:
+            arns: Candidate ARNs from inventory or placeholder generation.
+            hints: Resource hints from ``IntentSpec.resource_hints`` (lowercase).
+
+        Returns:
+            Filtered list, or the original list if no matches.
+        """
+        if not hints or not arns:
+            return arns
+        compiled = [re.compile(r"\b" + re.escape(h) + r"\b") for h in hints]
+        matches = [arn for arn in arns if any(p.search(arn.lower()) for p in compiled)]
+        return matches if matches else arns
+
     def _generate_placeholder_arn(
         self,
         service_prefix: str,
