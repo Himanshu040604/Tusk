@@ -1023,3 +1023,63 @@ class TestFilterArnsByIntentHints:
         assert "arn:aws:s3:::deploy-bucket" in filtered
         assert "arn:aws:s3:::artifacts-bucket" in filtered
         assert "arn:aws:s3:::other-bucket" not in filtered
+
+
+class TestIntentDrivenScoping:
+    """End-to-end: intent_spec narrows resource scope in the rewrite step."""
+
+    def test_intent_hints_narrow_inventory_arns(self, tmp_db, tmp_path):
+        """Inventory with multiple S3 buckets — intent hints select a subset."""
+        from sentinel.intent_spec import IntentSpec
+
+        inv_path = tmp_path / "intent_inv.db"
+        inventory = ResourceInventory(inv_path)
+        inventory.create_schema()
+        for arn, name in [
+            ("arn:aws:s3:::prod-deploy-artifacts", "prod-deploy-artifacts"),
+            ("arn:aws:s3:::prod-customer-data", "prod-customer-data"),
+            ("arn:aws:s3:::staging-deploy-builds", "staging-deploy-builds"),
+        ]:
+            inventory.insert_resource(
+                Resource(
+                    resource_id=None,
+                    service_prefix="s3",
+                    resource_type="bucket",
+                    resource_arn=arn,
+                    resource_name=name,
+                    region=None,
+                    account_id="123456789012",
+                )
+            )
+
+        rewriter = PolicyRewriter(database=tmp_db, inventory=inventory)
+        statement = Statement(
+            effect="Allow", actions=["s3:GetObject"], resources=["*"]
+        )
+        spec = IntentSpec.from_string("read s3 deploy artifacts")
+        config = RewriteConfig(intent_spec=spec)
+
+        scoped, changes = rewriter._scope_resources(statement, config, stmt_index=0)
+
+        assert "arn:aws:s3:::prod-deploy-artifacts" in scoped.resources
+        assert "arn:aws:s3:::staging-deploy-builds" in scoped.resources
+        assert "arn:aws:s3:::prod-customer-data" not in scoped.resources
+
+        filter_changes = [c for c in changes if c.change_type == "ARN_FILTERED_BY_INTENT"]
+        assert len(filter_changes) >= 1, "expected ARN_FILTERED_BY_INTENT in audit trail"
+
+    def test_no_intent_does_not_filter(self, tmp_db, tmp_inventory):
+        """Without intent_spec, _scope_resources keeps existing behavior."""
+        statement = Statement(
+            effect="Allow", actions=["s3:GetObject"], resources=["*"]
+        )
+        rewriter = PolicyRewriter(database=tmp_db, inventory=tmp_inventory)
+        config = RewriteConfig()  # no intent
+
+        scoped, changes = rewriter._scope_resources(statement, config, stmt_index=0)
+
+        # Both my-app-data and my-app-logs should be scoped (no narrowing)
+        assert any("my-app-data" in r for r in scoped.resources)
+        assert any("my-app-logs" in r for r in scoped.resources)
+        # No filter changes when no hints
+        assert all(c.change_type != "ARN_FILTERED_BY_INTENT" for c in changes)
