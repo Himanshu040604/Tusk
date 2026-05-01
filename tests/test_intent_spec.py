@@ -65,3 +65,17 @@ class TestIntentSpecFromString:
         spec = IntentSpec.from_string("write to lambda for deployments")
         assert "lambda" in spec.services
         assert "deployments" in spec.resource_hints
+
+
+class TestIntentMappingIntegration:
+    """IntentMapping carries an IntentSpec for downstream consumers."""
+
+    def test_intent_mapping_has_intent_spec(self) -> None:
+        from sentinel.analyzer import IntentMapper
+
+        mapper = IntentMapper(database=None)
+        mapping = mapper.map_intent("read s3 deploy")
+        assert mapping.intent_spec is not None
+        assert "s3" in mapping.intent_spec.services
+        assert "deploy" in mapping.intent_spec.resource_hints
+        assert mapping.intent_spec.raw_intent == "read s3 deploy"
