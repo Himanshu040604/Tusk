@@ -94,9 +94,39 @@ class IntentSpec:
         mapper = IntentMapper(database=None)
         mapping = mapper.map_intent(intent)
 
+        hints = cls._extract_resource_hints(intent.lower(), services=mapping.services)
+
         return cls(
             raw_intent=intent,
             services=set(mapping.services),
             access_levels=set(mapping.access_levels),
-            resource_hints=[],
+            resource_hints=hints,
         )
+
+    @staticmethod
+    def _extract_resource_hints(intent_lower: str, services: set[str]) -> list[str]:
+        """Return content tokens that are neither services nor pure access verbs.
+
+        Filters: stop words, AWS service keywords (from ``SERVICE_NAME_MAPPINGS``
+        and the parsed services set), pure access verbs in ``_PURE_ACCESS_VERBS``,
+        and tokens shorter than 3 characters. Order is preserved; duplicates are
+        deduped on first occurrence.
+        """
+        from .constants import SERVICE_NAME_MAPPINGS
+
+        service_words: set[str] = set()
+        for keyword in SERVICE_NAME_MAPPINGS:
+            service_words.update(keyword.lower().split())
+        service_words.update(s.lower() for s in services)
+
+        hints: list[str] = []
+        seen: set[str] = set()
+        for match in _TOKEN_RE.finditer(intent_lower):
+            tok = match.group(0)
+            if tok in _STOP_WORDS or tok in service_words or tok in _PURE_ACCESS_VERBS:
+                continue
+            if len(tok) < 3 or tok in seen:
+                continue
+            seen.add(tok)
+            hints.append(tok)
+        return hints
