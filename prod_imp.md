@@ -2030,6 +2030,73 @@ This is a plan-premise correction, not a design change. No implementation impact
 
 ---
 
+### Amendment 13 — 2026-05-01: IntentSpec typed refactor
+
+**Problem.** Pre-v0.9.0, developer intent flowed as a raw string into the
+rewriter and was re-parsed by `_intent_based_expansion()` for action
+selection. The intent never reached `_scope_resources()`, so resource
+scoping fell back to "all inventory ARNs for the matching service" — a
+fan-out that defeats the purpose of least-privilege when the user
+expressed a narrow intent like "read s3 deploy artifacts". Two parallel
+concepts had drifted: `IntentMapping` (analyzer's output, with
+services/access_levels) and `RewriteConfig.intent: str` (rewriter's
+input, re-parsed). They could disagree silently.
+
+The analyzer side had a related gap: `RiskAnalyzer.analyze_actions()`
+sees only actions, never resources. `DangerousPermissionChecker.check_action`
+takes a resource argument but only escalates severity when the resource
+is the literal string `"*"` — it cannot distinguish service-wide patterns
+like `arn:aws:s3:::*` or asymmetries between read- and write-action
+resource scopes.
+
+**Phase A fix (this amendment).** Introduce `IntentSpec`
+(`src/sentinel/intent_spec.py`) as the typed parse of an intent string,
+owned at the CLI boundary. Both analyzer and rewriter consume the same
+struct. `IntentSpec.resource_hints` captures content tokens that aren't
+service names or access verbs; the rewriter uses them to filter
+candidate ARNs in `_filter_arns_by_intent_hints` (staticmethod), which
+runs as a per-service pass inside `_scope_resources`. Audit trail
+records the narrow as a separate `ARN_FILTERED_BY_INTENT` change.
+
+`PipelineConfig` and `RewriteConfig` both gained an `intent_spec` field
+(additive — `intent: str | None` preserved for backwards compat).
+`RewriteConfig.resolved_intent_spec()` lazily parses the string when
+only `intent` is supplied, so callers building `RewriteConfig` manually
+keep working. `IntentMapping` also exposes the parsed `IntentSpec` for
+downstream consumers without re-parsing.
+
+CLI wiring: `cmd_rewrite` parses `--intent` into `IntentSpec` once and
+passes both fields to `RewriteConfig`. The two `cmd_run` paths and the
+`fetch` subcommand do the symmetric thing for `PipelineConfig`. Lazy
+imports inside the command functions match the cold-start optimization
+pattern (P0-3 α).
+
+**Failure-mode safeguard.** `_filter_arns_by_intent_hints` returns the
+input list unchanged when zero hints match — preventing typos or
+unfamiliar hints from silently filtering scope to empty. Word-boundary
+regex `\b<hint>\b` matches at hyphen boundaries (since `-` is non-word),
+so `"deploy"` matches `arn:aws:s3:::my-deploy-bucket` but NOT
+`arn:aws:s3:::predeploy-bucket`.
+
+**Test baseline:** 856 (v0.8.2) → 879 (this amendment, +23 net): 8 in
+`tests/test_intent_spec.py`, 5 RewriteConfig tests, 5 filter tests, 2
+intent-driven-scoping integration tests, plus 3 implicit additions
+elsewhere.
+
+**Phase B (deferred — separate plan).** The analyzer side still does
+not gain new resource-pattern risk classes (`RESOURCE_WILDCARD_SERVICE_LEVEL`,
+`RESOURCE_PATTERN_PRIVILEGED`, `RESOURCE_CROSS_ACCOUNT`, etc.). The
+foundation is in place — `IntentMapping.intent_spec` provides the
+analyzer with the same parsed intent the rewriter uses — but the new
+risk classes themselves require separate threat-model review and
+catalogue design.
+
+**No schema migrations.** Pure additive change to dataclasses.
+`docs/superpowers/plans/2026-05-01-intent-spec-refactor.md` is the
+local-only plan that drove the implementation (excluded by `.gitignore`).
+
+---
+
 ## End of plan
 
 Next step: you review this document. If approved, Phase 1 begins. If anything needs changing, we amend this file before any code is written.
