@@ -107,6 +107,20 @@ class RewriteConfig:
     policy_type: str | None = None
     condition_profile: str = "moderate"
 
+    def resolved_intent_spec(self) -> "IntentSpec | None":
+        """Return ``intent_spec`` if set, else lazily parse ``intent`` string.
+
+        Returns ``None`` when neither field is populated. ``intent_spec``
+        always wins over ``intent`` to preserve caller-provided typing.
+        """
+        if self.intent_spec is not None:
+            return self.intent_spec
+        if self.intent:
+            from .intent_spec import IntentSpec
+
+            return IntentSpec.from_string(self.intent)
+        return None
+
 
 @dataclass
 class RewriteChange:
