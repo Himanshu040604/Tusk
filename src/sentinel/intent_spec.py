@@ -46,3 +46,34 @@ class IntentSpec:
     def is_empty(self) -> bool:
         """True if the spec carries no actionable signal."""
         return not (self.services or self.access_levels or self.resource_hints)
+
+    @classmethod
+    def from_string(cls, intent: str) -> "IntentSpec":
+        """Parse a natural-language intent string into an IntentSpec.
+
+        Reuses ``IntentMapper`` for service + access-level extraction so the
+        analyzer and rewriter agree on the same parse. ``resource_hints`` is
+        populated by ``_extract_resource_hints`` (added separately).
+
+        Args:
+            intent: Natural-language intent (e.g. "read s3 deploy artifacts").
+
+        Returns:
+            IntentSpec with services and access_levels populated; empty if
+            the intent string is blank.
+        """
+        if not intent or not intent.strip():
+            return cls.empty()
+
+        # Local import breaks the circular dep with the analyzer module.
+        from .analyzer import IntentMapper
+
+        mapper = IntentMapper(database=None)
+        mapping = mapper.map_intent(intent)
+
+        return cls(
+            raw_intent=intent,
+            services=set(mapping.services),
+            access_levels=set(mapping.access_levels),
+            resource_hints=[],
+        )
