@@ -250,6 +250,17 @@ class IntentMapper:
 
         explanation = self._generate_explanation(intent, access_levels, services, actions)
 
+        # Amendment 13: build the typed parallel parse. Direct construction
+        # (not IntentSpec.from_string) avoids re-entering map_intent.
+        from .intent_spec import IntentSpec
+
+        intent_spec = IntentSpec(
+            raw_intent=intent,
+            services=set(services),
+            access_levels=set(access_levels),
+            resource_hints=IntentSpec._extract_resource_hints(intent_lower, services=services),
+        )
+
         return IntentMapping(
             original_intent=intent,
             access_levels=access_levels,
@@ -257,6 +268,7 @@ class IntentMapper:
             actions=actions,
             confidence=round(confidence, 2),
             explanation=explanation,
+            intent_spec=intent_spec,
         )
 
     def _extract_access_levels(self, intent_lower: str) -> set[AccessLevel]:
