@@ -73,6 +73,7 @@ from .models import PolicyInput, PolicyOrigin
 
 if TYPE_CHECKING:
     from .database import Database
+    from .intent_spec import IntentSpec
     from .inventory import ResourceInventory
 
 
@@ -181,7 +182,10 @@ class PipelineConfig:
     """Configuration for the end-to-end pipeline.
 
     Attributes:
-        intent: Developer intent description.
+        intent: Developer intent description (deprecated in v0.9.0; use intent_spec).
+        intent_spec: Typed parsed intent (Amendment 13). When set, threads
+            through to the rewriter's RewriteConfig and drives intent-aware
+            resource scoping.
         account_id: AWS account ID for ARN generation.
         region: AWS region for ARN generation.
         strict_mode: If True, WARNINGs are treated as FAILs.
@@ -196,6 +200,7 @@ class PipelineConfig:
     """
 
     intent: str | None = None
+    intent_spec: "IntentSpec | None" = None
     account_id: str | None = None
     region: str | None = None
     strict_mode: bool = False
@@ -1262,6 +1267,7 @@ class Pipeline:
         """
         return RewriteConfig(
             intent=config.intent,
+            intent_spec=config.intent_spec,
             account_id=config.account_id,
             region=config.region,
             add_companions=config.add_companions,
