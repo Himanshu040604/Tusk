@@ -1027,8 +1027,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     db = resolve_database(args)
     inv = resolve_inventory(args)
 
+    from .intent_spec import IntentSpec  # Amendment 13: typed intent
+    _intent_spec = IntentSpec.from_string(args.intent) if args.intent else None
     config = PipelineConfig(
         intent=args.intent,
+        intent_spec=_intent_spec,
         account_id=args.account_id,
         region=args.region,
         strict_mode=args.strict,
@@ -1108,8 +1111,11 @@ def _cmd_run_batch(args: argparse.Namespace) -> int:
 
     db = resolve_database(args)
     inv = resolve_inventory(args)
+    from .intent_spec import IntentSpec  # Amendment 13: typed intent
+    _intent_spec = IntentSpec.from_string(args.intent) if args.intent else None
     config = PipelineConfig(
         intent=args.intent,
+        intent_spec=_intent_spec,
         account_id=args.account_id,
         region=args.region,
         strict_mode=args.strict,

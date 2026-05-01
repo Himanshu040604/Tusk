@@ -199,8 +199,13 @@ def cmd_fetch(args: argparse.Namespace) -> int:
     )
     db = resolve_database(args)
     inv = resolve_inventory(args)
+    from .intent_spec import IntentSpec  # Amendment 13: typed intent
+
+    intent_str = getattr(args, "intent", None)
+    intent_spec = IntentSpec.from_string(intent_str) if intent_str else None
     config = PipelineConfig(
-        intent=getattr(args, "intent", None),
+        intent=intent_str,
+        intent_spec=intent_spec,
         account_id=getattr(args, "account_id", None),
         region=getattr(args, "region", None),
     )
