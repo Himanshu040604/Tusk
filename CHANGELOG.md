@@ -5,6 +5,67 @@ All notable changes to IAM Policy Sentinel are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+Amendment 13: **IntentSpec typed refactor.** Closes the long-standing gap
+where developer `--intent` flowed as a raw string and never reached the
+rewriter's `_scope_resources()`. After this change, intent flows as a
+typed `IntentSpec` from the CLI boundary all the way to per-service ARN
+filtering — so `--intent "read s3 deploy artifacts"` actually narrows
+scope to deploy-related buckets instead of fan-ing out to every S3 bucket
+in inventory.
+
+### Added
+
+- `IntentSpec` typed dataclass (`src/sentinel/intent_spec.py`): single
+  source of truth for parsed developer intent. Carries `services`,
+  `access_levels`, `resource_hints`, and `raw_intent`. `from_string()`
+  classmethod parses a natural-language intent; `_extract_resource_hints`
+  derives content tokens that aren't service names or access verbs.
+- Intent-driven resource scoping in `PolicyRewriter._scope_resources`:
+  when `RewriteConfig.intent_spec.resource_hints` is set, candidate ARNs
+  from inventory are filtered to those matching at least one hint via
+  word-boundary regex.  New `ARN_FILTERED_BY_INTENT` change record
+  appears in the audit trail when filtering narrows the candidate set.
+- `PolicyRewriter._filter_arns_by_intent_hints` (staticmethod): pure
+  filter function with the empty-filter passthrough safeguard — typos
+  or unfamiliar hints cannot silently produce an empty scope.
+- `RewriteConfig.resolved_intent_spec()`: lazy parses `intent: str`
+  when only the legacy field is set; returns `intent_spec` directly
+  otherwise.
+
+### Changed
+
+- `IntentMapping` now exposes `intent_spec: IntentSpec | None` for
+  downstream consumers (the rewriter) to share the analyzer's parse
+  without re-parsing.
+- `RewriteConfig` accepts an `intent_spec` field alongside the existing
+  `intent: str` for backwards compatibility. The CLI parses `--intent`
+  into `IntentSpec` once at command entry and threads both fields.
+- `PipelineConfig` similarly gained `intent_spec`; the orchestrator
+  passes it through to the internal `RewriteConfig`.
+- CLI subcommands `cmd_rewrite`, `cmd_run`, `cmd_run_batch`, and the
+  `fetch` subcommand now parse `--intent` into `IntentSpec` at command
+  entry via lazy imports.
+
+### Deprecated
+
+- `RewriteConfig.intent: str` and `PipelineConfig.intent: str` remain
+  functional but are scheduled for removal in v1.0.0. New code should
+  pass `intent_spec` directly. The `--intent` CLI flag continues to
+  accept a natural-language string.
+
+### Notes
+
+- Test baseline: 856 (v0.8.2) → 879 (+23 net new tests covering
+  IntentSpec construction, `from_string()` parsing, IntentMapping
+  integration, RewriteConfig field acceptance + lazy resolution,
+  `_filter_arns_by_intent_hints` semantics including the empty-filter
+  safeguard, and end-to-end `_scope_resources` behavior with and
+  without intent).
+- No schema migrations. Pure additive dataclass changes.
+- See `prod_imp.md` § 17 Amendment 13 for the full design rationale.
+
 ## [0.8.3] - 2026-04-25
 
 PE9 release: refresh-source repoint after upstream cloudsplaining /
