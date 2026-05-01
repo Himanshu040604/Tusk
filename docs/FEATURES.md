@@ -27,6 +27,8 @@ evaluating whether Sentinel fits a specific use case.
 | Tier-2 preservation | `src/sentinel/self_check.py::_apply_self_check_fixes` | Unknown actions preserved in rewrite; only Tier-3 (INVALID) actions removed. See Amendment 10 in `prod_imp.md § 17`. |
 | `--strict` mode | `src/sentinel/self_check.py::Pipeline.run` | Escalates WARNING verdict -> FAIL; restores pre-v0.8.0 safety for Tier-2 presence. |
 | Functional-completeness check | `src/sentinel/self_check.py::_check_functional_completeness` | Matches rewrite actions against the original intent's READ keywords (precompiled regex per v0.8.1 U27 / D2). |
+| Typed intent (`IntentSpec`) | `src/sentinel/intent_spec.py::IntentSpec` | Single source of truth for parsed `--intent`. Carries `services`, `access_levels`, `resource_hints`, `raw_intent`. Threaded from CLI through analyzer (`IntentMapping.intent_spec`) and rewriter (`RewriteConfig.intent_spec`). Amendment 13. |
+| Intent-driven resource scoping | `src/sentinel/rewriter.py::PolicyRewriter._scope_resources` + `_filter_arns_by_intent_hints` | When `intent_spec.resource_hints` is non-empty, candidate ARNs from inventory are filtered per service via word-boundary regex before the `ARN_SCOPED` change is recorded. Empty-filter passthrough safeguard prevents typos from filtering scope to empty. New `ARN_FILTERED_BY_INTENT` change record in audit trail. Amendment 13. |
 
 ## Input sources
 
