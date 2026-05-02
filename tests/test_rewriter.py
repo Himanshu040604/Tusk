@@ -1077,3 +1077,41 @@ class TestIntentDrivenScoping:
         assert any("my-app-logs" in r for r in scoped.resources)
         # No filter changes when no hints
         assert all(c.change_type != "ARN_FILTERED_BY_INTENT" for c in changes)
+
+    def test_intent_hints_no_match_emits_warning_change(self, tmp_db, tmp_path):
+        """Issue 1: hints matching 0 ARNs emit ARN_INTENT_FILTER_NO_MATCH (confidence 0.4).
+
+        confidence=0.4 trips _check_low_confidence (self_check.py:845, strict
+        ``<0.5``) so the operator sees a WARNING instead of silently keeping
+        the full unfiltered candidate set when their hint is a typo.
+        """
+        from sentinel.intent_spec import IntentSpec
+
+        inv = ResourceInventory(tmp_path / "no_match_inv.db")
+        inv.create_schema()
+        inv.insert_resource(
+            Resource(
+                resource_id=None,
+                service_prefix="s3",
+                resource_type="bucket",
+                resource_arn="arn:aws:s3:::prod-customer-data",
+                resource_name="prod-customer-data",
+                region=None,
+                account_id="123456789012",
+            )
+        )
+        rewriter = PolicyRewriter(database=tmp_db, inventory=inv)
+        stmt = Statement(effect="Allow", actions=["s3:GetObject"], resources=["*"])
+        spec = IntentSpec.from_string("read s3 prodd")  # typo: "prodd"
+        config = RewriteConfig(intent_spec=spec)
+
+        scoped, changes = rewriter._scope_resources(stmt, config, stmt_index=0)
+
+        # Passthrough: full candidate ARN list preserved.
+        assert "arn:aws:s3:::prod-customer-data" in scoped.resources
+
+        # And — the new audit signal MUST be present.
+        no_match = [c for c in changes if c.change_type == "ARN_INTENT_FILTER_NO_MATCH"]
+        assert len(no_match) == 1, "expected ARN_INTENT_FILTER_NO_MATCH change record"
+        assert no_match[0].confidence == 0.4
+        assert no_match[0].confidence < 0.5  # trips _check_low_confidence gate

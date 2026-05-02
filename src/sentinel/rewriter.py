@@ -643,6 +643,31 @@ class PolicyRewriter:
                                 ),
                             )
                         )
+                    elif pre_filter > 0:
+                        # Issue 1 (Amendment 13 follow-up): hints provided but
+                        # zero ARNs matched -> filter passthrough kicked in to
+                        # avoid empty scope. Surface this as a low-confidence
+                        # change so _check_low_confidence (self_check.py:845,
+                        # strict `<0.5` gate) emits a WARNING — operator can
+                        # then spot typos or unfamiliar resource names.
+                        changes.append(
+                            RewriteChange(
+                                change_type="ARN_INTENT_FILTER_NO_MATCH",
+                                description=(
+                                    f"Intent hints {hints} matched 0 of {pre_filter} "
+                                    f"{service} ARNs; preserved full candidate set"
+                                ),
+                                original_value=f"{pre_filter} ARNs",
+                                new_value=f"{pre_filter} ARNs (unchanged)",
+                                statement_index=stmt_index,
+                                confidence=0.4,
+                                rationale=(
+                                    "No inventory ARN matched any intent hint. "
+                                    "Either the hints are typos or your inventory "
+                                    "lacks the named resources."
+                                ),
+                            )
+                        )
                 if arns:
                     new_resources.extend(arns)
                     resolved_any = True
