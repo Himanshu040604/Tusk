@@ -397,6 +397,56 @@ class TestCmdRun:
         code = cmd_run(args)
         assert code in (EXIT_SUCCESS, EXIT_ISSUES_FOUND)
 
+    def test_run_threads_intent_spec_to_pipeline_config(
+        self, tmp_policy_file: Path, cli_db_path: str, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Issue 5: cmd_run must parse --intent into IntentSpec for PipelineConfig.
+
+        Companion of test_rewrite_threads_intent_spec_to_rewrite_config but
+        targeting the PipelineConfig path used by cmd_run / cmd_run_batch /
+        fetch. Inline subclass spy patches src.sentinel.self_check.PipelineConfig
+        (cmd_run is imported via src.sentinel.cli per the test convention).
+        """
+        from src.sentinel import self_check as self_check_mod
+        from src.sentinel.intent_spec import IntentSpec
+        from src.sentinel.self_check import PipelineConfig
+
+        captured: dict[str, object] = {}
+
+        class CapturingPipelineConfig(PipelineConfig):
+            def __init__(self, *a: object, **kw: object) -> None:
+                captured["intent_spec"] = kw.get("intent_spec")
+                captured["intent"] = kw.get("intent")
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(self_check_mod, "PipelineConfig", CapturingPipelineConfig)
+
+        args = Namespace(
+            policy_file=str(tmp_policy_file),
+            database=cli_db_path,
+            inventory=None,
+            output_format="text",
+            output=None,
+            input_format="auto",
+            intent="read s3 deploy",
+            account_id=None,
+            region=None,
+            strict=False,
+            max_retries=3,
+            no_companions=False,
+            no_conditions=False,
+            interactive=False,
+        )
+        cmd_run(args)
+
+        spec = captured.get("intent_spec")
+        assert isinstance(spec, IntentSpec), (
+            f"cmd_run must pass IntentSpec to PipelineConfig; got {type(spec).__name__}"
+        )
+        assert "s3" in spec.services
+        assert "deploy" in spec.resource_hints
+        assert captured.get("intent") == "read s3 deploy"
+
     def test_run_strict_mode(self, tmp_wildcard_policy: Path, cli_db_path: str):
         args = Namespace(
             policy_file=str(tmp_wildcard_policy),
@@ -803,6 +853,56 @@ class TestCmdRewrite:
         )
         code = cmd_rewrite(args)
         assert code == EXIT_SUCCESS
+
+    def test_rewrite_threads_intent_spec_to_rewrite_config(
+        self, tmp_policy_file: Path, cli_db_path: str, monkeypatch: pytest.MonkeyPatch
+    ):
+        """Issue 5: cmd_rewrite must parse --intent into IntentSpec at CLI entry.
+
+        Patches RewriteConfig with a thin subclass that captures kwargs, then
+        runs cmd_rewrite end-to-end with --intent and asserts the captured
+        intent_spec is a populated IntentSpec. Inline spy (no helper module)
+        per Agent 2 — tests/_helpers/ doesn't exist in this repo.
+        """
+        # cmd_rewrite is imported via `src.sentinel.cli` per test_cli.py
+        # convention — the relative `from .rewriter import RewriteConfig`
+        # inside cmd_rewrite therefore resolves to `src.sentinel.rewriter`.
+        # Patch THAT module's RewriteConfig binding (not `sentinel.rewriter`).
+        from src.sentinel import rewriter as rewriter_mod
+        from src.sentinel.intent_spec import IntentSpec
+
+        captured: dict[str, object] = {}
+
+        class CapturingRewriteConfig(RewriteConfig):
+            def __init__(self, *a: object, **kw: object) -> None:
+                captured["intent_spec"] = kw.get("intent_spec")
+                captured["intent"] = kw.get("intent")
+                super().__init__(*a, **kw)
+
+        monkeypatch.setattr(rewriter_mod, "RewriteConfig", CapturingRewriteConfig)
+
+        args = Namespace(
+            policy_file=str(tmp_policy_file),
+            database=cli_db_path,
+            inventory=None,
+            output_format="text",
+            output=None,
+            input_format="auto",
+            intent="read s3 deploy",
+            account_id=None,
+            region=None,
+            no_companions=False,
+            no_conditions=False,
+        )
+        cmd_rewrite(args)
+
+        spec = captured.get("intent_spec")
+        assert isinstance(spec, IntentSpec), (
+            f"cmd_rewrite must pass IntentSpec to RewriteConfig; got {type(spec).__name__}"
+        )
+        assert "s3" in spec.services
+        assert "deploy" in spec.resource_hints
+        assert captured.get("intent") == "read s3 deploy"
 
     def test_rewrite_json_output(self, tmp_policy_file: Path, tmp_path: Path, cli_db_path: str):
         out_file = tmp_path / "rewritten.json"
