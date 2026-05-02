@@ -108,7 +108,7 @@ class IntentSpec:
         return not (self.services or self.access_levels or self.resource_hints)
 
     @classmethod
-    def from_string(cls, intent: str) -> "IntentSpec":
+    def from_string(cls, intent: str | None) -> "IntentSpec":
         """Parse a natural-language intent string into an IntentSpec.
 
         Reuses ``IntentMapper`` for service + access-level extraction so the
@@ -117,10 +117,15 @@ class IntentSpec:
 
         Args:
             intent: Natural-language intent (e.g. "read s3 deploy artifacts").
+                ``None`` and empty/whitespace-only strings both return
+                ``IntentSpec.empty()`` so CLI callers can pass ``args.intent``
+                (which may be None when ``--intent`` is omitted) without a
+                guard. Issue 2 (Amendment 13 follow-up): aligns the runtime
+                contract with the type signature per PEP 484.
 
         Returns:
             IntentSpec with services and access_levels populated; empty if
-            the intent string is blank.
+            the intent is None / blank / whitespace-only.
         """
         if not intent or not intent.strip():
             return cls.empty()

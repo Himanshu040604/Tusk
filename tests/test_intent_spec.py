@@ -66,6 +66,23 @@ class TestIntentSpecFromString:
         assert "lambda" in spec.services
         assert "deployments" in spec.resource_hints
 
+    def test_from_string_accepts_none(self) -> None:
+        """Issue 2: from_string(None) returns empty without TypeError.
+
+        Type signature widened to ``str | None`` (Amendment 13 follow-up)
+        so Optional callers (CLI sites that may pass ``args.intent``
+        without guarding) get predictable empty spec rather than a
+        TypeError surprise.
+        """
+        spec = IntentSpec.from_string(None)
+        assert spec.is_empty()
+        assert spec.raw_intent == ""
+
+    def test_from_string_accepts_whitespace(self) -> None:
+        """Issue 2: whitespace-only input maps to empty (same as None)."""
+        spec = IntentSpec.from_string("   \t\n  ")
+        assert spec.is_empty()
+
 
 class TestIntentMappingIntegration:
     """IntentMapping carries an IntentSpec for downstream consumers."""
