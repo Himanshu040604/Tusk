@@ -69,6 +69,8 @@ from .analyzer import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from .database import Database
     from .intent_spec import IntentSpec
     from .inventory import ResourceInventory
@@ -762,7 +764,9 @@ class PolicyRewriter:
         return sorted(arns)
 
     @staticmethod
-    def _filter_arns_by_intent_hints(arns: list[str], hints: list[str]) -> list[str]:
+    def _filter_arns_by_intent_hints(
+        arns: list[str], hints: "Sequence[str]"
+    ) -> list[str]:
         """Filter candidate ARNs to those matching at least one resource hint.
 
         Returns the original list unchanged if ``hints`` is empty or if no

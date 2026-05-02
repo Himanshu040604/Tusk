@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from sentinel.analyzer import AccessLevel
 from sentinel.intent_spec import IntentSpec
 
@@ -12,9 +14,13 @@ class TestIntentSpecConstruction:
     def test_empty_intent_spec(self) -> None:
         spec = IntentSpec.empty()
         assert spec.raw_intent == ""
-        assert spec.services == set()
-        assert spec.access_levels == set()
-        assert spec.resource_hints == []
+        # Issue 10 (Amendment 13 follow-up): containers are now immutable
+        # (frozenset / tuple). frozenset() == set() is True so the
+        # services/access_levels asserts still hold; tuple == list is False
+        # so resource_hints needs () not [].
+        assert spec.services == frozenset()
+        assert spec.access_levels == frozenset()
+        assert spec.resource_hints == ()
 
     def test_direct_construction(self) -> None:
         spec = IntentSpec(
@@ -115,3 +121,39 @@ class TestIntentMappingIntegration:
         assert "s3" in mapping.intent_spec.services
         assert "deploy" in mapping.intent_spec.resource_hints
         assert mapping.intent_spec.raw_intent == "read s3 deploy"
+
+
+class TestIntentSpecImmutability:
+    """Issue 10: frozen=True must guarantee both reassignment AND in-place safety."""
+
+    def test_services_cannot_be_mutated_in_place(self) -> None:
+        """frozenset.add doesn't exist — in-place mutation impossible."""
+        spec = IntentSpec.from_string("read s3 deploy")
+        with pytest.raises(AttributeError):
+            spec.services.add("ec2")  # type: ignore[attr-defined]
+
+    def test_resource_hints_cannot_be_mutated_in_place(self) -> None:
+        """tuple.append doesn't exist — in-place mutation impossible."""
+        spec = IntentSpec.from_string("read s3 deploy")
+        with pytest.raises(AttributeError):
+            spec.resource_hints.append("artifacts")  # type: ignore[attr-defined]
+
+    def test_attribute_reassignment_blocked(self) -> None:
+        """frozen=True still blocks attribute rebinding."""
+        spec = IntentSpec.from_string("read s3")
+        with pytest.raises(Exception):  # FrozenInstanceError, subclass of AttributeError
+            spec.services = frozenset({"ec2"})  # type: ignore[misc]
+
+    def test_set_input_coerced_to_frozenset(self) -> None:
+        """Backwards compat: callers may pass set() / list() literals."""
+        spec = IntentSpec(
+            raw_intent="x",
+            services={"s3"},
+            access_levels={AccessLevel.READ},
+            resource_hints=["deploy"],
+        )
+        assert isinstance(spec.services, frozenset)
+        assert isinstance(spec.access_levels, frozenset)
+        assert isinstance(spec.resource_hints, tuple)
+        assert spec.services == frozenset({"s3"})
+        assert spec.resource_hints == ("deploy",)

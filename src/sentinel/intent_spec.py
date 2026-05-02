@@ -85,23 +85,50 @@ _TOKEN_RE: re.Pattern[str] = re.compile(r"[A-Za-z][A-Za-z0-9-]*")
 class IntentSpec:
     """Parsed developer intent.
 
+    Issue 10 (Amendment 13 follow-up): container fields are ``frozenset``
+    and ``tuple`` so the ``frozen=True`` claim holds for both attribute
+    reassignment AND in-place container mutation. ``__post_init__``
+    coerces caller-supplied ``set`` / ``list`` inputs (for backwards-compat
+    with call sites that build IntentSpec from ``set()`` / ``list()``
+    literals) into immutable forms.
+
     Attributes:
         raw_intent: Original intent string (preserved for traceability and audit).
-        services: AWS service prefixes extracted from the intent (e.g. ``{"s3"}``).
-        access_levels: Access levels extracted from the intent.
-        resource_hints: Lowercase content words that are neither service names nor
-            access verbs - used by the rewriter to filter candidate ARNs.
+        services: AWS service prefixes (``frozenset``, e.g. ``frozenset({"s3"})``).
+        access_levels: Access levels (``frozenset``).
+        resource_hints: Lowercase content tokens (``tuple``) that are
+            neither service names nor access verbs — used by the rewriter
+            to filter candidate ARNs.
     """
 
     raw_intent: str
-    services: set[str] = field(default_factory=set)
-    access_levels: set["AccessLevel"] = field(default_factory=set)
-    resource_hints: list[str] = field(default_factory=list)
+    services: frozenset[str] = field(default_factory=frozenset)
+    access_levels: frozenset["AccessLevel"] = field(default_factory=frozenset)
+    resource_hints: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        """Coerce caller-supplied set/list inputs to immutable forms.
+
+        Backwards compat: existing call sites pass ``set()`` / ``list()``
+        literals. Convert via ``object.__setattr__`` (the canonical pattern
+        for frozen dataclasses) so the public field type is always immutable.
+        """
+        if not isinstance(self.services, frozenset):
+            object.__setattr__(self, "services", frozenset(self.services))
+        if not isinstance(self.access_levels, frozenset):
+            object.__setattr__(self, "access_levels", frozenset(self.access_levels))
+        if not isinstance(self.resource_hints, tuple):
+            object.__setattr__(self, "resource_hints", tuple(self.resource_hints))
 
     @classmethod
     def empty(cls) -> "IntentSpec":
         """Return an empty IntentSpec for "no intent provided" cases."""
-        return cls(raw_intent="", services=set(), access_levels=set(), resource_hints=[])
+        return cls(
+            raw_intent="",
+            services=frozenset(),
+            access_levels=frozenset(),
+            resource_hints=(),
+        )
 
     def is_empty(self) -> bool:
         """True if the spec carries no actionable signal."""
