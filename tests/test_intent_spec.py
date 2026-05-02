@@ -83,6 +83,25 @@ class TestIntentSpecFromString:
         spec = IntentSpec.from_string("   \t\n  ")
         assert spec.is_empty()
 
+    def test_two_char_env_tokens_kept(self) -> None:
+        """Issue 8: common 2-char env names (qa/ci/eu/us/dr) survive filtering.
+
+        Pre-fix the ``len(tok) < 3`` filter silently dropped these — operator
+        typing ``--intent "read s3 qa"`` got resource_hints=[] without any
+        signal. Now the floor is single-char only.
+        """
+        for env in ("qa", "ci", "eu", "us", "dr"):
+            spec = IntentSpec.from_string(f"read s3 {env}")
+            assert env in spec.resource_hints, f"{env!r} should remain a hint"
+
+    def test_single_char_dropped(self) -> None:
+        """Single-char tokens still drop (noise floor — bare letters from regex)."""
+        spec = IntentSpec.from_string("read s3 a b c xyz")
+        assert "a" not in spec.resource_hints
+        assert "b" not in spec.resource_hints
+        assert "c" not in spec.resource_hints
+        assert "xyz" in spec.resource_hints
+
 
 class TestIntentMappingIntegration:
     """IntentMapping carries an IntentSpec for downstream consumers."""

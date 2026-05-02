@@ -167,7 +167,12 @@ class IntentSpec:
             tok = match.group(0)
             if tok in _STOP_WORDS or tok in service_words or tok in _PURE_ACCESS_VERBS:
                 continue
-            if len(tok) < 3 or tok in seen:
+            # Issue 8 (Amendment 13 follow-up): single-char tokens are pure
+            # noise (regex-only match like the leading "a" of "abc"); 2+
+            # chars survive so common DevOps env names like "qa"/"ci"/"eu"/
+            # "us"/"dr" can scope. _STOP_WORDS already covers 2-letter
+            # English false-positives ("is"/"be"/"or"/"to").
+            if len(tok) < 2 or tok in seen:
                 continue
             seen.add(tok)
             hints.append(tok)
