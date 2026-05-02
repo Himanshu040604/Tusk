@@ -167,9 +167,9 @@ class IntentSpec:
 
         return cls(
             raw_intent=intent,
-            services=set(mapping.services),
-            access_levels=set(mapping.access_levels),
-            resource_hints=hints,
+            services=frozenset(mapping.services),
+            access_levels=frozenset(mapping.access_levels),
+            resource_hints=tuple(hints),
         )
 
     @staticmethod

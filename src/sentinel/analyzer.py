@@ -256,9 +256,11 @@ class IntentMapper:
 
         intent_spec = IntentSpec(
             raw_intent=intent,
-            services=set(services),
-            access_levels=set(access_levels),
-            resource_hints=IntentSpec._extract_resource_hints(intent_lower, services=services),
+            services=frozenset(services),
+            access_levels=frozenset(access_levels),
+            resource_hints=tuple(
+                IntentSpec._extract_resource_hints(intent_lower, services=services)
+            ),
         )
 
         return IntentMapping(
