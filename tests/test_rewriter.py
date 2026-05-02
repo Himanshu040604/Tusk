@@ -1112,6 +1112,83 @@ class TestIntentDrivenScoping:
         # No filter changes when no hints
         assert all(c.change_type != "ARN_FILTERED_BY_INTENT" for c in changes)
 
+    def test_intent_hints_per_statement_isolation(self, tmp_db, tmp_path):
+        """Issue 9 (a): hints apply per-statement; s3 stmt and ec2 stmt narrow independently."""
+        from sentinel.intent_spec import IntentSpec
+
+        inv = ResourceInventory(tmp_path / "multi_stmt_inv.db")
+        inv.create_schema()
+        for arn, name, svc, rtype in [
+            ("arn:aws:s3:::prod-deploy-artifacts", "prod-deploy-artifacts", "s3", "bucket"),
+            ("arn:aws:s3:::prod-customer-data", "prod-customer-data", "s3", "bucket"),
+            (
+                "arn:aws:ec2:us-east-1:123456789012:instance/i-deploy-1",
+                "i-deploy-1",
+                "ec2",
+                "instance",
+            ),
+            (
+                "arn:aws:ec2:us-east-1:123456789012:instance/i-customer-1",
+                "i-customer-1",
+                "ec2",
+                "instance",
+            ),
+        ]:
+            inv.insert_resource(
+                Resource(
+                    resource_id=None,
+                    service_prefix=svc,
+                    resource_type=rtype,
+                    resource_arn=arn,
+                    resource_name=name,
+                    region="us-east-1",
+                    account_id="123456789012",
+                )
+            )
+        rewriter = PolicyRewriter(database=tmp_db, inventory=inv)
+        policy = Policy(
+            version="2012-10-17",
+            statements=[
+                Statement(effect="Allow", actions=["s3:GetObject"], resources=["*"]),
+                Statement(effect="Allow", actions=["ec2:DescribeInstances"], resources=["*"]),
+            ],
+        )
+        spec = IntentSpec.from_string("read s3 ec2 deploy")
+        result = rewriter.rewrite_policy(policy, RewriteConfig(intent_spec=spec))
+
+        # Both statements should narrow to the deploy-flavored ARN only.
+        s3_stmt = next(
+            s for s in result.rewritten_policy.statements if any("s3" in a for a in s.actions)
+        )
+        ec2_stmt = next(
+            s for s in result.rewritten_policy.statements if any("ec2" in a for a in s.actions)
+        )
+        assert any("deploy" in r for r in s3_stmt.resources)
+        assert any("deploy" in r for r in ec2_stmt.resources)
+        assert not any("customer" in r for r in s3_stmt.resources)
+        assert not any("customer" in r for r in ec2_stmt.resources)
+
+    def test_intent_hints_ignored_for_placeholder_path(self, tmp_db):
+        """Issue 9 (b): when no inventory ARNs match, placeholders ignore intent_spec.
+
+        Documents current behavior so any future change is intentional.
+        Future: placeholder names could embed the first hint, but that risks
+        misleading operators into thinking the placeholder is a real ARN.
+        """
+        from sentinel.intent_spec import IntentSpec
+
+        rewriter = PolicyRewriter(database=tmp_db, inventory=None)  # no inventory
+        stmt = Statement(effect="Allow", actions=["s3:GetObject"], resources=["*"])
+        spec = IntentSpec.from_string("read s3 deploy artifacts")
+        scoped, changes = rewriter._scope_resources(stmt, RewriteConfig(intent_spec=spec), 0)
+
+        # Placeholder generated regardless of hints.
+        assert all("PLACEHOLDER" in r for r in scoped.resources)
+        # No ARN_FILTERED_BY_INTENT change emitted — filter only runs on inventory ARNs.
+        assert not any(c.change_type == "ARN_FILTERED_BY_INTENT" for c in changes)
+        # No ARN_INTENT_FILTER_NO_MATCH either — the filter branch was never entered.
+        assert not any(c.change_type == "ARN_INTENT_FILTER_NO_MATCH" for c in changes)
+
     def test_intent_hints_no_match_emits_warning_change(self, tmp_db, tmp_path):
         """Issue 1: hints matching 0 ARNs emit ARN_INTENT_FILTER_NO_MATCH (confidence 0.4).
 
