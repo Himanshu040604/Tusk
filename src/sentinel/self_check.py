@@ -29,7 +29,9 @@ Key behaviors:
   of preserved Tier-2 action strings (unions TIER2_IN_POLICY +
   TIER2_ACTION_KEPT -- M1 v0.8.1 fix). The deprecated
   ``tier2_excluded: bool`` shim remains for one release cycle but emits
-  ``DeprecationWarning`` (L4 v0.8.1); scheduled for removal in v0.9.0.
+  ``DeprecationWarning`` (L4 v0.8.1); removal **postponed to v1.0.0** to
+  keep this release scoped to Amendment 13 (IntentSpec typed refactor)
+  and avoid coupling unrelated breaking changes per PEP 387 guidance.
 
 See ``prod_imp.md § 17 Amendments 10 and 11`` for the decision record.
 """
@@ -164,13 +166,15 @@ class SelfCheckResult:
         semantically lossy — a corpus-populated DB run with zero Tier-2
         actions produces the same ``True`` value as a v0.7.0 run where
         actions WERE excluded, giving legacy consumers a false-negative
-        warning path. Removal scheduled for v0.9.0.
+        warning path. Removal scheduled for v1.0.0 (postponed from v0.9.0 —
+        see Amendment 13 / Issue 11 in CHANGELOG ``[Unreleased]``).
         """
         import warnings
 
         warnings.warn(
             "tier2_excluded is deprecated; use tier2_preserved_actions "
-            "(v0.8.0 Amendment 10). This shim will be removed in v0.9.0.",
+            "(v0.8.0 Amendment 10). This shim will be removed in v1.0.0 "
+            "(postponed from v0.9.0).",
             DeprecationWarning,
             stacklevel=2,
         )

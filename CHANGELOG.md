@@ -54,6 +54,12 @@ in inventory.
   functional but are scheduled for removal in v1.0.0. New code should
   pass `intent_spec` directly. The `--intent` CLI flag continues to
   accept a natural-language string.
+- `SelfCheckResult.tier2_excluded` removal previously scheduled for v0.9.0
+  (Amendment 11) is **postponed to v1.0.0** to keep this release scoped
+  to the IntentSpec typed refactor (Amendment 13) and avoid coupling
+  unrelated breaking changes per PEP 387 guidance. Library consumers
+  reading the deprecated property continue to receive the existing
+  `DeprecationWarning`. (Issue 11.)
 
 ### Notes
 
