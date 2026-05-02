@@ -973,6 +973,40 @@ class TestRewriteConfigIntentSpec:
         config = RewriteConfig(intent="completely different string", intent_spec=typed)
         assert config.resolved_intent_spec() is typed
 
+    def test_resolved_intent_spec_emits_deprecation_warning(self):
+        """Issue 6: lazy-parse fallback warns once per call (DeprecationWarning).
+
+        Mirrors the tier2_excluded shim precedent at self_check.py:170.
+        Library callers using only the legacy ``intent: str`` field get
+        a clear migration prompt; CLI users (who now always pass
+        intent_spec) won't trigger this path.
+        """
+        import warnings
+
+        config = RewriteConfig(intent="read s3")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            config.resolved_intent_spec()
+
+        deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
+        assert len(deprecations) == 1
+        msg = str(deprecations[0].message)
+        assert "intent_spec" in msg
+        assert "v1.0.0" in msg
+
+    def test_resolved_intent_spec_no_warning_when_intent_spec_set(self):
+        """Modern callers passing intent_spec see no DeprecationWarning."""
+        import warnings
+        from sentinel.intent_spec import IntentSpec
+
+        spec = IntentSpec.from_string("read s3")
+        config = RewriteConfig(intent_spec=spec)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            config.resolved_intent_spec()
+
+        assert not any(issubclass(w.category, DeprecationWarning) for w in caught)
+
 
 class TestFilterArnsByIntentHints:
     """The hint filter narrows candidate ARNs to those matching user intent."""

@@ -112,10 +112,24 @@ class RewriteConfig:
 
         Returns ``None`` when neither field is populated. ``intent_spec``
         always wins over ``intent`` to preserve caller-provided typing.
+
+        Issue 6 (Amendment 13 follow-up): emits ``DeprecationWarning`` when
+        only the legacy ``intent: str`` is supplied (matches the
+        ``tier2_excluded`` shim precedent at ``self_check.py:170``).
+        Removal of ``intent: str`` scheduled for v1.0.0 per CHANGELOG.
         """
         if self.intent_spec is not None:
             return self.intent_spec
         if self.intent:
+            import warnings
+
+            warnings.warn(
+                "RewriteConfig.intent: str is deprecated; pass intent_spec "
+                "(see sentinel.intent_spec.IntentSpec.from_string). "
+                "Removal scheduled for v1.0.0.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             from .intent_spec import IntentSpec
 
             return IntentSpec.from_string(self.intent)
