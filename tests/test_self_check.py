@@ -401,6 +401,38 @@ class TestPipelineConfigDataclass:
         assert config.add_companions is False
 
 
+class TestBuildRewriteConfigWiring:
+    """Issue 3: Pipeline._build_rewrite_config threads intent_spec through unchanged.
+
+    Direct unit test for the single-line wiring at self_check.py:1267-1276
+    so a future contributor reordering or dropping the intent_spec field
+    fails this test loudly instead of regressing the headline feature
+    silently in the pipeline path.
+    """
+
+    def test_intent_spec_passes_through_to_rewrite_config(self, tmp_db):
+        """PipelineConfig.intent_spec must reach RewriteConfig.intent_spec."""
+        from sentinel.intent_spec import IntentSpec
+        from sentinel.self_check import Pipeline, PipelineConfig
+
+        spec = IntentSpec.from_string("read s3 deploy")
+        pipeline_config = PipelineConfig(intent="read s3 deploy", intent_spec=spec)
+        pipeline = Pipeline(database=tmp_db, inventory=None)
+        rewrite_config = pipeline._build_rewrite_config(pipeline_config)
+
+        assert rewrite_config.intent_spec is spec
+        assert rewrite_config.intent == "read s3 deploy"
+
+    def test_intent_spec_none_passes_through_as_none(self, tmp_db):
+        """Default PipelineConfig (no intent) yields RewriteConfig.intent_spec=None."""
+        from sentinel.self_check import Pipeline, PipelineConfig
+
+        pipeline = Pipeline(database=tmp_db, inventory=None)
+        rewrite_config = pipeline._build_rewrite_config(PipelineConfig())
+        assert rewrite_config.intent_spec is None
+        assert rewrite_config.intent is None
+
+
 # ---------------------------------------------------------------------------
 # Test SelfCheckValidator Initialization
 # ---------------------------------------------------------------------------
