@@ -20,6 +20,10 @@ from typing import Final
 EXIT_SUCCESS: Final[int] = 0
 
 #: At least one finding, all WARNING or below (narrowed from legacy semantics).
+#: Known triggers include the ``LOW_CONFIDENCE`` self-check finding raised
+#: by the strict ``< 0.5`` gate when ``--intent`` hints match zero candidate
+#: ARNs in inventory (``ARN_INTENT_FILTER_NO_MATCH`` at ``confidence=0.4``;
+#: Bundle E D5).
 EXIT_ISSUES_FOUND: Final[int] = 1
 
 #: Invalid CLI arguments — POSIX convention.
