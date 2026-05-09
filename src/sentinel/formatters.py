@@ -253,6 +253,13 @@ class TextFormatter:
                 lines.append(f"  [{c.change_type}] {c.description}")
                 lines.append(f"    Before: {c.original_value}")
                 lines.append(f"    After:  {c.new_value}")
+                # Issue N2 (Bundle E): surface audit signals (confidence /
+                # rationale) so operators can see WARNING-level rewrites
+                # like ARN_INTENT_FILTER_NO_MATCH (confidence=0.4).
+                if c.confidence < 1.0:
+                    lines.append(f"    Confidence: {c.confidence:.1f}")
+                if c.rationale:
+                    lines.append(f"    Rationale: {c.rationale}")
 
         if result.assumptions:
             lines.append("")
@@ -471,6 +478,11 @@ class JsonFormatter:
                     "original_value": c.original_value,
                     "new_value": c.new_value,
                     "statement_index": c.statement_index,
+                    # Issue N2 (Bundle E): always-emit for stable jq
+                    # contract — operators can gate on `.confidence < 0.5`
+                    # without `// 1.0` fallback handling.
+                    "confidence": c.confidence,
+                    "rationale": c.rationale,
                 }
                 for c in result.changes
             ],
@@ -678,11 +690,17 @@ class MarkdownFormatter:
         if result.changes:
             lines.append("## Changes")
             lines.append("")
-            lines.append("| Type | Description |")
-            lines.append("|------|-------------|")
+            # Issue N2 (Bundle E): include confidence + rationale columns so
+            # markdown reports surface the same audit signal as JSON / text.
+            lines.append("| Type | Description | Confidence | Rationale |")
+            lines.append("|------|-------------|------------|-----------|")
             for c in result.changes:
                 desc_escaped = c.description.replace("|", "\\|")
-                lines.append(f"| {c.change_type} | {desc_escaped} |")
+                rationale_escaped = (c.rationale or "").replace("|", "\\|")
+                lines.append(
+                    f"| {c.change_type} | {desc_escaped} | "
+                    f"{c.confidence:.1f} | {rationale_escaped} |"
+                )
             lines.append("")
 
         if result.assumptions:
