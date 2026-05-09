@@ -244,7 +244,7 @@ uv run sentinel run --batch ./policies/ --output-format json \
 | Code | CI behavior suggestion |
 |------|------------------------|
 | 0 (`EXIT_SUCCESS`) | green |
-| 1 (`EXIT_ISSUES_FOUND`) | warn-but-pass (soft) or fail (strict) |
+| 1 (`EXIT_ISSUES_FOUND`) | warn-but-pass (soft) or fail (strict). Now also fires when `--intent` hints match zero candidate ARNs (Bundle E C1). |
 | 2 (`EXIT_INVALID_ARGS`) | fail (operator error) |
 | 3 (`EXIT_IO_ERROR`) | fail + alert (infrastructure problem) |
 | 4 (`EXIT_CRITICAL_FINDING`) | fail (blocks deploy) |

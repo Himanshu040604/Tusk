@@ -180,7 +180,7 @@ Single source of truth: `src/sentinel/exit_codes.py`.
 | Code | Name | Trigger |
 |------|------|---------|
 | 0 | `EXIT_SUCCESS` | Clean run; verdict PASS; no warnings. |
-| 1 | `EXIT_ISSUES_FOUND` | Verdict WARNING (non-fatal risks). |
+| 1 | `EXIT_ISSUES_FOUND` | Verdict WARNING (non-fatal risks). Includes `LOW_CONFIDENCE` triggered when `--intent` hints match zero ARNs in inventory (Bundle E C1). |
 | 2 | `EXIT_INVALID_ARGS` | Bad CLI args, unparseable input, `httpx.InvalidURL`. |
 | 3 | `EXIT_IO_ERROR` | DB / HMAC / filesystem / migration / alembic probe failure. |
 | 4 | `EXIT_CRITICAL_FINDING` | Verdict FAIL (CRITICAL or HIGH severity finding). |
