@@ -112,7 +112,21 @@ class IntentSpec:
         Backwards compat: existing call sites pass ``set()`` / ``list()``
         literals. Convert via ``object.__setattr__`` (the canonical pattern
         for frozen dataclasses) so the public field type is always immutable.
+
+        Issue N1 (Bundle E): bare ``str`` / ``bytes`` are iterable but
+        iterate per-character (``frozenset("s3") == frozenset({'s', '3'})``).
+        Reject-guard them explicitly — there is no "non-string iterable"
+        ABC in ``collections.abc``, so the idiomatic Python pattern is the
+        ``isinstance(x, (str, bytes))`` check before iterable coercion.
         """
+        for _attr in ("services", "access_levels", "resource_hints"):
+            _val = getattr(self, _attr)
+            if isinstance(_val, (str, bytes)):
+                raise TypeError(
+                    f"IntentSpec.{_attr} must be an iterable of items, "
+                    f"not a bare {type(_val).__name__} "
+                    f"(got {_val!r}; did you mean ({_val!r},)?)"
+                )
         if not isinstance(self.services, frozenset):
             object.__setattr__(self, "services", frozenset(self.services))
         if not isinstance(self.access_levels, frozenset):

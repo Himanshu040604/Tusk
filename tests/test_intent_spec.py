@@ -157,3 +157,18 @@ class TestIntentSpecImmutability:
         assert isinstance(spec.resource_hints, tuple)
         assert spec.services == frozenset({"s3"})
         assert spec.resource_hints == ("deploy",)
+
+    def test_string_input_rejected(self) -> None:
+        """Issue N1 (Bundle E): bare str/bytes must raise TypeError.
+
+        ``frozenset("s3")`` iterates the string per-character to
+        ``frozenset({'s', '3'})``, silently corrupting the spec. Reject
+        bare str/bytes so the failure is loud at construction time
+        rather than later as a no-op service lookup.
+        """
+        with pytest.raises(TypeError, match="must be an iterable"):
+            IntentSpec(raw_intent="x", services="s3")  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="must be an iterable"):
+            IntentSpec(raw_intent="x", resource_hints="deploy")  # type: ignore[arg-type]
+        with pytest.raises(TypeError, match="must be an iterable"):
+            IntentSpec(raw_intent="x", services=b"s3")  # type: ignore[arg-type]
