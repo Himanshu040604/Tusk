@@ -192,8 +192,11 @@ class IntentSpec:
 
         Filters: stop words, AWS service keywords (from ``SERVICE_NAME_MAPPINGS``
         and the parsed services set), pure access verbs in ``_PURE_ACCESS_VERBS``,
-        and tokens shorter than 3 characters. Order is preserved; duplicates are
-        deduped on first occurrence.
+        and single-character tokens (``len(tok) < 2``). Two-character tokens
+        survive so common DevOps env names like ``qa`` / ``ci`` / ``eu`` /
+        ``us`` / ``dr`` can scope policies — see Issue 8 (Amendment 13
+        follow-up). Order is preserved; duplicates are deduped on first
+        occurrence.
         """
         from .constants import SERVICE_NAME_MAPPINGS
 
