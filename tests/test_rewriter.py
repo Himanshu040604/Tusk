@@ -1109,8 +1109,11 @@ class TestIntentDrivenScoping:
         # Both my-app-data and my-app-logs should be scoped (no narrowing)
         assert any("my-app-data" in r for r in scoped.resources)
         assert any("my-app-logs" in r for r in scoped.resources)
-        # No filter changes when no hints
+        # No filter changes when no hints (both intent-driven negative markers).
+        # T1 (Bundle E): Bundle B added ARN_INTENT_FILTER_NO_MATCH; the no-intent
+        # path must remain free of both records.
         assert all(c.change_type != "ARN_FILTERED_BY_INTENT" for c in changes)
+        assert all(c.change_type != "ARN_INTENT_FILTER_NO_MATCH" for c in changes)
 
     def test_intent_hints_per_statement_isolation(self, tmp_db, tmp_path):
         """Issue 9 (a): hints apply per-statement; s3 stmt and ec2 stmt narrow independently."""
