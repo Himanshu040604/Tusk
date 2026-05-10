@@ -778,8 +778,11 @@ class PolicyRewriter:
         bracket framing at the call site).
 
         Lazy import of ``secrets_patterns`` keeps it out of the
-        rewriter's import chain (cold-start budget per P0-3 α). Module
-        is cached after the first call so per-call cost is sub-microsecond.
+        rewriter's import chain (cold-start budget per P0-3 α). The module
+        is cached in ``sys.modules`` after the first call, so the import
+        itself amortizes; per-call cost is dominated by the regex
+        ``.sub`` pass over ``SECRET_PATTERNS`` (~6 patterns, tens of
+        microseconds for typical hint strings).
 
         Args:
             hints: Resource hints from ``IntentSpec.resource_hints``.
