@@ -43,7 +43,7 @@ Nine source types route through a single `Fetcher` protocol and normalize to a `
 | URL (`--url`) | `src/sentinel/fetchers/url.py` | HTTPS only by default; runs through the SSRF quartet; cache-backed. |
 | GitHub (`--github owner/repo/path`) | `src/sentinel/fetchers/github.py` | Token via `SENTINEL_GITHUB_TOKEN` (pydantic-`SecretStr`). |
 | AWS sample page | `src/sentinel/fetchers/aws_sample.py` | Scraped via `selectolax`; domain allow-listed. |
-| AWS managed policy | `src/sentinel/fetchers/aws_managed.py` | Local DB only; no network. |
+| AWS managed policy | `src/sentinel/fetchers/aws_managed.py` | Local DB only; no network at fetch time. The DB is populated by `sentinel refresh --source managed-policies --live` which fetches from the `zoph-io/IAMTrail` community mirror (Bundle M) — AWS does not publish managed policies as standalone JSON. Strict envelope validation rejects schema drift. |
 | CloudSplaining examples | `src/sentinel/fetchers/cloudsplaining.py` | Fixture repo on GitHub; cached. |
 | Directory batch | `src/sentinel/fetchers/batch.py` | `sentinel run --batch <dir>` iterates all JSON/YAML under DIR. |
 

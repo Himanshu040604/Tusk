@@ -169,8 +169,13 @@ Selectolax parses the HTML; sources limited to the AWS docs allow-list.
 uv run sentinel fetch --aws-managed AdministratorAccess
 ```
 
-No network; reads the managed-policy table loaded via
-`sentinel refresh --source managed-policies`.
+No network at `fetch` time; reads the managed-policy table loaded via
+`sentinel refresh --source managed-policies`. The `--live` refresh
+fetches from the `zoph-io/IAMTrail` community mirror (Bundle M) since
+AWS does not publish managed policies as standalone JSON. Operators
+auditing data provenance should be aware of this third-party
+dependency; the scraper validates the AWS `GetPolicyVersion` envelope
+shape on every fetch and fails closed on drift.
 
 ### From a CloudSplaining example
 
