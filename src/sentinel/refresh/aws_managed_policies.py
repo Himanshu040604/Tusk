@@ -6,7 +6,8 @@ The AWS managed policy list is enumerated at:
    reference_aws-managed-policies.html``
 
 with each policy's JSON hosted at per-policy pages.  The scraper
-fetches via :class:`SentinelHTTPClient` (``source="aws_docs"``,
+fetches via :class:`SentinelHTTPClient` (``source="github"`` since
+Bundle B.9; was ``"aws_docs"`` historically,
 7 d TTL) and writes rows to ``managed_policies`` signed with the
 ``policy_document_hmac`` HMAC column (M12, Phase 2 Task 6a).
 
@@ -177,7 +178,14 @@ class ManagedPoliciesLiveScraper:
         envelope when the caller doesn't pin one explicitly, so the
         ``version`` column auto-populates from the mirror.
         """
-        resp = self._client.get(url, source="aws_docs")
+        # Bundle B.9: source tag is "github" because the upstream is now
+        # raw.githubusercontent.com/zoph-io/IAMTrail (Bundle M). Aligns
+        # the cache TTL (24h github vs 168h aws_docs) with reality —
+        # IAMTrail commits daily, so a 7-day cache would mask 6 days
+        # of policy updates. The historical "aws_docs" tag was a
+        # vestige from when the seeds (incorrectly) pointed at
+        # docs.aws.amazon.com.
+        resp = self._client.get(url, source="github")
         parsed = json.loads(resp.text)  # raises ValueError on non-JSON
         if not isinstance(parsed, dict) or "PolicyVersion" not in parsed:
             raise ValueError(
