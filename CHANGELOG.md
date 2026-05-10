@@ -110,6 +110,19 @@ in inventory.
   (`sentinel refresh --source policy-sentry --live`) is unchanged.
   Worst-exit-code aggregation now reflects only sources that *should*
   have run.
+- **Bundle K — pre-commit hook drift cleared (5 hooks).** The CI's
+  `pre-commit run --all-files` step had been red on every push because
+  hook versions in `.pre-commit-config.yaml` lagged 10 minor releases
+  behind `uv.lock`: ruff `v0.5.5` → `v0.15.11` (didn't recognize rule
+  `UP045` selected in `pyproject.toml`); mypy `v1.10.0` → `v1.20.2`
+  (missing `types-PyYAML` + `structlog` in the hook's isolated env);
+  `.secrets.baseline` keyed against detect-secrets' v23-plugin schema
+  (current is 27); custom `sentinel-secret-grep` matched its own test
+  fixtures + doc examples (dogfood collision). All five hooks now pass
+  in CI without auto-fix churn (`uv run ruff check / format` was
+  already clean at 0.15.11). Audited 8 baselined fake-fixture entries
+  manually — all confirmed `AKIAIOSFODNN7EXAMPLE` / `ghp_fake_...` /
+  AWS-docs canonical examples; zero real leaks.
 - **Bundle J — `tests/test_cli_live.py` argparse mismatch (cluster B).**
   The two `TestLiveAwsSample` / `TestLiveCacheHitCycle` tests sent
   `fetch aws-sample admin-access-required --json` (positional + nonexistent
