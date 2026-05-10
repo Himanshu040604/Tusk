@@ -1205,7 +1205,12 @@ class TestRefreshLiveContextManager:
             def __init__(self, db, client) -> None:  # noqa: ARG002
                 pass
 
-            def scrape_one(self, *, name, arn, url):  # noqa: ARG002
+            def scrape_one(self, *, name, arn, url, description=None, version=None):  # noqa: ARG002
+                # Bundle M.7: signature defensively widened to match
+                # ManagedPoliciesLiveScraper's public surface (which gained
+                # description + version kwargs in M.2's envelope-unwrap rewrite).
+                # Without this, a future CLI tweak passing version=... would
+                # silently break this H2 regression test with TypeError.
                 return "ADD"
 
         monkeypatch.setattr(
