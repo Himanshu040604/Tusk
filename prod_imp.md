@@ -2095,6 +2095,63 @@ catalogue design.
 `docs/superpowers/plans/2026-05-01-intent-spec-refactor.md` is the
 local-only plan that drove the implementation (excluded by `.gitignore`).
 
+**Phase A follow-ups — Bundles E, F, G.** Three post-merge review
+cycles surfaced 18 fixes across 14 commits. Each was vetted by a
+3-agent validation chain (genuineness / hybrid-worktree-fit /
+integration-side-effects) before merge.
+
+- *Bundle E (7 commits, 11 issues closed).* N1: `IntentSpec.__post_init__`
+  rejects bare `str`/`bytes` to close a silent corruption where
+  `frozenset("s3")` shredded to `{'s','3'}`. N2: text/JSON/markdown
+  formatters now emit `confidence` + `rationale` from `RewriteChange`,
+  so operators can `jq` on the new `ARN_INTENT_FILTER_NO_MATCH`
+  WARNING signal at `confidence=0.4`. C1a/C1b: CHANGELOG +
+  `docs/FEATURES.md` + `docs/USAGE.md` document the new exit-code
+  shift (`EXIT_SUCCESS` → `EXIT_ISSUES_FOUND` when intent-hints zero-match
+  a populated inventory). D1: `_extract_resource_hints` docstring
+  drift fix (`< 3` → `< 2`, admitting 2-char DevOps env tokens like
+  `qa`/`ci`/`eu`/`us`/`dr`). T1: `test_no_intent_does_not_filter`
+  now negates both intent-driven change-types. D5: `EXIT_ISSUES_FOUND`
+  docstring cites `LOW_CONFIDENCE` trigger.
+
+- *Bundle F (5 commits, M1-M3 closed).* M1: CHANGELOG wording
+  correction — exit-code shift requires inventory **populated** AND
+  `pre_filter > 0`, not just "hints match zero." M2: `docs/FEATURES.md`
+  schema row enumerates `confidence` / `rationale` fields. M3a: new
+  `PolicyRewriter._format_hints_safely` staticmethod scrubs hint text
+  via `secrets_patterns.SECRET_PATTERNS` and renders via `repr()`-join
+  to fix the cosmetic Python tuple-repr leak (`('foo',)` → `'foo'`).
+  Defense-in-depth — Bundle F M3 chain Agent 1 empirically refuted CLI
+  exposure (the `intent.lower()` + tokenizer regex destroys every
+  cataloged secret shape) but the helper closes the gap for any future
+  caller bypassing the tokenizer. M3b: `secrets_patterns.py` docstring
+  lists rewriter as 4th consumer. M3c: CHANGELOG `### Security` entry.
+
+- *Bundle G (2 commits).* N4: `docs/FEATURES.md` JSON schema row
+  corrected — the pipeline (`sentinel run`) emits `rewrite_changes:
+  <int>` only; the full per-change array with `confidence` /
+  `rationale` is in the standalone `sentinel rewrite -f json`
+  output (`JsonFormatter.format_rewrite_result`), not the pipeline
+  emitter. L12: `### Security` section moved to the canonical
+  Keep-a-Changelog 1.1.0 position (after `### Deprecated`).
+
+**Test baseline (cumulative):** 856 (v0.8.2) → 902 (Phase A + Bundles
+E-G), +46 net. mypy + ruff + ruff-format remain clean across all
+bundles. CHANGELOG `[Unreleased]` and the four doc surfaces
+(`README.md`, `docs/FEATURES.md`, `docs/USAGE.md`,
+`src/sentinel/exit_codes.py`) are coherent on the exit-code shift.
+
+**Key learning — chain catches what mechanical tests can't.** Bundle E
+Agent 3 caught a CHANGELOG-poisoning bug (proposed entry referenced
+non-existent `EXIT_OK` and `EXIT_VALIDATION_WARNING` symbols) before
+merge. Bundle F's post-merge review caught M3 (the security-flavoured
+rationale-string concern); the M3 chain then downgraded it from
+MEDIUM to LOW after empirical token-survival analysis but kept the
+cosmetic + defense-in-depth fix. Bundle G's post-merge review caught
+that the M2 doc fix had inherited and amplified a pre-existing
+schema-row inaccuracy. Each round was tighter scope; each round still
+found real gaps.
+
 ---
 
 ## End of plan
