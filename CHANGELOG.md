@@ -47,17 +47,19 @@ in inventory.
 - CLI subcommands `cmd_rewrite`, `cmd_run`, `cmd_run_batch`, and the
   `fetch` subcommand now parse `--intent` into `IntentSpec` at command
   entry via lazy imports.
-- **Exit-code shift (CI-visible).** When `--intent` is provided and the
-  parsed `resource_hints` match zero candidate ARNs in inventory, the
-  rewriter now emits an `ARN_INTENT_FILTER_NO_MATCH` change record at
-  `confidence=0.4`. `_check_low_confidence` (strict `< 0.5` gate) raises
-  this to a `LOW_CONFIDENCE` WARNING finding in self-check, which
-  propagates to `EXIT_ISSUES_FOUND` (was `EXIT_SUCCESS` pre-bundle).
-  With `--strict`, the WARNING escalates to FAIL → `EXIT_CRITICAL_FINDING`.
+- **Exit-code shift (CI-visible).** When `--intent` is provided AND
+  inventory is populated AND `resource_hints` filter the non-empty
+  candidate ARN set down to zero, the rewriter now emits an
+  `ARN_INTENT_FILTER_NO_MATCH` change record at `confidence=0.4`.
+  `_check_low_confidence` (strict `< 0.5` gate) raises this to a
+  `LOW_CONFIDENCE` WARNING finding in self-check, which propagates to
+  `EXIT_ISSUES_FOUND` (was `EXIT_SUCCESS` pre-bundle). With `--strict`,
+  the WARNING escalates to FAIL → `EXIT_CRITICAL_FINDING`. The
+  no-inventory path is unaffected and continues to exit `EXIT_SUCCESS`.
   CI pipelines parsing exit codes after `sentinel rewrite --intent ...`
-  should audit their gating logic; the new behavior is intentional and
-  surfaces silently-degraded runs that previously passed. (Bundle B
-  Issue 1.)
+  against a populated inventory should audit their gating logic; the
+  new behavior is intentional and surfaces silently-degraded runs that
+  previously passed. (Bundle B Issue 1; wording corrected by Bundle F M1.)
 
 ### Deprecated
 
