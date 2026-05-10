@@ -23,6 +23,7 @@ repos:
           - pydantic>=2.7
           - pydantic-settings>=2.4
           - types-PyYAML
+          - structlog>=25.0
         args: ["--ignore-missing-imports"]
         files: ^src/
 
