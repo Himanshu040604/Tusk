@@ -98,12 +98,18 @@ in inventory.
 
 ### Notes
 
-- Test baseline: 856 (v0.8.2) → 879 (+23 net new tests covering
-  IntentSpec construction, `from_string()` parsing, IntentMapping
-  integration, RewriteConfig field acceptance + lazy resolution,
-  `_filter_arns_by_intent_hints` semantics including the empty-filter
-  safeguard, and end-to-end `_scope_resources` behavior with and
-  without intent).
+- Test baseline: 856 (v0.8.2) → **902** (+46 net new tests across the
+  full Amendment 13 release):
+  - Phase A (Bundles A-D, +23): IntentSpec construction, `from_string()`
+    parsing, IntentMapping integration, RewriteConfig field acceptance +
+    lazy resolution, `_filter_arns_by_intent_hints` semantics including
+    the empty-filter safeguard, and end-to-end `_scope_resources`
+    behavior with and without intent.
+  - Bundle E follow-ups (+1): N1 string-input regression
+    (`test_string_input_rejected`).
+  - Bundle F follow-ups (+5): M3a `TestFormatHintsSafely` covering AKIA
+    redaction, GitHub PAT redaction, repr quoting (no tuple parens),
+    empty-hints, and end-to-end change-record bracket assertion.
 - No schema migrations. Pure additive dataclass changes.
 - See `prod_imp.md` § 17 Amendment 13 for the full design rationale.
 
