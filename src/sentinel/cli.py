@@ -1426,7 +1426,17 @@ def _cmd_refresh_new_source(
 # implicitly allowed via the policy-sentry --live URL at line 1442.
 # NOTE: ManagedPoliciesLiveScraper.scrape_one MUST unwrap .PolicyVersion.Document
 # before storing — see refresh/aws_managed_policies.py.
-_MANAGED_POLICY_SEEDS_BASE = "https://raw.githubusercontent.com/zoph-io/IAMTrail/master/policies"
+#
+# Bundle B.7: pinned to a specific commit SHA rather than ``master`` so an
+# upstream rewrite or schema drift cannot silently change the IAM policy
+# bytes we ingest. Refresh this SHA periodically (e.g., quarterly) — see
+# scripts/refresh_iamtrail_pin.sh (Bundle B.7) and the live-test in
+# tests/test_managed_policies_live.py which catches schema drift on the
+# nightly cron whether the pin is current or not.
+_IAMTRAIL_PIN = "bea8208d127feb3eda2333881d86342bb5b22085"  # 2026-05-09 master HEAD
+_MANAGED_POLICY_SEEDS_BASE = (
+    f"https://raw.githubusercontent.com/zoph-io/IAMTrail/{_IAMTRAIL_PIN}/policies"
+)
 _MANAGED_POLICY_SEEDS: tuple[tuple[str, str, str], ...] = (
     # (policy_name, arn, url) — minimal curated seed so --live has something
     # to enumerate before a full index scraper lands.
