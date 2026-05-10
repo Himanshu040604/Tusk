@@ -1197,6 +1197,9 @@ def _cmd_run_batch(args: argparse.Namespace) -> int:
 
 _LEGACY_SOURCES = frozenset({"policy-sentry", "aws-docs"})
 _NEW_SOURCES = frozenset({"managed-policies", "cloudsplaining"})
+# Per-source live capability — keeps "unsupported in this mode" distinct
+# from "real failure" so worst-exit-code aggregation stays meaningful.
+_LIVE_CAPABLE = frozenset({"policy-sentry", "managed-policies"})
 
 
 def cmd_refresh(args: argparse.Namespace) -> int:
@@ -1568,29 +1571,37 @@ def _refresh_live(db: "Database", source: str) -> int:
 
 
 def _cmd_refresh_all(args: argparse.Namespace) -> int:
-    """Run every known refresh source in sequence (Task 10).
+    """Run every known refresh source in sequence.
 
-    Each source is invoked via a synthetic ``argparse.Namespace`` so the
-    single-source dispatcher does the heavy lifting.  When ``--live`` is
-    set on the parent call, it's propagated to every child; the per-source
-    exit codes are aggregated and the worst is returned.
+    When ``--live`` is set, sources that do not support ``--live`` are
+    skipped with a WARN (not failed). When ``--live`` is unset, legacy
+    sources still require ``--data-path``. Aggregated exit code reflects
+    only real failures of sources that *should* have run.
     """
     all_sources = ("policy-sentry", "aws-docs", "managed-policies", "cloudsplaining")
+    live = bool(getattr(args, "live", False))
     worst = EXIT_SUCCESS
     for src in all_sources:
         print(f"\n=== refresh: {src} ===", file=sys.stderr)
-        sub = argparse.Namespace(**vars(args))
-        sub.source = src
-        sub.all = False
-        # Legacy sources NEED --data-path; skip them when --live is on
-        # without a fallback — operators should run them explicitly.
-        if src in _LEGACY_SOURCES and not args.data_path:
+
+        if live and src not in _LIVE_CAPABLE:
+            print(
+                f"[WARN] skipping {src}: --live not supported for this source "
+                "(run explicitly with --data-path for offline ingestion)",
+                file=sys.stderr,
+            )
+            continue
+        if not live and src in _LEGACY_SOURCES and not args.data_path:
             print(
                 f"[WARN] skipping {src}: --data-path required "
                 "(legacy source has no live CLI wiring)",
                 file=sys.stderr,
             )
             continue
+
+        sub = argparse.Namespace(**vars(args))
+        sub.source = src
+        sub.all = False
         try:
             rc = cmd_refresh(sub)
         except Exception as exc:  # noqa: BLE001

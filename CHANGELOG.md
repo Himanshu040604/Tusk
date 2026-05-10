@@ -96,6 +96,21 @@ in inventory.
   `Intent hints ('deploy',)`. JSON consumers parsing the literal
   tuple-repr form will need to update.
 
+### Fixed
+
+- **Bundle I — `sentinel refresh --all --live` exit-code aggregation
+  (cluster A).** `_cmd_refresh_all` previously dispatched every source
+  unconditionally when `--live` was set, causing `aws-docs` to skip with
+  WARN (no live wiring) and `cloudsplaining --live` to hard-error with
+  `EXIT_INVALID_ARGS=2` — both then aggregated into `worst`, so the
+  daily nightly cron exited non-zero even when the live-capable sources
+  succeeded. New `_LIVE_CAPABLE = frozenset({"policy-sentry",
+  "managed-policies"})` set + per-source pre-filter skip-with-WARN any
+  source not in the matrix when `--live` is on. PE9 single-source path
+  (`sentinel refresh --source policy-sentry --live`) is unchanged.
+  Worst-exit-code aggregation now reflects only sources that *should*
+  have run.
+
 ### Notes
 
 - Test baseline: 856 (v0.8.2) → **902** (+46 net new tests across the
