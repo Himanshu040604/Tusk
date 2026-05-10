@@ -172,3 +172,10 @@ class TestIntentSpecImmutability:
             IntentSpec(raw_intent="x", resource_hints="deploy")  # type: ignore[arg-type]
         with pytest.raises(TypeError, match="must be an iterable"):
             IntentSpec(raw_intent="x", services=b"s3")  # type: ignore[arg-type]
+        # Section A.2: complete the loop coverage. The __post_init__ guard
+        # iterates ("services", "access_levels", "resource_hints") so all
+        # three field paths must be exercised. Without this case, a future
+        # regression that special-cases services/resource_hints but skips
+        # access_levels would slip through.
+        with pytest.raises(TypeError, match="must be an iterable"):
+            IntentSpec(raw_intent="x", access_levels="READ")  # type: ignore[arg-type]
