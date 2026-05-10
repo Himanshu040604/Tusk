@@ -1240,8 +1240,14 @@ class TestFormatHintsSafely:
     """
 
     def test_redacts_aws_access_key_id(self) -> None:
-        rendered = PolicyRewriter._format_hints_safely(("AKIAIOSFODNN7EXAMPLE",))
-        assert "AKIAIOSFODNN7EXAMPLE" not in rendered
+        # Canonical AWS docs example access key — pragma keeps detect-secrets'
+        # baseline lighter (the file-wide exclude in .pre-commit-config.yaml
+        # already covers test_rewriter.py, this just makes the intent
+        # discoverable when reading the test in isolation).
+        rendered = PolicyRewriter._format_hints_safely(
+            ("AKIAIOSFODNN7EXAMPLE",)  # pragma: allowlist secret
+        )
+        assert "AKIAIOSFODNN7EXAMPLE" not in rendered  # pragma: allowlist secret
         assert "**********" in rendered
 
     def test_redacts_github_pat(self) -> None:
