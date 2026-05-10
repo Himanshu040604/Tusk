@@ -61,6 +61,28 @@ in inventory.
   new behavior is intentional and surfaces silently-degraded runs that
   previously passed. (Bundle B Issue 1; wording corrected by Bundle F M1.)
 
+### Security
+
+- **Bundle F M3a — rewriter rationale strings now scrubbed.** Three
+  `RewriteChange` producer sites in `_scope_resources`
+  (`ARN_FILTERED_BY_INTENT` description / rationale,
+  `ARN_INTENT_FILTER_NO_MATCH` description) used raw f-string
+  interpolation of the `hints` tuple, which (a) emitted Python
+  tuple-repr `('foo',)` into operator-facing JSON / text output and
+  (b) bypassed the structlog-redaction pipeline. New
+  `PolicyRewriter._format_hints_safely` staticmethod renders hints
+  via `repr()` joined with commas (no tuple parens) and applies
+  `secrets_patterns.SECRET_PATTERNS` so any AKIA / `ghp_…` /
+  Bearer / JWT / `aws_secret_access_key=` shape is replaced with
+  `REDACT_PLACEHOLDER`. CLI exposure was empirically refuted by
+  the Bundle F M3 chain — the existing `intent.lower()` + tokenizer
+  regex destroys every cataloged shape — but the change closes the
+  defense-in-depth gap for any future caller that bypasses the
+  tokenizer. Operator-visible side effect: rationale / description
+  text now reads `Intent hints ['deploy']` instead of
+  `Intent hints ('deploy',)`. JSON consumers parsing the literal
+  tuple-repr form will need to update.
+
 ### Deprecated
 
 - `RewriteConfig.intent: str` and `PipelineConfig.intent: str` remain
