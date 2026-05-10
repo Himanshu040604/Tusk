@@ -44,4 +44,20 @@ repos:
         language: system
         pass_filenames: true
         types: [text]
-        exclude: ^tests/cassettes/|\.secrets\.baseline$
+        # Exclude (a) recorded HTTP cassettes (raw response bodies),
+        # (b) the detect-secrets baseline, and (c) files that intentionally
+        # contain canonical AWS / GitHub example tokens that the in-house
+        # grep would otherwise dogfood-collide on:
+        #   - tests/test_secrets_patterns.py — the hook's own regression fixtures
+        #   - tests/test_rewriter.py        — Bundle F M3a redaction tests
+        #   - README.md / CHANGELOG.md      — documented fake-token examples
+        #   - prod_imp.md                   — design-record contains ghp_fake_...
+        exclude: |
+          (?x)
+          ^tests/cassettes/|
+          \.secrets\.baseline$|
+          ^tests/test_secrets_patterns\.py$|
+          ^tests/test_rewriter\.py$|
+          ^README\.md$|
+          ^CHANGELOG\.md$|
+          ^prod_imp\.md$
