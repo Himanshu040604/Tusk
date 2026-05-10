@@ -91,9 +91,13 @@ def test_cmd_wizard_refuses_unknown_intent() -> None:
     and print the Recognized-intents list — never silently fall back to
     `service:*` (would violate the least-privilege core guarantee).
     """
-    sentinel = Path(__file__).resolve().parent.parent / ".venv" / "bin" / "sentinel"
+    # Use ``sys.executable -m sentinel`` for cross-platform venv portability:
+    # the prior ``.venv/bin/sentinel`` form failed on Windows runners with
+    # WinError 2 (Windows venvs lay out scripts under ``.venv/Scripts/``
+    # with a ``.exe`` suffix). The module-invocation form picks up the
+    # same interpreter pytest is running under.
     result = subprocess.run(
-        [str(sentinel), "wizard"],
+        [sys.executable, "-m", "sentinel", "wizard"],
         input="badservice\nbadintent\n\n",  # service, intent, empty-resource.
         capture_output=True,
         text=True,
@@ -246,10 +250,11 @@ def test_p0_3_cold_start_no_pydantic_settings_in_self_check() -> None:
     """
     import subprocess
 
-    sentinel = Path(__file__).resolve().parent.parent / ".venv" / "bin" / "python"
-    # -X importtime prints every import; grep in-process afterwards.
+    # ``sys.executable`` is the cross-platform way to find the interpreter
+    # currently running pytest — works on Linux/macOS/Windows venvs alike.
+    # The prior ``.venv/bin/python`` form failed on Windows with WinError 2.
     result = subprocess.run(
-        [str(sentinel), "-c", "import sentinel.self_check"],
+        [sys.executable, "-c", "import sentinel.self_check"],
         capture_output=True,
         text=True,
         timeout=15,
