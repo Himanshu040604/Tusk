@@ -1426,9 +1426,7 @@ def _cmd_refresh_new_source(
 # implicitly allowed via the policy-sentry --live URL at line 1442.
 # NOTE: ManagedPoliciesLiveScraper.scrape_one MUST unwrap .PolicyVersion.Document
 # before storing — see refresh/aws_managed_policies.py.
-_MANAGED_POLICY_SEEDS_BASE = (
-    "https://raw.githubusercontent.com/zoph-io/IAMTrail/master/policies"
-)
+_MANAGED_POLICY_SEEDS_BASE = "https://raw.githubusercontent.com/zoph-io/IAMTrail/master/policies"
 _MANAGED_POLICY_SEEDS: tuple[tuple[str, str, str], ...] = (
     # (policy_name, arn, url) — minimal curated seed so --live has something
     # to enumerate before a full index scraper lands.
