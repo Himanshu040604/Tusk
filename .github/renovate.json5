@@ -1,8 +1,10 @@
 {
-  // Renovate configuration (M19).
+  // Renovate configuration (M19 + Bundle C.11).
   //
-  // The uv lock-file is maintained weekly and vulnerability alerts are
-  // always created (per L4 coordination with the live-tests workflow).
+  // The uv lock-file is maintained weekly, vulnerability alerts are
+  // always created (per L4 coordination with the live-tests workflow),
+  // and pre-commit hook revs are watched for drift (Bundle C.11 — closes
+  // the K-style "10 minor versions stale" recurrence pattern).
   extends: ["config:recommended"],
   lockFileMaintenance: {
     enabled: true,
@@ -15,4 +17,21 @@
   // L4 coordination: uv-native lock-file regeneration.  Renovate calls
   // ``uv lock`` under the hood when this option is active.
   postUpdateOptions: ["uvLockFileMaintenance"],
+  // Bundle C.11: enable the pre-commit manager so Renovate watches
+  // .pre-commit-config.yaml and opens PRs when hook revs go stale.
+  // Grouped + scheduled so we get one PR per week instead of one per
+  // hook update.  CI's pre-commit step + Bundle B.10's drift check
+  // (scripts/check_precommit_uv_drift.py) gate every PR before merge.
+  "pre-commit": {
+    enabled: true,
+  },
+  packageRules: [
+    {
+      matchManagers: ["pre-commit"],
+      groupName: "pre-commit hooks",
+      schedule: ["before 6am on monday"],
+      labels: ["pre-commit", "dependencies"],
+      commitMessagePrefix: "build(pre-commit):",
+    },
+  ],
 }
