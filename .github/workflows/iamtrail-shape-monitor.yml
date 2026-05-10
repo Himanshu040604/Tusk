@@ -1,0 +1,97 @@
+# IAMTrail mirror shape monitor (Bundle C.13).
+#
+# Bundle M repointed managed-policies refresh from the (404'd) AWS
+# docs URL to the zoph-io/IAMTrail community mirror, with strict
+# envelope-shape validation in scrape_one. If IAMTrail ever changes
+# its envelope shape (renames PolicyVersion.Document, restructures
+# the wrapper, etc.) the daily refresh starts raising on every run.
+#
+# This workflow gives the shape signal its own dedicated cron with
+# a bespoke issue title and 6-hourly cadence, so a mid-day upstream
+# change surfaces within hours instead of overnight (or buried
+# behind another live-test failure in live-tests.yml).
+#
+# Bundle B.7 + B.8 protect us from silent drift via SHA pinning +
+# fallback to iann0036/iam-dataset, but a simultaneous-shape-drift
+# at BOTH mirrors (extremely unlikely but possible) would only
+# surface here.
+#
+# Security note: the only workflow-context inputs used are github.run_id
+# (numeric, non-user-controllable). All run: commands receive context
+# via env: vars per https://github.blog/security/vulnerability-research/
+# how-to-catch-github-actions-workflow-injections-before-attackers-do/
+
+name: iamtrail-shape-monitor
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"  # every 6 hours
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  shape-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install dependencies (L4 — frozen lock)
+        run: uv sync --frozen
+
+      - name: Run IAMTrail shape regression
+        id: tests
+        run: |
+          set -o pipefail
+          uv run pytest \
+            tests/test_managed_policies_live.py::TestLiveIamtrailMirror \
+            -m live --tb=short 2>&1 | tee iamtrail-shape-output.txt
+
+      - name: Prepare failure report
+        if: failure() && steps.tests.outcome == 'failure'
+        env:
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          {
+            echo "## IAMTrail mirror schema drift detected"
+            echo ""
+            echo "Run ID: $RUN_ID"
+            echo "Triggered: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo ""
+            echo "The TestLiveIamtrailMirror shape regression test failed."
+            echo "Likely upstream IAMTrail (zoph-io/IAMTrail) changed the"
+            echo "GetPolicyVersion envelope shape. The daily managed-policies"
+            echo "refresh will start raising ValueErrors on every run until"
+            echo "either:"
+            echo "  - upstream restores the prior envelope shape, OR"
+            echo "  - we update src/sentinel/refresh/aws_managed_policies.py::"
+            echo "    _unwrap_envelope to handle the new shape."
+            echo ""
+            echo "Bundle B.8's fallback to iann0036/iam-dataset still works"
+            echo "(different envelope shape), so refresh degrades gracefully"
+            echo "but logs used_fallback=true on every entry."
+            echo ""
+            echo '```'
+            tail -n 100 iamtrail-shape-output.txt || true
+            echo '```'
+          } > issue-body.md
+
+      - name: File issue on failure
+        if: failure() && steps.tests.outcome == 'failure'
+        uses: peter-evans/create-issue-from-file@v5
+        with:
+          title: "IAMTrail mirror schema drift detected"
+          content-filepath: issue-body.md
+          labels: |
+            bug
+            upstream-drift
+            managed-policies
