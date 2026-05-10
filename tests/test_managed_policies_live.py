@@ -95,7 +95,13 @@ class TestScrapeOneUnwrapsEnvelope:
             )
 
     def test_rejects_envelope_missing_document_statement(self, tmp_path):
-        """Envelope present but Document.Statement missing -> ValueError."""
+        """Envelope present but Document.Statement missing -> ValueError.
+
+        Bundle B.8 introduced the fallback chain, so a bad-shape primary
+        AND a bad-shape fallback (this mock returns the same body for
+        both URLs) raise the combined "both managed-policy mirrors
+        failed" wrapper rather than the underlying single-shape error.
+        """
         db = _migrated_db(tmp_path)
         envelope_no_statement = {
             "PolicyVersion": {
@@ -104,7 +110,7 @@ class TestScrapeOneUnwrapsEnvelope:
             }
         }
         scraper = ManagedPoliciesLiveScraper(db, _mock_client(envelope_no_statement))
-        with pytest.raises(ValueError, match="Statement"):
+        with pytest.raises(ValueError, match="both managed-policy mirrors failed"):
             scraper.scrape_one(
                 name="X",
                 arn="arn:aws:iam::aws:policy/X",
@@ -126,6 +132,65 @@ class TestScrapeOneUnwrapsEnvelope:
         html_body = "<!DOCTYPE html>\n<html><body>404 Not Found</body></html>"
         scraper = ManagedPoliciesLiveScraper(db, _mock_client(html_body))
         with pytest.raises(ValueError):
+            scraper.scrape_one(
+                name="X",
+                arn="arn:aws:iam::aws:policy/X",
+                url="https://example.com/X",
+            )
+
+    def test_falls_back_to_iann0036_envelope_on_primary_failure(self, tmp_path):
+        """Bundle B.8: primary URL fails → iann0036 fallback succeeds.
+
+        Mock-routing client that returns a bad shape for the primary
+        URL and a valid iann0036-shaped envelope (``.document`` lowercase)
+        for the fallback URL. Asserts:
+        - Storage succeeds (so the fallback chain produces a usable doc)
+        - Stored ``policy_document`` is the unwrapped iann0036 Document
+        - ``version`` column is None (iann0036 envelope has no VersionId)
+        """
+        db = _migrated_db(tmp_path)
+        primary_bad = {"unknown_shape": True}
+        iann0036_good = {
+            "arn": "arn:aws:iam::aws:policy/AdministratorAccess",
+            "createdate": "2015-02-06T18:39:46+00:00",
+            "deprecated": False,
+            "document": {
+                "Version": "2012-10-17",
+                "Statement": [{"Effect": "Allow", "Action": "*", "Resource": "*"}],
+            },
+        }
+
+        def _routed_get(url, source):  # noqa: ARG001
+            resp = MagicMock()
+            resp.text = json.dumps(iann0036_good) if "iann0036" in url else json.dumps(primary_bad)
+            return resp
+
+        client = MagicMock()
+        client.get.side_effect = _routed_get
+
+        scraper = ManagedPoliciesLiveScraper(db, client)
+        scraper.scrape_one(
+            name="AdministratorAccess",
+            arn="arn:aws:iam::aws:policy/AdministratorAccess",
+            url="https://primary.example.com/AdministratorAccess",
+        )
+        with db.get_connection() as conn:
+            row = conn.execute(
+                "SELECT policy_document, version FROM managed_policies WHERE policy_name = ?",
+                ("AdministratorAccess",),
+            ).fetchone()
+        stored = json.loads(row["policy_document"])
+        assert stored["Version"] == "2012-10-17"
+        assert stored["Statement"][0]["Effect"] == "Allow"
+        # iann0036 envelope has no VersionId; version column stays None.
+        assert row["version"] is None
+
+    def test_both_mirrors_failing_raises_combined_value_error(self, tmp_path):
+        """Bundle B.8: both mirrors fail → combined ValueError mentioning both."""
+        db = _migrated_db(tmp_path)
+        garbage = {"definitely_not": "an envelope"}
+        scraper = ManagedPoliciesLiveScraper(db, _mock_client(garbage))
+        with pytest.raises(ValueError, match="both managed-policy mirrors failed"):
             scraper.scrape_one(
                 name="X",
                 arn="arn:aws:iam::aws:policy/X",

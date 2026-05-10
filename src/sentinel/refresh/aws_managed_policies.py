@@ -50,6 +50,53 @@ class ManagedPoliciesStats:
     errors: list[str] = field(default_factory=list)
 
 
+# Bundle B.8: fallback mirror chain. If the primary IAMTrail URL fails
+# (HTTP error or shape drift), derive an iann0036/iam-dataset URL from
+# the policy name and try that instead. iann0036 uses a different
+# envelope shape — `.document` instead of `.PolicyVersion.Document` —
+# so _unwrap_envelope handles both forms.
+#
+# Pinned to a specific iann0036 commit (Bundle B.7 pattern) for the same
+# silent-drift protection.
+_IANN0036_PIN = "bca9a21efb90cd8b7ef4a94247c968c30e8d467e"
+_IANN0036_FALLBACK_BASE = (
+    f"https://raw.githubusercontent.com/iann0036/iam-dataset/{_IANN0036_PIN}/aws/managedpolicies"
+)
+
+
+def _unwrap_envelope(parsed: object, url: str) -> tuple[str, str | None]:
+    """Extract canonical IAM doc + optional version from a mirror response.
+
+    Tries IAMTrail shape first (``.PolicyVersion.Document``), then
+    iann0036 shape (``.document``). Returns ``(canonical_doc_json,
+    version_or_none)``. Raises ``ValueError`` if neither shape matches.
+
+    Why two shapes: IAMTrail mirrors AWS's ``GetPolicyVersion`` API
+    response verbatim (so the wrapper carries ``VersionId`` + metadata).
+    iann0036/iam-dataset publishes a custom envelope with the inner
+    ``Document`` at ``.document`` (lowercase) plus its own metadata
+    fields (``access_levels``, ``credentials_exposure``, etc.).
+    """
+    if not isinstance(parsed, dict):
+        raise ValueError(f"managed-policy mirror {url!r} returned non-dict body")
+    # IAMTrail shape (preferred — GetPolicyVersion envelope).
+    if "PolicyVersion" in parsed:
+        pv = parsed["PolicyVersion"]
+        if isinstance(pv, dict):
+            inner = pv.get("Document")
+            if isinstance(inner, dict) and "Statement" in inner:
+                return json.dumps(inner, sort_keys=True), pv.get("VersionId")
+    # iann0036 shape (fallback — `document` lowercase, no version field).
+    if "document" in parsed:
+        inner = parsed["document"]
+        if isinstance(inner, dict) and "Statement" in inner:
+            return json.dumps(inner, sort_keys=True), None
+    raise ValueError(
+        f"managed-policy mirror {url!r} matches neither IAMTrail "
+        f"(.PolicyVersion.Document) nor iann0036 (.document) envelope"
+    )
+
+
 def _sign_document(policy_document: str) -> str:
     """HMAC-SHA256 the policy_document bytes with the DB row key (M12)."""
     key = derive_db_row_key()
@@ -180,26 +227,35 @@ class ManagedPoliciesLiveScraper:
         """
         # Bundle B.9: source tag is "github" because the upstream is now
         # raw.githubusercontent.com/zoph-io/IAMTrail (Bundle M). Aligns
-        # the cache TTL (24h github vs 168h aws_docs) with reality —
-        # IAMTrail commits daily, so a 7-day cache would mask 6 days
-        # of policy updates. The historical "aws_docs" tag was a
-        # vestige from when the seeds (incorrectly) pointed at
-        # docs.aws.amazon.com.
-        resp = self._client.get(url, source="github")
-        parsed = json.loads(resp.text)  # raises ValueError on non-JSON
-        if not isinstance(parsed, dict) or "PolicyVersion" not in parsed:
-            raise ValueError(
-                f"managed-policy mirror {url!r} returned unexpected shape; "
-                f"expected GetPolicyVersion wrapper with .PolicyVersion.Document"
+        # the cache TTL (24h github vs 168h aws_docs) with reality.
+        #
+        # Bundle B.8: try the primary URL; on any failure (HTTP, JSON,
+        # or shape drift) fall back to iann0036/iam-dataset with the
+        # appropriate envelope adapter via _unwrap_envelope.
+        actual_url = url
+        try:
+            resp = self._client.get(url, source="github")
+            parsed = json.loads(resp.text)
+            document, mirror_version = _unwrap_envelope(parsed, url)
+        except Exception as primary_exc:  # noqa: BLE001
+            fallback_url = f"{_IANN0036_FALLBACK_BASE}/{name}.json"
+            self._log.warning(
+                "managed_policy_primary_mirror_failed_falling_back",
+                primary_url=url,
+                fallback_url=fallback_url,
+                primary_error=repr(primary_exc),
             )
-        pv = parsed["PolicyVersion"]
-        inner = pv.get("Document")
-        if not isinstance(inner, dict) or "Statement" not in inner:
-            raise ValueError(
-                f"managed-policy mirror {url!r} missing PolicyVersion.Document.Statement"
-            )
-        document = json.dumps(inner, sort_keys=True)
-        effective_version = version or pv.get("VersionId")
+            try:
+                resp = self._client.get(fallback_url, source="github")
+                parsed = json.loads(resp.text)
+                document, mirror_version = _unwrap_envelope(parsed, fallback_url)
+                actual_url = fallback_url
+            except Exception as fallback_exc:  # noqa: BLE001
+                raise ValueError(
+                    f"both managed-policy mirrors failed for {name!r}: "
+                    f"primary={primary_exc!r}; fallback={fallback_exc!r}"
+                ) from fallback_exc
+        effective_version = version or mirror_version
         change = _insert_row(
             self._db,
             name=name,
@@ -213,7 +269,8 @@ class ManagedPoliciesLiveScraper:
             name=name,
             change=change,
             version=effective_version,
-            source_url=url,
+            source_url=actual_url,
+            used_fallback=actual_url != url,
         )
         return change
 
