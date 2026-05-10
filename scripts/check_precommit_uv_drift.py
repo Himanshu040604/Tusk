@@ -72,11 +72,7 @@ def _read_uv_lock_versions() -> dict[str, str]:
     # Skip the project package itself (no version key in uv.lock for editable
     # local sources like sentinel). Only registry-resolved packages carry a
     # version field.
-    return {
-        pkg["name"]: pkg["version"]
-        for pkg in lock.get("package", [])
-        if "version" in pkg
-    }
+    return {pkg["name"]: pkg["version"] for pkg in lock.get("package", []) if "version" in pkg}
 
 
 def main() -> int:
