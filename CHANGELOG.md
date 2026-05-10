@@ -96,8 +96,35 @@ in inventory.
   `Intent hints ('deploy',)`. JSON consumers parsing the literal
   tuple-repr form will need to update.
 
+### Changed
+
+- **Bundle M — managed-policies upstream mirror.** `_MANAGED_POLICY_SEEDS`
+  in `cli.py` repointed from `docs.aws.amazon.com/IAM/.../*.json`
+  (returned 404 — endpoint never existed; AWS publishes only HTML at
+  `aws-managed-policy/latest/...`) to the `zoph-io/IAMTrail` community
+  mirror at `https://raw.githubusercontent.com/zoph-io/IAMTrail/master/policies/`.
+  IAMTrail is actively maintained (daily commits, 509 stars), exposes
+  the AWS-canonical `GetPolicyVersion` envelope, and is reachable via
+  `raw.githubusercontent.com` which is already implicitly allowed via
+  PE9's policy-sentry live URL. **Supply-chain note:** managed-policy
+  data now comes from a third-party mirror rather than directly from
+  AWS docs. Operators auditing data provenance should be aware. The
+  scraper validates envelope shape on every fetch and fails closed on
+  drift (`ValueError`).
+
 ### Fixed
 
+- **Bundle M — managed-policies refresh `--live` now actually works.**
+  Pairs with the URL repoint above. `ManagedPoliciesLiveScraper.scrape_one`
+  now strictly validates the GetPolicyVersion envelope and unwraps to
+  the inner `Document` before HMAC-signing and storing — so the
+  `policy_document` column holds the raw IAM doc (top-level
+  `Version`/`Statement`), convergent with the offline `_load_entries`
+  path which already extracts `entry["policy_document"]` from a
+  wrapper-shaped dict. The `version` column auto-populates from
+  envelope's `VersionId`. Five regression tests added (4 unit + 1
+  `@pytest.mark.live`) so a future schema drift surfaces as a focused
+  failure.
 - **Bundle I — `sentinel refresh --all --live` exit-code aggregation
   (cluster A).** `_cmd_refresh_all` previously dispatched every source
   unconditionally when `--live` was set, causing `aws-docs` to skip with
