@@ -585,6 +585,18 @@ class TestLargeDatabase:
         )
         assert len(services) == 500
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason=(
+            "Bundle L.3 predicted this sister perf test would eventually "
+            "flake on Windows runners (the 500-services test was skipped "
+            "in L.2 for the same root cause: Windows is 4-8x slower than "
+            "Linux for SQLite WAL ops). It started flaking on py3.11 with "
+            "21.11s vs 20s budget. Same rationale: algorithmic-regression "
+            "purpose is covered by Linux + macOS + WSL2; Windows shared "
+            "runners are inherently noisy for perf tests."
+        ),
+    )
     def test_db_with_5000_actions(self, tmp_path):
         """Database with 5000 actions across 50 services handles lookups."""
         start = time.time()
