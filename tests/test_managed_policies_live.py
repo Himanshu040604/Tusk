@@ -111,6 +111,27 @@ class TestScrapeOneUnwrapsEnvelope:
                 url="https://example.com/X",
             )
 
+    def test_html_response_raises_value_error(self, tmp_path):
+        """Section A.6: a CDN cache miss returning HTML must fail closed.
+
+        Bundle M Agent 3 D3 flagged the HTML-response scenario: during a
+        GitHub outage or Pages rebuild, raw.githubusercontent.com may
+        briefly serve an HTML error page instead of the JSON envelope.
+        ``json.loads(html_body)`` raises ``json.JSONDecodeError`` which
+        is a subclass of ``ValueError`` — same family as the strict
+        envelope-shape rejections, so the scraper fails closed and the
+        per-source error is logged + aggregated into ``EXIT_IO_ERROR``.
+        """
+        db = _migrated_db(tmp_path)
+        html_body = "<!DOCTYPE html>\n<html><body>404 Not Found</body></html>"
+        scraper = ManagedPoliciesLiveScraper(db, _mock_client(html_body))
+        with pytest.raises(ValueError):
+            scraper.scrape_one(
+                name="X",
+                arn="arn:aws:iam::aws:policy/X",
+                url="https://example.com/X",
+            )
+
     def test_explicit_version_kwarg_overrides_envelope_version_id(self, tmp_path):
         """Caller-supplied version kwarg wins over envelope's VersionId."""
         db = _migrated_db(tmp_path)
