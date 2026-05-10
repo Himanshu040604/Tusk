@@ -34,7 +34,20 @@ repos:
         args:
           - --baseline
           - .secrets.baseline
-        exclude: ^tests/cassettes/
+        # Same exclude shape as sentinel-secret-grep (Bundle K.4): docs
+        # and test fixtures intentionally cite canonical AWS / GitHub
+        # example tokens (AKIAIOSFODNN7EXAMPLE, ghp_fake_...) and
+        # detect-secrets' AWS / GitHub plugins shouldn't dogfood-collide
+        # on them. The baseline still suppresses the entries that do
+        # need to live in the codebase (test_cli_config_redaction.py etc.).
+        exclude: |
+          (?x)
+          ^tests/cassettes/|
+          ^tests/test_secrets_patterns\.py$|
+          ^tests/test_rewriter\.py$|
+          ^README\.md$|
+          ^CHANGELOG\.md$|
+          ^prod_imp\.md$
 
   - repo: local
     hooks:
