@@ -2135,8 +2135,43 @@ integration-side-effects) before merge.
   emitter. L12: `### Security` section moved to the canonical
   Keep-a-Changelog 1.1.0 position (after `### Deprecated`).
 
-**Test baseline (cumulative):** 856 (v0.8.2) → 902 (Phase A + Bundles
-E-G), +46 net. mypy + ruff + ruff-format remain clean across all
+- *Bundles I + J (2 commits, daily-cron failures cleared).* I:
+  `_cmd_refresh_all` per-source `--live` capability matrix
+  (`_LIVE_CAPABLE = frozenset({"policy-sentry", "managed-policies"})`)
+  — pre-fix, the batch path dispatched `cloudsplaining --live` into a
+  known-failing branch whose `EXIT_INVALID_ARGS=2` poisoned worst-exit
+  aggregation, so the daily nightly cron exited non-zero on every run
+  even when live-capable sources succeeded. J:
+  `tests/test_cli_live.py` argparse mismatch — the live-tests cron's
+  `test_fetch_aws_sample_readonly` had been wrong since inception
+  (positional `aws-sample` + nonexistent `--json` flag), masked by the
+  cron's `pytest.skip` on subprocess failure.
+
+- *Bundles K + L + M (12 commits, push-event CI cleared).* K (5
+  commits): pre-commit hook drift cleared — ruff `v0.5.5 -> v0.15.11`
+  (10 minor versions; old hook didn't recognize `UP045` selected in
+  pyproject.toml so it died before linting), mypy `v1.10.0 -> v1.20.2`
+  with `types-PyYAML` + `structlog` added to `additional_dependencies`,
+  `.secrets.baseline` regenerated against current detect-secrets
+  v23→v27 plugin schema, and `sentinel-secret-grep` exclude extended
+  to skip its own test fixtures + doc examples (dogfood collision).
+  L (3 commits): Windows pytest fixes — replace hard-coded
+  `.venv/bin/sentinel` paths with `sys.executable -m sentinel`
+  (cross-platform), and skip `test_db_with_500_services` on
+  `sys.platform == "win32"` (Windows runners 4-8x slower than Linux
+  for SQLite WAL ops). M (7 commits): managed-policies live-fetch
+  finally works — `_MANAGED_POLICY_SEEDS` repointed from
+  `docs.aws.amazon.com/IAM/.../*.json` (404; URL never existed) to
+  `zoph-io/IAMTrail` community mirror, scraper unwraps the AWS
+  `GetPolicyVersion` envelope before HMAC-signing + storing (so
+  `policy_document` holds raw IAM doc, convergent with offline
+  `_load_entries`), `version` column auto-populates from envelope's
+  `VersionId`. Strict envelope validation fails closed on schema
+  drift; 5 regression tests (4 unit + 1 `@pytest.mark.live`) lock in
+  the contract.
+
+**Test baseline (cumulative):** 856 (v0.8.2) → 906 (Phase A + Bundles
+E through M), +50 net. mypy + ruff + ruff-format remain clean across all
 bundles. CHANGELOG `[Unreleased]` and the four doc surfaces
 (`README.md`, `docs/FEATURES.md`, `docs/USAGE.md`,
 `src/sentinel/exit_codes.py`) are coherent on the exit-code shift.
