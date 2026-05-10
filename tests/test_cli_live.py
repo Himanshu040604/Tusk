@@ -43,19 +43,33 @@ def _run(
 
 class TestLiveAwsSample:
     def test_fetch_aws_sample_readonly(self) -> None:
-        """Fetch a well-known sample policy via aws-sample fetcher."""
+        """Fetch a well-known sample policy via aws-sample fetcher.
+
+        Uses the mutex flag form (``--aws-sample <name>``); the prior
+        positional form (``aws-sample <name>``) was never valid argparse
+        and made this test a no-op live run.  Output is JSON via
+        ``--output-format json`` so the assertion can verify pipeline
+        completion rather than raw policy bytes (``fetch`` runs the
+        full validate/analyze/rewrite pipeline, not a dump-and-exit).
+        """
         result = _run(
             SENTINEL_CLI
             + [
                 "fetch",
-                "aws-sample",
+                "--aws-sample",
                 "admin-access-required",
-                "--json",
+                "--output-format",
+                "json",
             ],
         )
-        assert result.returncode == 0, result.stderr
-        # Output should be JSON-shaped policy.
-        assert '"Statement"' in result.stdout
+        # Verdict-mapped exit codes (0=PASS, 1=WARN, 2=FAIL) are all
+        # acceptable here — the live test verifies the fetch + pipeline
+        # ran end-to-end, not the policy's verdict.
+        assert result.returncode in (0, 1, 2), result.stderr
+        # JSON pipeline output always carries a top-level "final_verdict"
+        # field (per docs/FEATURES.md JSON schema). Use that — substring
+        # match for "verdict" alone could spuriously match stray error text.
+        assert '"final_verdict"' in result.stdout, result.stdout
 
 
 class TestLiveGitHubFetch:
@@ -75,27 +89,34 @@ class TestLiveGitHubFetch:
 
 class TestLiveCacheHitCycle:
     def test_second_fetch_hits_cache(self, tmp_path) -> None:
-        """Same URL fetched twice — second must show X-Sentinel-Cache: HIT."""
+        """Same URL fetched twice — second must show cache HIT.
+
+        The prior form used ``aws-sample <name> --verbose`` (positional +
+        non-existent flag).  Replaced with the mutex ``--aws-sample`` flag
+        and the global ``--log-level DEBUG`` for cache-event visibility.
+        """
         env = {"SENTINEL_CACHE_DIR": str(tmp_path / "cache")}
         first = _run(
             SENTINEL_CLI
             + [
+                "--log-level",
+                "DEBUG",
                 "fetch",
-                "aws-sample",
+                "--aws-sample",
                 "admin-access-required",
-                "--verbose",
             ],
             env=env,
         )
-        if first.returncode != 0:
-            pytest.skip("live AWS docs fetch unavailable")
+        if first.returncode not in (0, 1, 2):
+            pytest.skip(f"live AWS docs fetch unavailable: {first.stderr}")
         second = _run(
             SENTINEL_CLI
             + [
+                "--log-level",
+                "DEBUG",
                 "fetch",
-                "aws-sample",
+                "--aws-sample",
                 "admin-access-required",
-                "--verbose",
             ],
             env=env,
         )

@@ -110,6 +110,18 @@ in inventory.
   (`sentinel refresh --source policy-sentry --live`) is unchanged.
   Worst-exit-code aggregation now reflects only sources that *should*
   have run.
+- **Bundle J — `tests/test_cli_live.py` argparse mismatch (cluster B).**
+  The two `TestLiveAwsSample` / `TestLiveCacheHitCycle` tests sent
+  `fetch aws-sample admin-access-required --json` (positional + nonexistent
+  `--json` flag), but the `fetch` subcommand has always required
+  `--aws-sample` (mutex flag) with no `--json` option (the global
+  `--output-format json` is the canonical way). The test was wrong from
+  inception (commit `7d3ab08`); it never matched the CLI but was masked
+  because nightly cron fired `pytest.skip` on the resulting argparse
+  error. Tests rewritten to the correct mutex form + `--output-format json`,
+  with a stronger `'"final_verdict"'` substring assertion (top-level field
+  per `docs/FEATURES.md` JSON schema; the prior `'"verdict"'` could match
+  inside `"self_check.verdict"` or stray error text).
 
 ### Notes
 
