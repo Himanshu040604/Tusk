@@ -777,11 +777,15 @@ class PolicyRewriter:
         produced — output now reads as ``'foo', 'bar'`` (paired with
         bracket framing at the call site).
 
-        Lazy import of ``secrets_patterns`` keeps it out of the
-        rewriter's import chain (cold-start budget per P0-3 α). The module
-        is cached in ``sys.modules`` after the first call, so the import
-        itself amortizes; per-call cost is dominated by the regex
-        ``.sub`` pass over ``SECRET_PATTERNS`` (~6 patterns, tens of
+        Lazy import of ``secrets_patterns`` keeps that module out of
+        ``rewriter``'s static import graph. The motivation is
+        import-graph isolation rather than cold-start budget per se —
+        ``secrets_patterns`` itself only compiles ~6 static regexes at
+        module load and has no settings-chain to defer (so it's not a
+        P0-3 α-style cold-start hot spot). The module is cached in
+        ``sys.modules`` after the first call, so the import itself
+        amortizes; per-call cost is dominated by the regex ``.sub``
+        pass over ``SECRET_PATTERNS`` (~6 patterns, tens of
         microseconds for typical hint strings).
 
         Args:
