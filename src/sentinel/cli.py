@@ -1433,7 +1433,7 @@ def _cmd_refresh_new_source(
 # scripts/refresh_iamtrail_pin.sh (Bundle B.7) and the live-test in
 # tests/test_managed_policies_live.py which catches schema drift on the
 # nightly cron whether the pin is current or not.
-_IAMTRAIL_PIN = "bea8208d127feb3eda2333881d86342bb5b22085"  # 2026-05-09 master HEAD
+_IAMTRAIL_PIN = "bea8208d127feb3eda2333881d86342bb5b22085"  # pragma: allowlist secret  # 2026-05-09 master HEAD — public git SHA, not a credential
 _MANAGED_POLICY_SEEDS_BASE = (
     f"https://raw.githubusercontent.com/zoph-io/IAMTrail/{_IAMTRAIL_PIN}/policies"
 )

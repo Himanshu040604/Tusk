@@ -58,7 +58,7 @@ class ManagedPoliciesStats:
 #
 # Pinned to a specific iann0036 commit (Bundle B.7 pattern) for the same
 # silent-drift protection.
-_IANN0036_PIN = "bca9a21efb90cd8b7ef4a94247c968c30e8d467e"
+_IANN0036_PIN = "bca9a21efb90cd8b7ef4a94247c968c30e8d467e"  # pragma: allowlist secret  # public git SHA, not a credential
 _IANN0036_FALLBACK_BASE = (
     f"https://raw.githubusercontent.com/iann0036/iam-dataset/{_IANN0036_PIN}/aws/managedpolicies"
 )
