@@ -1417,20 +1417,30 @@ def _cmd_refresh_new_source(
     return EXIT_SUCCESS
 
 
+# AWS publishes managed policies as HTML at docs.aws.amazon.com/aws-managed-policy/...
+# but does NOT host them as standalone JSON. The historical seed URLs at
+# docs.aws.amazon.com/IAM/.../aws-managed/*.json have always returned 404.
+# Bundle M repoints to zoph-io/IAMTrail (renamed from z0ph/aws_managed_policies),
+# an actively-maintained community mirror with daily commits and the canonical
+# AWS GetPolicyVersion envelope shape. raw.githubusercontent.com is already
+# implicitly allowed via the policy-sentry --live URL at line 1442.
+# NOTE: ManagedPoliciesLiveScraper.scrape_one MUST unwrap .PolicyVersion.Document
+# before storing — see refresh/aws_managed_policies.py.
+_MANAGED_POLICY_SEEDS_BASE = (
+    "https://raw.githubusercontent.com/zoph-io/IAMTrail/master/policies"
+)
 _MANAGED_POLICY_SEEDS: tuple[tuple[str, str, str], ...] = (
     # (policy_name, arn, url) — minimal curated seed so --live has something
     # to enumerate before a full index scraper lands.
     (
         "AdministratorAccess",
         "arn:aws:iam::aws:policy/AdministratorAccess",
-        "https://docs.aws.amazon.com/IAM/latest/UserGuide/"
-        "policy-reference/aws-managed/AdministratorAccess.json",
+        f"{_MANAGED_POLICY_SEEDS_BASE}/AdministratorAccess",
     ),
     (
         "ReadOnlyAccess",
         "arn:aws:iam::aws:policy/ReadOnlyAccess",
-        "https://docs.aws.amazon.com/IAM/latest/UserGuide/"
-        "policy-reference/aws-managed/ReadOnlyAccess.json",
+        f"{_MANAGED_POLICY_SEEDS_BASE}/ReadOnlyAccess",
     ),
 )
 
