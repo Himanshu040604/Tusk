@@ -1,12 +1,13 @@
 """Shared secret-pattern redaction module.
 
-Single source of truth for THREE consumers that must not drift:
+Single source of truth for FOUR consumers that must not drift:
 
 1. M10 structlog ``redact_sensitive`` processor  — :func:`redact_event_dict`
 2. M22 pre-commit grep hook                      — :func:`grep_sources`
 3. H11 VCR.py cassette response-body scrubber    — :func:`scrub_bytes`
+4. Bundle F M3a rewriter rationale-string scrub  — ``rewriter.PolicyRewriter._format_hints_safely``
 
-All three call sites import :data:`REDACT_KEYS`, :data:`SECRET_PATTERNS`,
+All four call sites import :data:`REDACT_KEYS`, :data:`SECRET_PATTERNS`,
 and :data:`REDACT_PLACEHOLDER` from this module.  A Phase 6 contract test
 (``tests/test_secrets_patterns.py::test_single_source_of_truth``) asserts
 no consumer reimplements scrubbing logic.
