@@ -1229,3 +1229,66 @@ class TestIntentDrivenScoping:
         assert len(no_match) == 1, "expected ARN_INTENT_FILTER_NO_MATCH change record"
         assert no_match[0].confidence == 0.4
         assert no_match[0].confidence < 0.5  # trips _check_low_confidence gate
+
+
+class TestFormatHintsSafely:
+    """Bundle F M3a: producer-side scrub of hint text in change records.
+
+    Closes the cosmetic Python tuple-repr leak (``f"...{hints}"`` emitted
+    ``('foo',)`` into operator-facing JSON / text output) and adds
+    defense-in-depth scrubbing via ``secrets_patterns.SECRET_PATTERNS``.
+    """
+
+    def test_redacts_aws_access_key_id(self) -> None:
+        rendered = PolicyRewriter._format_hints_safely(("AKIAIOSFODNN7EXAMPLE",))
+        assert "AKIAIOSFODNN7EXAMPLE" not in rendered
+        assert "**********" in rendered
+
+    def test_redacts_github_pat(self) -> None:
+        # Classic gh PAT: "ghp_" + 36 alphanumerics.
+        rendered = PolicyRewriter._format_hints_safely(
+            ("ghp_" + "a" * 36,),
+        )
+        assert "ghp_" + "a" * 36 not in rendered
+        assert "**********" in rendered
+
+    def test_uses_repr_quoting_not_tuple_repr(self) -> None:
+        rendered = PolicyRewriter._format_hints_safely(("deploy", "artifacts"))
+        # Quoted with repr (single quotes), comma-separated, NO tuple parens.
+        assert rendered == "'deploy', 'artifacts'"
+        assert not rendered.startswith("(")
+        assert not rendered.endswith(",)")
+
+    def test_empty_hints_returns_empty_string(self) -> None:
+        assert PolicyRewriter._format_hints_safely(()) == ""
+
+    def test_change_record_uses_bracket_notation_not_tuple_repr(self, tmp_db, tmp_path) -> None:
+        """End-to-end: ARN_FILTERED_BY_INTENT description / rationale use brackets."""
+        from sentinel.intent_spec import IntentSpec
+
+        inv = ResourceInventory(tmp_path / "scrub_inv.db")
+        inv.create_schema()
+        for name in ("staging-deploy-builds", "prod-customer-data"):
+            inv.insert_resource(
+                Resource(
+                    resource_id=None,
+                    service_prefix="s3",
+                    resource_type="bucket",
+                    resource_arn=f"arn:aws:s3:::{name}",
+                    resource_name=name,
+                    region=None,
+                    account_id="123456789012",
+                )
+            )
+        rewriter = PolicyRewriter(database=tmp_db, inventory=inv)
+        stmt = Statement(effect="Allow", actions=["s3:GetObject"], resources=["*"])
+        spec = IntentSpec.from_string("read s3 deploy")
+        config = RewriteConfig(intent_spec=spec)
+
+        _, changes = rewriter._scope_resources(stmt, config, stmt_index=0)
+        filt = [c for c in changes if c.change_type == "ARN_FILTERED_BY_INTENT"]
+        assert filt, "expected ARN_FILTERED_BY_INTENT change record"
+        assert "[" in filt[0].description and "]" in filt[0].description
+        assert "('deploy'" not in filt[0].description  # no tuple repr
+        assert filt[0].rationale is not None
+        assert "[" in filt[0].rationale and "]" in filt[0].rationale

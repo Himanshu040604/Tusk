@@ -649,13 +649,15 @@ class PolicyRewriter:
                                 change_type="ARN_FILTERED_BY_INTENT",
                                 description=(
                                     f"Narrowed {service} ARNs from {pre_filter} to "
-                                    f"{len(arns)} using intent hints {hints}"
+                                    f"{len(arns)} using intent hints "
+                                    f"[{self._format_hints_safely(hints)}]"
                                 ),
                                 original_value=f"{pre_filter} ARNs",
                                 new_value=f"{len(arns)} ARNs",
                                 statement_index=stmt_index,
                                 rationale=(
-                                    f"Intent hints {hints} matched a subset of inventory ARNs."
+                                    f"Intent hints [{self._format_hints_safely(hints)}] "
+                                    f"matched a subset of inventory ARNs."
                                 ),
                             )
                         )
@@ -670,8 +672,9 @@ class PolicyRewriter:
                             RewriteChange(
                                 change_type="ARN_INTENT_FILTER_NO_MATCH",
                                 description=(
-                                    f"Intent hints {hints} matched 0 of {pre_filter} "
-                                    f"{service} ARNs; preserved full candidate set"
+                                    f"Intent hints [{self._format_hints_safely(hints)}] "
+                                    f"matched 0 of {pre_filter} {service} ARNs; "
+                                    f"preserved full candidate set"
                                 ),
                                 original_value=f"{pre_filter} ARNs",
                                 new_value=f"{pre_filter} ARNs (unchanged)",
@@ -762,6 +765,35 @@ class PolicyRewriter:
             arns.update(all_arns)
 
         return sorted(arns)
+
+    @staticmethod
+    def _format_hints_safely(hints: "Sequence[str]") -> str:
+        """Render ``hints`` for human-readable change-record text with secret scrubbing.
+
+        Reuses ``sentinel.secrets_patterns.SECRET_PATTERNS`` so the
+        redaction catalogue stays single-source-of-truth (Amendment 6
+        Theme A contract test). Also fixes the cosmetic Python tuple
+        repr (``('foo',)``) that direct ``f"...{hints}"`` interpolation
+        produced — output now reads as ``'foo', 'bar'`` (paired with
+        bracket framing at the call site).
+
+        Lazy import of ``secrets_patterns`` keeps it out of the
+        rewriter's import chain (cold-start budget per P0-3 α). Module
+        is cached after the first call so per-call cost is sub-microsecond.
+
+        Args:
+            hints: Resource hints from ``IntentSpec.resource_hints``.
+
+        Returns:
+            Comma-joined ``repr()``-quoted hint string with secret
+            patterns redacted to ``REDACT_PLACEHOLDER``.
+        """
+        from .secrets_patterns import REDACT_PLACEHOLDER, SECRET_PATTERNS
+
+        rendered = ", ".join(repr(h) for h in hints)
+        for pattern in SECRET_PATTERNS:
+            rendered = pattern.sub(REDACT_PLACEHOLDER, rendered)
+        return rendered
 
     @staticmethod
     def _filter_arns_by_intent_hints(arns: list[str], hints: "Sequence[str]") -> list[str]:
