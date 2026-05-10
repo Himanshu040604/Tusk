@@ -70,6 +70,10 @@ jobs:
         if: runner.os == 'Linux'
         run: python scripts/check_dev_deps_match.py
 
+      - name: Pre-commit hook vs uv.lock drift (Bundle B.10)
+        if: runner.os == 'Linux'
+        run: python scripts/check_precommit_uv_drift.py
+
       - name: Regex pre-compile cap (Theme G3)
         if: runner.os == 'Linux'
         shell: bash
