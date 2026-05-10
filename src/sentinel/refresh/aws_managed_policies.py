@@ -157,22 +157,56 @@ class ManagedPoliciesLiveScraper:
         description: str | None = None,
         version: str | None = None,
     ) -> str:
-        """Fetch one policy doc from ``url`` and upsert into the DB."""
+        """Fetch one policy doc from ``url`` and upsert into the DB.
+
+        Bundle M.2: the IAMTrail mirror returns the AWS GetPolicyVersion
+        envelope::
+
+            {"PolicyVersion": {"Document": {"Version": ..., "Statement": [...]},
+                                "VersionId": "v3", "IsDefaultVersion": true,
+                                "CreateDate": "..."}}
+
+        We unwrap to the inner ``Document`` (raw IAM policy with top-level
+        Version/Statement) before HMAC-signing + storing, so downstream
+        readers see a real policy document. The strict shape validation
+        fails closed (raises ``ValueError``) on schema drift — aligned
+        with § 2 Principle 4 — rather than silently storing the wrapper
+        as-policy.
+
+        ``effective_version`` falls back to ``pv["VersionId"]`` from the
+        envelope when the caller doesn't pin one explicitly, so the
+        ``version`` column auto-populates from the mirror.
+        """
         resp = self._client.get(url, source="aws_docs")
-        # Expect the URL to return JSON (not HTML) — the managed-policy
-        # documents endpoint is direct JSON, not the HTML docs page.
-        document = resp.text
-        # Verify it parses as JSON so we never store HTML-as-policy.
-        json.loads(document)
+        parsed = json.loads(resp.text)  # raises ValueError on non-JSON
+        if not isinstance(parsed, dict) or "PolicyVersion" not in parsed:
+            raise ValueError(
+                f"managed-policy mirror {url!r} returned unexpected shape; "
+                f"expected GetPolicyVersion wrapper with .PolicyVersion.Document"
+            )
+        pv = parsed["PolicyVersion"]
+        inner = pv.get("Document")
+        if not isinstance(inner, dict) or "Statement" not in inner:
+            raise ValueError(
+                f"managed-policy mirror {url!r} missing PolicyVersion.Document.Statement"
+            )
+        document = json.dumps(inner, sort_keys=True)
+        effective_version = version or pv.get("VersionId")
         change = _insert_row(
             self._db,
             name=name,
             arn=arn,
             document=document,
             description=description,
-            version=version,
+            version=effective_version,
         )
-        self._log.info("managed_policy_upserted", name=name, change=change)
+        self._log.info(
+            "managed_policy_upserted",
+            name=name,
+            change=change,
+            version=effective_version,
+            source_url=url,
+        )
         return change
 
 
