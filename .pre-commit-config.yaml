@@ -35,8 +35,9 @@ repos:
           - --baseline
           - .secrets.baseline
         # Same exclude shape as sentinel-secret-grep (Bundle K.4): docs
-        # and test fixtures intentionally cite canonical AWS / GitHub
-        # example tokens (AKIAIOSFODNN7EXAMPLE, ghp_fake_...) and
+        # and test fixtures intentionally cite canonical AWS-prefixed and
+        # GitHub-prefixed example tokens (the AWS-docs canonical example
+        # access key and the literal placeholder gh_fake), and
         # detect-secrets' AWS / GitHub plugins shouldn't dogfood-collide
         # on them. The baseline still suppresses the entries that do
         # need to live in the codebase (test_cli_config_redaction.py etc.).
