@@ -64,7 +64,7 @@ Every fetched policy carries a SHA-256 receipt in `PolicyOrigin` (`src/sentinel/
 | `origin` | object | always | `PolicyOrigin` record: `source`, `source_spec`, `sha256`, `fetched_at`, `http_etag` (when applicable). |
 | `final_verdict` | string | always | `PASS` / `WARNING` / `FAIL`. |
 | `findings` | list[object] | always | RiskFinding records: `category`, `severity`, `statement_index`, `action`, `resource`, `message`. |
-| `rewrite_result` | object | when emitted | Rewriter audit trail: `changes`, `assumptions`, `rewritten_statement_count`. |
+| `rewrite_result` | object | when emitted | Rewriter audit trail: `changes`, `assumptions`, `rewritten_statement_count`. Each `changes[]` entry carries `change_type`, `description`, `original_value`, `new_value`, `statement_index`, `confidence` (float, default `1.0`; `< 0.5` triggers `LOW_CONFIDENCE` self-check finding), and `rationale` (string or null) — Bundle E N2 / Bundle F M2. |
 | `self_check_result` | object | when emitted | `verdict`, `iterations`, `checks`, `suppressed`. |
 | `tier2_preserved_actions` | list[string] | always | Unions `TIER2_IN_POLICY` + `TIER2_ACTION_KEPT` (M1 v0.8.1 fix). |
 | `rewritten_policy` | object | when not suppressed | The least-privilege policy. Suppressed on FAIL unless `--force-emit-rewrite`. |
