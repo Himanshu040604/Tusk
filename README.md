@@ -209,7 +209,7 @@ Sentinel uses a 5-level scheme for CI gating:
 | Code | Name | Meaning |
 |------|------|---------|
 | 0 | `EXIT_SUCCESS` | Clean run; verdict PASS; no warnings |
-| 1 | `EXIT_ISSUES_FOUND` | Verdict WARNING (non-fatal risks) |
+| 1 | `EXIT_ISSUES_FOUND` | Verdict WARNING (non-fatal risks); also fires when `--intent` hints match zero candidate ARNs in a populated inventory (`LOW_CONFIDENCE` finding from `ARN_INTENT_FILTER_NO_MATCH`, Amendment 13) |
 | 2 | `EXIT_INVALID_ARGS` | Bad CLI arguments or unparseable input |
 | 3 | `EXIT_IO_ERROR` | DB / HMAC / filesystem / migration failure |
 | 4 | `EXIT_CRITICAL_FINDING` | Verdict FAIL (CRITICAL or HIGH severity finding) |
